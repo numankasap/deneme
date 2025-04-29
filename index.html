@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Okul Asistanı</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        /* === Genel Stiller === */
+        :root {
+            --primary-color: #0a0a2a; --secondary-color: #6a6aff; --accent-color: #00ffdd;
+            --text-color: #f0f0f0; --background-color: #1a1a3a; --input-bg: #2a2a4a;
+            --border-color: var(--secondary-color); --button-hover-bg: var(--accent-color);
+            --button-hover-text: var(--primary-color); --danger-color: #ff6b6b;
+            --schedule-header-bg: var(--secondary-color); --schedule-header-text: var(--primary-color);
+            --schedule-school-bg: rgba(106, 106, 255, 0.3);
+            --schedule-activity-bg: rgba(255, 107, 107, 0.3);
+            --schedule-study-bg: rgba(0, 255, 221, 0.2);
+            --schedule-break-bg: rgba(240, 240, 240, 0.2);
+            --schedule-border: rgba(106, 106, 255, 0.5);
+            --success-color: #2ecc71;
+        }
+        body { margin: 0; font-family: 'Poppins', sans-serif; background-color: var(--background-color); color: var(--text-color); display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; padding: 20px; box-sizing: border-box; }
+        .container { background-color: var(--primary-color); padding: 30px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4); max-width: 1000px; width: 100%; text-align: center; border: 1px solid var(--border-color); }
+        header { margin-bottom: 30px; display: flex; align-items: center; justify-content: center; gap: 15px; }
+        .ai-icon { font-size: 2.5em; color: var(--accent-color); animation: float 3s ease-in-out infinite; }
+        @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+        h1 { font-size: 2em; color: var(--text-color); margin: 0; }
+        h2 { color: var(--accent-color); margin-top: 20px; margin-bottom: 10px; overflow: hidden; white-space: nowrap; }
+        h3 { color: var(--secondary-color); margin-top: 15px; margin-bottom: 10px; text-align: left;}
+        h4 { color: var(--accent-color); opacity: 0.9; margin-top: 15px; margin-bottom: 5px; text-align: left; border-bottom: 1px dashed rgba(0, 255, 221, 0.4); padding-bottom: 3px; }
+        h5 { color: var(--secondary-color); opacity: 0.8; margin-top: 10px; margin-bottom: 5px; text-align: left; font-size: 0.95em; }
+        #welcome-area { min-height: 50px; margin-bottom: 25px; }
+        #typewriter { font-family: 'Roboto Mono', monospace; font-size: 1.2em; color: var(--text-color); display: inline; white-space: pre-wrap; overflow: hidden; }
+
+        /* === Daktilo Efekti === */
+        #greeting, #menu-info { opacity: 0; transition: opacity 0.5s ease-in-out; min-height: 1.5em; display: block; white-space: pre-wrap; font-family: 'Roboto Mono', monospace; text-align: center; }
+        #greeting { font-size: 1.25em; font-family: 'Poppins', sans-serif; margin-bottom: 10px; font-weight: bold; color: var(--text-color); }
+        #menu-info { font-size: 1.15em; font-family: 'Poppins', sans-serif; color: var(--accent-color); }
+        .cursor { display: inline-block; background-color: var(--accent-color); width: 10px; height: 1.2em; margin-left: 3px; animation: blink 0.7s infinite; vertical-align: text-bottom; opacity: 0; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+        /* === Puan Geri Bildirimi Yanıp Sönme === */
+        @keyframes pulse-success { 0% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(1.02); } 100% { opacity: 1; transform: scale(1); } }
+        .pulse-feedback { animation: pulse-success 1.8s infinite ease-in-out; display: inline-block; color: var(--success-color); font-weight: bold; }
+
+        /* === Alanlar ve Form Elemanları === */
+        .input-section, .output-section, .menu-section { margin-top: 25px; padding: 20px; background-color: rgba(0, 0, 0, 0.2); border-radius: 8px; border: 1px solid rgba(106, 106, 255, 0.3); text-align: left; }
+        label { display: block; margin-bottom: 8px; font-weight: 600; color: var(--secondary-color); }
+        input[type="text"], input[type="password"], input[type="time"], input[type="number"], select { width: calc(100% - 22px); padding: 10px; margin-bottom: 15px; border: 1px solid var(--border-color); border-radius: 5px; background-color: var(--input-bg); color: var(--text-color); font-size: 1em; font-family: 'Poppins', sans-serif; box-sizing: border-box; }
+        input[type="number"] { width: 80px; text-align: center;}
+        input[type="text"]:focus, input[type="password"]:focus, input[type="time"]:focus, input[type="number"]:focus, select:focus { outline: none; border-color: var(--accent-color); box-shadow: 0 0 5px var(--accent-color); }
+        select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%2300ffdd' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 30px; }
+        button, .button-link { background-color: var(--secondary-color); color: var(--primary-color); border: none; padding: 12px 25px; border-radius: 5px; font-size: 1em; font-weight: 600; cursor: pointer; transition: all 0.3s ease; text-align: center; text-decoration: none; display: inline-block; margin: 5px; }
+        button:hover, .button-link:hover { background-color: var(--button-hover-bg); color: var(--button-hover-text); transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0, 255, 221, 0.3); }
+        #style-test-link, #style-input-button, #settings-button, #generate-schedule-button { background-color: var(--accent-color); color: var(--primary-color); font-weight: bold; }
+        #style-test-link:hover, #style-input-button:hover, #settings-button:hover, #generate-schedule-button:hover { background-color: #00cca3; color: #fff; box-shadow: 0 4px 8px rgba(106, 106, 255, 0.4); }
+        #add-activity-button { background-color: #3498db; color: white; } #add-activity-button:hover { background-color: #2980b9; }
+        #save-style-button, #save-preferences-button { background-color: var(--success-color); color: white; }
+        #save-style-button:hover, #save-preferences-button:hover { background-color: #27ae60; }
+        .delete-activity-button { background-color: var(--danger-color); color: white; font-size: 0.8em; padding: 4px 8px; margin-left: 10px; border-radius: 3px; } .delete-activity-button:hover { background-color: #c0392b; }
+        .button-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 15px; }
+        .error-message { color: var(--danger-color); font-size: 0.9em; margin-top: 10px; text-align: center; }
+        .info-message { color: var(--accent-color); margin-top: 10px; }
+        .success-message { color: var(--success-color); font-weight: bold; }
+
+        /* === Ayarlar Alanı Stilleri === */
+        #settings-area h4 i { margin-right: 8px; }
+        #activity-section .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; align-items: end; margin-bottom: 20px; }
+        #activity-section label { margin-bottom: 5px; font-size: 0.9em; } #activity-section input, #activity-section select { margin-bottom: 0; }
+        #activity-section #add-activity-button { margin-top: 10px; width: 100%; grid-column: 1 / -1; }
+        #added-activities-list { list-style: none; padding: 0; margin-top: 15px; max-height: 150px; overflow-y: auto; border: 1px dashed var(--border-color); padding: 10px; border-radius: 5px; margin-bottom: 15px; }
+        #added-activities-list li { background-color: var(--input-bg); padding: 10px 15px; border-radius: 5px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid var(--accent-color); }
+        #added-activities-list span { font-size: 0.95em; }
+        #study-preference-section { margin-top: 25px; padding-top: 15px; border-top: 1px dashed rgba(106, 106, 255, 0.4); }
+        #subject-selection-list { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; max-height: 150px; overflow-y: auto; background-color: var(--input-bg); padding: 15px; border-radius: 5px; border: 1px solid rgba(106, 106, 255, 0.2); }
+        .subject-checkbox-label { display: flex; align-items: center; background-color: rgba(255, 255, 255, 0.05); padding: 8px 12px; border-radius: 4px; cursor: pointer; transition: background-color 0.2s; border: 1px solid transparent; }
+        .subject-checkbox-label:hover { background-color: rgba(255, 255, 255, 0.1); }
+        .subject-checkbox-label input[type="checkbox"] { margin-right: 8px; accent-color: var(--accent-color); cursor: pointer; transform: scale(1.1); }
+        .subject-checkbox-label input[type="checkbox"]:checked + span { color: var(--accent-color); font-weight: bold; }
+        .subject-checkbox-label span { font-size: 0.9em; }
+
+        /* === Öğrenme Stili Alanı === */
+        #learning-style-results-input-area .style-inputs { display: flex; justify-content: space-around; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 20px; }
+        #learning-style-results-input-area .style-inputs label { display: block; text-align: center; margin-bottom: 5px; }
+        #learning-style-analysis { margin-top: 20px; padding: 15px; background-color: rgba(0, 255, 221, 0.1); border-left: 4px solid var(--accent-color); border-radius: 5px; }
+        #learning-style-analysis p { margin: 5px 0; }
+
+        /* === Program Tablosu ve İpuçları === */
+        #schedule-display-area { margin-top: 30px; background-color: rgba(0, 0, 0, 0.3); padding: 25px; border-radius: 10px; border: 1px solid var(--border-color); overflow-x: auto; }
+        #schedule-display-area h3 { color: var(--accent-color); text-align: center; margin-bottom: 20px; }
+        .schedule-table { width: 100%; min-width: 850px; border-collapse: collapse; margin-top: 15px; table-layout: fixed; }
+        .schedule-table th, .schedule-table td { border: 1px solid var(--schedule-border); padding: 8px 5px; text-align: center; font-size: 0.8em; word-wrap: break-word; position: relative; }
+        .schedule-table th { background-color: var(--schedule-header-bg); color: var(--schedule-header-text); font-weight: 600; height: 40px; }
+        .schedule-table td { background-color: var(--input-bg); height: 45px; vertical-align: middle; transition: background-color 0.2s ease; }
+        .schedule-table td:hover { background-color: rgba(255, 255, 255, 0.1); }
+        .schedule-table .time-header { background-color: var(--schedule-header-bg); color: var(--schedule-header-text); font-weight: bold; text-align: right; padding-right: 10px; }
+        .schedule-table .slot-school { background-color: var(--schedule-school-bg); font-weight: bold; }
+        .schedule-table .slot-activity { background-color: var(--schedule-activity-bg); font-style: italic; }
+        .schedule-table .slot-study { background-color: var(--schedule-study-bg); }
+        .schedule-table .slot-break { background-color: var(--schedule-break-bg); color: #aaa; }
+        .schedule-table .slot-empty { background-color: transparent; }
+        .schedule-table .study-hint-icon { font-family: "Font Awesome 6 Free"; font-weight: 900; font-size: 0.8em; position: absolute; bottom: 2px; right: 3px; opacity: 0.7; }
+        .schedule-table .study-visual .study-hint-icon::before { content: "\f06e"; color: #e67e22; }
+        .schedule-table .study-auditory .study-hint-icon::before { content: "\f025"; color: #3498db; }
+        .schedule-table .study-kinesthetic .study-hint-icon::before { content: "\f70c"; color: #9b59b6; }
+        #study-tips-area { margin-top: 30px; padding: 20px; background-color: rgba(0, 0, 0, 0.15); border-radius: 8px; border: 1px solid rgba(106, 106, 255, 0.2); text-align: left; }
+        #study-tips-area h3 { color: var(--accent-color); text-align: left; margin-bottom: 15px; border-bottom: none; }
+        #study-tips-area h4 i { margin-right: 8px; }
+        #study-tips-area ul { list-style: none; padding-left: 10px; margin-top: 5px; }
+        #study-tips-area li { margin-bottom: 8px; line-height: 1.5; padding-left: 15px; position: relative; }
+        #study-tips-area li::before { content: "\f105"; font-family: "Font Awesome 6 Free"; font-weight: 900; color: var(--accent-color); position: absolute; left: 0; top: 1px; }
+        #study-tips-area li strong { color: var(--secondary-color); }
+
+        /* === Diğer === */
+        .hidden { display: none; }
+        hr { border: none; height: 1px; background-color: rgba(106, 106, 255, 0.3); margin: 25px 0; }
+        footer { margin-top: 30px; font-size: 0.8em; color: var(--secondary-color); opacity: 0.7; text-align: center; }
+
+        /* === Medya Sorguları === */
+        @media (max-width: 900px) { .container { max-width: 95%; } }
+        @media (max-width: 768px) { h1 { font-size: 1.6em; } h2 { font-size: 1.4em;} h3 {font-size: 1.1em;} h4 { font-size: 1em; } .button-container { flex-direction: column; align-items: center;} button, .button-link { width: 80%; padding: 15px; font-size: 0.9em;} #activity-section .form-grid { grid-template-columns: 1fr; } .schedule-table th, .schedule-table td { font-size: 0.75em; } #menu-info { font-size: 1.1em; } #subject-selection-list{ max-height: 200px; } }
+        @media (max-width: 480px) { body { padding: 10px; } .container { padding: 15px; } h1 { font-size: 1.3em; } h4 { font-size: 0.95em; } button, .button-link { width: 90%; padding: 12px; font-size: 0.85em;} .schedule-table th, .schedule-table td { font-size: 0.65em;} #study-tips-area li { font-size: 0.9em; } #menu-info { font-size: 1.0em; } .subject-checkbox-label span { font-size: 0.85em; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <i class="fas fa-robot ai-icon"></i>
+            <h1>FETHİYE-GÖNÜL GÜZELCAN ANADOLU LİSESİ Okul Asistanı</h1>
+        </header>
+        <main>
+             <div id="welcome-area"><p id="typewriter"></p><span class="cursor">|</span></div>
+
+             <div id="login-area" class="input-section hidden">
+                <label for="student-number">Okul Numaranız:</label>
+                <input type="text" id="student-number" placeholder="Numaranızı girin...">
+                <label for="student-password">Şifreniz:</label>
+                <input type="password" id="student-password" placeholder="Şifrenizi girin...">
+                <button id="login-button">Giriş Yap</button>
+                <p id="login-error" class="error-message"></p>
+            </div>
+
+            <div id="info-area" class="output-section hidden">
+                 <h2 id="greeting"></h2><span id="cursor-greeting" class="cursor">|</span>
+                 <p id="class-info"></p>
+                 <p id="rank-info"></p>
+                 <p id="score-feedback"></p>
+                 <p id="current-style-info" class="info-message" style="font-size: 0.9em;"></p>
+            </div>
+
+             <div id="main-menu-area" class="menu-section hidden">
+                  <h2>Ana Menü</h2>
+                  <p id="menu-info"></p><span id="cursor-menu" class="cursor">|</span>
+                  <div id="subject-buttons-container" class="button-container"></div>
+                   <hr>
+                   <div class="button-container">
+                        <a href="öğrenme stilleri testi.html" id="style-test-link" class="button-link" target="_blank"><i class="fas fa-vial"></i> Öğrenme Stilini Test Et</a>
+                       <button id="style-input-button" class="button-link"><i class="fas fa-edit"></i> Stil Sonuçlarımı Gir</button>
+                       <button id="settings-button" class="button-link"><i class="fas fa-calendar-alt"></i> Planlama Ayarları</button>
+                       <button id="generate-schedule-button" class="button-link"><i class="fas fa-tasks"></i> Ders Programımı Oluştur</button>
+                   </div>
+              </div>
+
+              <div id="learning-style-results-input-area" class="input-section hidden">
+                 <h3>Öğrenme Stili Test Sonuçları</h3>
+                 <p>Ayrı sayfada yaptığın test sonucunda aldığın puanları buraya gir ve kaydet.</p>
+                 <div class="style-inputs">
+                     <div><label for="manual-visual-score"><i class="fas fa-eye"></i> Görsel Puanı</label><input type="number" id="manual-visual-score" min="0" value="0"></div>
+                     <div><label for="manual-auditory-score"><i class="fas fa-headphones-alt"></i> İşitsel Puanı</label><input type="number" id="manual-auditory-score" min="0" value="0"></div>
+                     <div><label for="manual-kinesthetic-score"><i class="fas fa-running"></i> Kinestetik Puanı</label><input type="number" id="manual-kinesthetic-score" min="0" value="0"></div>
+                 </div>
+                 <button id="save-style-button"><i class="fas fa-save"></i> Stil Puanlarımı Kaydet ve Analiz Et</button>
+                 <div id="learning-style-analysis" class="hidden"></div>
+                 <p id="style-save-message" class="info-message" style="font-size: 0.9em;"></p>
+             </div>
+
+             <div id="settings-area" class="input-section hidden">
+                  <h3>Planlama Ayarları</h3>
+                  <section id="activity-section">
+                      <h4><i class="fas fa-palette"></i> Okul Dışı Aktivitelerim</h4>
+                      <div class="form-grid">
+                          <div><label for="activity-name">Aktivite Adı:</label><input type="text" id="activity-name" placeholder="Örn: Gitar Kursu"></div>
+                          <div><label for="activity-day">Gün:</label><select id="activity-day"><option>Pazartesi</option><option>Salı</option><option>Çarşamba</option><option>Perşembe</option><option>Cuma</option><option>Cumartesi</option><option>Pazar</option></select></div>
+                          <div><label for="activity-start-time">Başlangıç:</label><input type="time" id="activity-start-time"></div>
+                          <div><label for="activity-end-time">Bitiş:</label><input type="time" id="activity-end-time"></div>
+                          <button id="add-activity-button"><i class="fas fa-plus-circle"></i> Aktivite Ekle</button>
+                      </div>
+                      <p id="activity-error" class="error-message"></p>
+                      <h5>Eklenen Aktiviteler</h5>
+                      <ul id="added-activities-list"><li id="no-activity-message" style="display: list-item;">Henüz aktivite eklenmedi.</li></ul>
+                      <div class="button-container" style="margin-top: 10px; justify-content: flex-end;">
+                          <button id="save-activities-button" class="button-link" style="background-color: var(--accent-color); color: var(--primary-color);"><i class="fas fa-save"></i> Aktiviteleri Kaydet</button>
+                      </div>
+                      <p id="save-message" class="info-message" style="font-size: 0.9em;"></p>
+                  </section>
+                  <hr style="margin: 30px 0;">
+                  <section id="study-preference-section">
+                        <h4><i class="fas fa-clipboard-list"></i> Çalışma Öncelikleri</h4>
+                        <p>Hangi derslere odaklanmak istersin? Seçtiğin dersler çalışma programında önceliklendirilecektir.</p>
+                        <div id="subject-selection-list"><p style="color: var(--secondary-color);">Dersler yükleniyor...</p></div>
+                        <div class="button-container" style="margin-top: 15px; justify-content: flex-end;">
+                            <button id="save-preferences-button"><i class="fas fa-save"></i> Öncelikleri Kaydet</button>
+                        </div>
+                        <p id="preference-save-message" class="info-message" style="font-size: 0.9em;"></p>
+                  </section>
+             </div>
+
+             <div id="content-area" class="output-section hidden" style="margin-top: 15px;"> <p id="content-message"></p> </div>
+
+             <div id="schedule-display-area" class="output-section hidden">
+                 <h3>Haftalık Ders Çalışma Programın</h3>
+                 <div id="schedule-container"> <p>Program oluşturuluyor...</p> </div>
+                 {/* Tüyolar Alanı Buraya Eklenecek */}
+             </div>
+
+        </main>
+        <footer>
+            <p>&copy; 2025 FETHİYE-GÖNÜL GÜZELCAN ANADOLU LİSESİ</p>
+         </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // ======================================================
+            // == SABİT VERİLER ==
+            // ======================================================
+                 const studentData = [ 
+         {"OgrenciNo":"694","AdSoyad":"ELA HAJI","Ad":"ELA","Puan":96.97,"Sinif":"AL - 12. Sınıf / D Şubesi (ALANI YOK)","Siralama":1},
+  {"OgrenciNo":"685","AdSoyad":"RÜMEYSA KIRDI","Ad":"RÜMEYSA","Puan":95.37,"Sinif":"AL - 12. Sınıf / A Şubesi (ALANI YOK)","Siralama":2},
+  {"OgrenciNo":"583","AdSoyad":"CEMİLE KALEM","Ad":"CEMİLE","Puan":95.28,"Sinif":"AL - 12. Sınıf / B Şubesi (ALANI YOK)","Siralama":3},
+  {"OgrenciNo":"674","AdSoyad":"SEÇİL BIYIKLI","Ad":"SEÇİL","Puan":95.26,"Sinif":"AL - 12. Sınıf / D Şubesi (ALANI YOK)","Siralama":4},
+  {"OgrenciNo":"927","AdSoyad":"ELİF EYLÜL OKUR","Ad":"ELİF","Puan":95.12,"Sinif":"AL - 12. Sınıf / D Şubesi (ALANI YOK)","Siralama":5},
+  {"OgrenciNo":"764","AdSoyad":"RABİYA BİRLİKER","Ad":"RABİYA","Puan":94.57,"Sinif":"AL - 10. Sınıf / B Şubesi (ALANI YOK)","Siralama":6},
+  {"OgrenciNo":"231","AdSoyad":"NİSANUR GÖSEN","Ad":"NİSANUR","Puan":94.01,"Sinif":"AL - 12. Sınıf / A Şubesi (ALANI YOK)","Siralama":7},
+  {"OgrenciNo":"122","AdSoyad":"SABİHA KATAR","Ad":"SABİHA","Puan":91.48,"Sinif":"AL - 9. Sınıf / A Şubesi (ALANI YOK)","Siralama":8},
+  {"OgrenciNo":"928","AdSoyad":"ŞEYMA ÇAKAR","Ad":"ŞEYMA","Puan":91.41,"Sinif":"AL - 12. Sınıf / D Şubesi (ALANI YOK)","Siralama":9},
+  {"OgrenciNo":"740","AdSoyad":"ELANUR KAYMAZ","Ad":"ELANUR","Puan":91.32,"Sinif":"AL - 11. Sınıf / A Şubesi (ALANI YOK)","Siralama":10},
+  {"OgrenciNo":"176","AdSoyad":"MERT SOLAK","Ad":"MERT","Puan":91.27,"Sinif":"AL - 9. Sınıf / B Şubesi (ALANI YOK)","Siralama":11},
+  {"OgrenciNo":"742","AdSoyad":"FİGEN AZRA ALKIŞ","Ad":"FİGEN","Puan":90.96,"Sinif":"AL - 11. Sınıf / B Şubesi (ALANI YOK)","Siralama":12},
+  {"OgrenciNo":"686","AdSoyad":"BAŞAK SUDENAZ DENİZ","Ad":"BAŞAK","Puan":90.94,"Sinif":"AL - 12. Sınıf / B Şubesi (ALANI YOK)","Siralama":13},
+  {"OgrenciNo":"242","AdSoyad":"BARIŞ VAYİS","Ad":"BARIŞ","Puan":90.78,"Sinif":"AL - 9. Sınıf / B Şubesi (ALANI YOK)","Siralama":14},
+  {"OgrenciNo":"569","AdSoyad":"ELİFNAZ ÜMİT","Ad":"ELİFNAZ","Puan":90.62,"Sinif":"AL - 12. Sınıf / B Şubesi (ALANI YOK)","Siralama":15},
+  {"OgrenciNo":"283","AdSoyad":"UMUT ÇINAR PİLİÇ","Ad":"UMUT","Puan":90.54,"Sinif":"AL - 12. Sınıf / D Şubesi (ALANI YOK)","Siralama":16},
+  {"OgrenciNo":"915","AdSoyad":"HAZAL ÖZKAN","Ad":"HAZAL","Puan":90.44,"Sinif":"AL - 12. Sınıf / A Şubesi (ALANI YOK)","Siralama":17},
+  {"OgrenciNo":"104","AdSoyad":"NEHİR AKTÜRK","Ad":"NEHİR","Puan":89.86,"Sinif":"AL - 9. Sınıf / A Şubesi (ALANI YOK)","Siralama":18},
+  {"OgrenciNo":"243","AdSoyad":"GÜLCE KORDON","Ad":"GÜLCE","Puan":89.43,"Sinif":"AL - 11. Sınıf / C Şubesi (ALANI YOK)","Siralama":19},
+  {"OgrenciNo":"169","AdSoyad":"EDA AKKUŞ","Ad":"EDA","Puan":88.65,"Sinif":"AL - 9. Sınıf / B Şubesi (ALANI YOK)","Siralama":20},
+  {"OgrenciNo":"289","AdSoyad":"KEVSER ÜNAL","Ad":"KEVSER","Puan":88.24,"Sinif":"AL - 9. Sınıf / A Şubesi (ALANI YOK)","Siralama":21},
+  {"OgrenciNo":"251","AdSoyad":"NESRİN ÖLÇER","Ad":"NESRİN","Puan":88.01,"Sinif":"AL - 9. Sınıf / C Şubesi (ALANI YOK)","Siralama":22},
+  {"OgrenciNo":"584","AdSoyad":"YAREN BARIŞAN","Ad":"YAREN","Puan":87.65,"Sinif":"AL - 12. Sınıf / A Şubesi (ALANI YOK)","Siralama":23},
+  {"OgrenciNo":"215","AdSoyad":"RÜMEYSA AZRA KOÇ","Ad":"RÜMEYSA","Puan":87.51,"Sinif":"AL - 9. Sınıf / A Şubesi (ALANI YOK)","Siralama":24},
+  {"OgrenciNo":"110","AdSoyad":"EKİN TAMTAŞ","Ad":"EKİN","Puan":87.44,"Sinif":"AL - 9. Sınıf / A Şubesi (ALANI YOK)","Siralama":25},
+  {"OgrenciNo":"682","AdSoyad":"EGE BAYRAKTAR","Ad":"EGE","Puan":87.33,"Sinif":"AL - 12. Sınıf / B Şubesi (ALANI YOK)","Siralama":26},
+  {"OgrenciNo":"263","AdSoyad":"SEDEF GÖREN","Ad":"SEDEF","Puan":87.28,"Sinif":"AL - 11. Sınıf / B Şubesi (ALANI YOK)","Siralama":27},
+  {"OgrenciNo":"679","AdSoyad":"NİLAY DÖNMEZOĞLU","Ad":"NİLAY","Puan":87.17,"Sinif":"AL - 12. Sınıf / A Şubesi (ALANI YOK)","Siralama":28},
+  {"OgrenciNo":"43","AdSoyad":"CEREN GÜNEŞ","Ad":"CEREN","Puan":87.02,"Sinif":"AL - 11. Sınıf / C Şubesi (ALANI YOK)","Siralama":29},
+  {"OgrenciNo":"248","AdSoyad":"SEVAL AŞÇI","Ad":"SEVAL","Puan":86.89,"Sinif":"AL - 9. Sınıf / A Şubesi (ALANI YOK)","Siralama":30},
+  {"OgrenciNo":"908","AdSoyad":"BEYEN İSMAİL","Ad":"BEYEN","Puan":86.83,"Sinif":"AL - 12. Sınıf / D Şubesi (ALANI YOK)","Siralama":31},
+  {"OgrenciNo":"934","AdSoyad":"HİRANUR ÖNER","Ad":"HİRANUR","Puan":86.6,"Sinif":"AL - 9. Sınıf / D Şubesi (ALANI YOK)","Siralama":32},
+  {"OgrenciNo":"933","AdSoyad":"AHMET ŞAHİN","Ad":"AHMET","Puan":86.26,"Sinif":"AL - 9. Sınıf / D Şubesi (ALANI YOK)","Siralama":33},
+  {"OgrenciNo":"705","AdSoyad":"HACER BULUTTEKİN","Ad":"HACER","Puan":86.2,"Sinif":"AL - 10. Sınıf / C Şubesi (ALANI YOK)","Siralama":34},
+  {"OgrenciNo":"239","AdSoyad":"BİLGE EBRAR KAVUT","Ad":"BİLGE","Puan":85.94,"Sinif":"AL - 9. Sınıf / C Şubesi (ALANI YOK)","Siralama":35},
+  {"OgrenciNo":"228","AdSoyad":"ELİF SÜMEYYE DEMİREL","Ad":"ELİF","Puan":85.91,"Sinif":"AL - 9. Sınıf / B Şubesi (ALANI YOK)","Siralama":36},
+  {"OgrenciNo":"926","AdSoyad":"KEREM ARABACI","Ad":"KEREM","Puan":85.72,"Sinif":"AL - 9. Sınıf / B Şubesi (ALANI YOK)","Siralama":37},
+  {"OgrenciNo":"118","AdSoyad":"IRMAK ARAPİ","Ad":"IRMAK","Puan":85.33,"Sinif":"AL - 12. Sınıf / C Şubesi (ALANI YOK)","Siralama":38},
+  {"OgrenciNo":"259","AdSoyad":"KÜBRA SAYGILI","Ad":"KÜBRA","Puan":85.26,"Sinif":"AL - 9. Sınıf / D Şubesi (ALANI YOK)","Siralama":39},
+  {"OgrenciNo":"205","AdSoyad":"GÜLSEREN TOPRAK","Ad":"GÜLSEREN","Puan":85.14,"Sinif":"AL - 9. Sınıf / B Şubesi (ALANI YOK)","Siralama":40},
+  {"OgrenciNo":"34","AdSoyad":"NİLAY DEMİR","Ad":"NİLAY","Puan":84.77,"Sinif":"AL - 11. Sınıf / B Şubesi (ALANI YOK)","Siralama":41},
+  {"OgrenciNo":"680","AdSoyad":"SUDE ADALI","Ad":"SUDE","Puan":84.72,"Sinif":"AL - 12. Sınıf / A Şubesi (ALANI YOK)","Siralama":42},
+  {"OgrenciNo":"218","AdSoyad":"ARZU SU ALTUNDAL","Ad":"ARZU","Puan":84.46,"Sinif":"AL - 9. Sınıf/B Şubesi (ALANI YOK)","Siralama":43},
+  {"OgrenciNo":"725","AdSoyad":"DAMLA GÖNÜLTAŞ","Ad":"DAMLA","Puan":84.43,"Sinif":"AL - 11. Sınıf / A Şubesi (ALANI YOK)","Siralama":44},
+  {"OgrenciNo":"179","AdSoyad":"ESİLA AKGÖZ","Ad":"ESİLA","Puan":83.91,"Sinif":"AL - 9. Sınıf / B Şubesi (ALANI YOK)","Siralama":45},
+  {"OgrenciNo":"762","AdSoyad":"EFLİN HİRA ALKAN","Ad":"EFLİN","Puan":83.42,"Sinif":"AL - 10. Sınıf / A Şubesi (ALANI YOK)","Siralama":46},
+  {"OgrenciNo":"567","AdSoyad":"REYHAN GÜNAY","Ad":"REYHAN","Puan":83.4,"Sinif":"AL - 12. Sınıf / A Şubesi (ALANI YOK)","Siralama":47},
+  {"OgrenciNo":"123","AdSoyad":"ŞEYDA YURTSEVER","Ad":"ŞEYDA","Puan":83.07,"Sinif":"AL - 9. Sınıf / D Şubesi (ALANI YOK)","Siralama":48},
+  {"OgrenciNo":"907","AdSoyad":"ONURCAN TOKYÜREK","Ad":"ONURCAN","Puan":83.02,"Sinif":"AL - 12. Sınıf / A Şubesi (ALANI YOK)","Siralama":49},
+  {"OgrenciNo":"172","AdSoyad":"HATİCE ECRİN ÖZDEMİR","Ad":"HATİCE","Puan":82.92,"Sinif":"AL - 9. Sınıf / C Şubesi (ALANI YOK)","Siralama":50},
+  {"OgrenciNo":"139","AdSoyad":"AZRA GÜLER","Ad":"AZRA","Puan":82.9,"Sinif":"AL - 9. Sınıf / D Şubesi (ALANI YOK)","Siralama":51},
+  {"OgrenciNo":"151","AdSoyad":"EYLÜL GÜMÜŞ","Ad":"EYLÜL","Puan":82.69,"Sinif":"AL - 10. Sınıf / B Şubesi (ALANI YOK)","Siralama":52},
+  {"OgrenciNo":"772","AdSoyad":"DUHA ALASSAF","Ad":"DUHA","Puan":82.68,"Sinif":"AL - 10. Sınıf / B Şubesi (ALANI YOK)","Siralama":53},
+  {"OgrenciNo":"245","AdSoyad":"ALI NAMAZOV","Ad":"ALI","Puan":82.52,"Sinif":"AL - 9. Sınıf / D Şubesi (ALANI YOK)","Siralama":54},
+  {"OgrenciNo":"716","AdSoyad":"MELİSA AYAN","Ad":"MELİSA","Puan":82.48,"Sinif":"AL - 11. Sınıf / A Şubesi (ALANI YOK)","Siralama":55},
+  {"OgrenciNo":"794","AdSoyad":"TOLGA ZORLU","Ad":"TOLGA","Puan":82.45,"Sinif":"AL - 10. Sınıf / A Şubesi (ALANI YOK)","Siralama":56},
+  {"OgrenciNo":"102","AdSoyad":"EYLÜL TOPRAK ÇAM","Ad":"EYLÜL","Puan":82.08,"Sinif":"AL - 9. Sınıf / B Şubesi (ALANI YOK)","Siralama":57},
+  {"OgrenciNo":"217","AdSoyad":"ASMİN BİLDİK","Ad":"ASMİN","Puan":82.06,"Sinif":"AL - 12. Sınıf / B Şubesi (ALANI YOK)","Siralama":58},
+  {"OgrenciNo":"276","AdSoyad":"ANIL AYAZ KAHRİMAN","Ad":"ANIL","Puan":81.89,"Sinif":"AL - 9. Sınıf / B Şubesi (ALANI YOK)","Siralama":59},
+  {"OgrenciNo":"108","AdSoyad":"MERT ALİ ÖZPINAR","Ad":"MERT","Puan":81.8,"Sinif":"AL - 9. Sınıf / B Şubesi (ALANI YOK)","Siralama":60},
+  {"OgrenciNo":"295","AdSoyad":"ECRİN GÜL","Ad":"ECRİN","Puan":81.46,"Sinif":"AL - 9. Sınıf / B Şubesi (ALANI YOK)","Siralama":61},
+  {"OgrenciNo":"555","AdSoyad":"RÜYA ALEYNA ÖZTÜRK","Ad":"RÜYA","Puan":81.29,"Sinif":"AL - 11. Sınıf / A Şubesi (ALANI YOK)","Siralama":62},
+  {"OgrenciNo":"136","AdSoyad":"ECRİN EMER","Ad":"ECRİN","Puan":81.28,"Sinif":"AL - 9. Sınıf / D Şubesi (ALANI YOK)","Siralama":63},
+  {"OgrenciNo":"161","AdSoyad":"İBRAHİM HALİL ÖZDEMİR","Ad":"İBRAHİM","Puan":81.25,"Sinif":"AL - 9. Sınıf / B Şubesi (ALANI YOK)","Siralama":64},
+  {"OgrenciNo":"719","AdSoyad":"NURSİMA ALAGÖZ","Ad":"NURSİMA","Puan":81.15,"Sinif":"AL - 11. Sınıf / B Şubesi (ALANI YOK)","Siralama":65},
+  {"OgrenciNo":"157","AdSoyad":"İSRA AKSEKİ","Ad":"İSRA","Puan":81.08,"Sinif":"AL - 9. Sınıf / C Şubesi (ALANI YOK)","Siralama":66},
+  {"OgrenciNo":"163","AdSoyad":"EBRAR NAZ ŞEN","Ad":"EBRAR","Puan":81.07,"Sinif":"AL - 12. Sınıf / A Şubesi (ALANI YOK)","Siralama":67},
+  {"OgrenciNo":"146","AdSoyad":"GİZEM ATASOY","Ad":"GİZEM","Puan":81.04,"Sinif":"AL - 9. Sınıf / A Şubesi (ALANI YOK)","Siralama":68},
+  {"OgrenciNo":"676","AdSoyad":"EKİN TAŞ","Ad":"EKİN","Puan":80.92,"Sinif":"AL - 12. Sınıf / B Şubesi (ALANI YOK)","Siralama":69},
+  {"OgrenciNo":"313","AdSoyad":"ELİF BEGEN","Ad":"ELİF","Puan":80.73,"Sinif":"AL - 10. Sınıf / C Şubesi (ALANI YOK)","Siralama":70},
+  {"OgrenciNo":"837","AdSoyad":"NİSANUR KARAKAYA","Ad":"NİSANUR","Puan":80.49,"Sinif":"AL - 10. Sınıf / A Şubesi (ALANI YOK)","Siralama":71},
+  {"OgrenciNo":"195","AdSoyad":"ZEYNEP SABAH","Ad":"ZEYNEP","Puan":80.48,"Sinif":"AL - 9. Sınıf / A Şubesi (ALANI YOK)","Siralama":72},
+  {"OgrenciNo":"269","AdSoyad":"FULYA BAL","Ad":"FULYA","Puan":80.45,"Sinif":"AL - 9. Sınıf / D Şubesi (ALANI YOK)","Siralama":73},
+  {"OgrenciNo":"760","AdSoyad":"MELİKE DEVECİOĞLU","Ad":"MELİKE","Puan":80.44,"Sinif":"AL - 10. Sınıf / C Şubesi (ALANI YOK)","Siralama":74},
+  {"OgrenciNo":"226","AdSoyad":"IRMAK BEREN ÇETİNALP","Ad":"IRMAK","Puan":80.41,"Sinif":"AL - 9. Sınıf / C Şubesi (ALANI YOK)","Siralama":75},
+  {"OgrenciNo":"255","AdSoyad":"YAĞMUR GÜNDOĞAN","Ad":"YAĞMUR","Puan":80.4,"Sinif":"AL - 9. Sınıf / D Şubesi (ALANI YOK)","Siralama":76},
+  {"OgrenciNo":"180","AdSoyad":"HATİCE ZÜLAL SEVGİ","Ad":"HATİCE","Puan":80.22,"Sinif":"AL - 9. Sınıf / A Şubesi (ALANI YOK)","Siralama":77},
+  {"OgrenciNo":"672","AdSoyad":"ONUR ÇAKMAK","Ad":"ONUR","Puan":80.13,"Sinif":"AL - 12. Sınıf / D Şubesi (ALANI YOK)","Siralama":78},
+  {"OgrenciNo":"113","AdSoyad":"ELİF GÜLCAN ÇETİN","Ad":"ELİF","Puan":80.01,"Sinif":"AL - 9. Sınıf / B Şubesi (ALANI YOK)","Siralama":79},
+  {"OgrenciNo":"126","AdSoyad":"PAKİZE NUR ALTUNTAŞ","Ad":"PAKİZE","Puan":80.01,"Sinif":"AL - 9. Sınıf / D Şubesi (ALANI YOK)","Siralama":80},
+  {"OgrenciNo":"154","AdSoyad":"EKİN PEKGÖZ","Ad":"EKİN","Puan":79.85,"Sinif":"AL - 9. Sınıf / C Şubesi (ALANI YOK)","Siralama":81},
+  {"OgrenciNo":"784","AdSoyad":"SELİN POLAT","Ad":"SELİN","Puan":79.71,"Sinif":"AL - 10. Sınıf / A Şubesi (ALANI YOK)","Siralama":82},
+  {"OgrenciNo":"416","AdSoyad":"CEYDA KOÇ","Ad":"CEYDA","Puan":79.48,"Sinif":"AL - 12. Sınıf / B Şubesi (ALANI YOK)","Siralama":83},
+  {"OgrenciNo":"142","AdSoyad":"ŞEVVAL SOYER","Ad":"ŞEVVAL","Puan":79.42,"Sinif":"AL - 9. Sınıf / B Şubesi (ALANI YOK)","Siralama":84},
+  {"OgrenciNo":"132","AdSoyad":"ELA ERİŞ","Ad":"ELA","Puan":79.3,"Sinif":"AL - 9. Sınıf / B Şubesi (ALANI YOK)","Siralama":85},
+  {"OgrenciNo":"817","AdSoyad":"BERKAY RİFAT TOPCUOĞLU","Ad":"BERKAY","Puan":79.07,"Sinif":"AL - 10. Sınıf / A Şubesi (ALANI YOK)","Siralama":86},
+  {"OgrenciNo":"905","AdSoyad":"HAYRİYE ALAYOUB","Ad":"HAYRİYE","Puan":79.06,"Sinif":"AL - 10. Sınıf / C Şubesi (ALANI YOK)","Siralama":87},
+  {"OgrenciNo":"262","AdSoyad":"SELİN ECE ANŞEN","Ad":"SELİN","Puan":79.01,"Sinif":"AL - 9. Sınıf / D Şubesi (ALANI YOK)","Siralama":88},
+  {"OgrenciNo":"186","AdSoyad":"MEVLÜT ARDA MARMARA","Ad":"MEVLÜT","Puan":78.76,"Sinif":"AL - 9. Sınıf / B Şubesi (ALANI YOK)","Siralama":89},
+  {"OgrenciNo":"274","AdSoyad":"HÜSEYİN KURT","Ad":"HÜSEYİN","Puan":78.64,"Sinif":"AL - 9. Sınıf / D Şubesi (ALANI YOK)","Siralama":90},
+  {"OgrenciNo":"92","AdSoyad":"ELİF BEYZA ARSLAN","Ad":"ELİF","Puan":78.6,"Sinif":"AL - 12. Sınıf / A Şubesi (ALANI YOK)","Siralama":91},
+  {"OgrenciNo":"801","AdSoyad":"SEVAL ZENGİN","Ad":"SEVAL","Puan":78.58,"Sinif":"AL - 10. Sınıf / A Şubesi (ALANI YOK)","Siralama":92},
+  {"OgrenciNo":"273","AdSoyad":"MUHAMMED NUR MOHAMAD","Ad":"MUHAMMED","Puan":78.49,"Sinif":"AL - 9. Sınıf / D Şubesi (ALANI YOK)","Siralama":93},
+  {"OgrenciNo":"223","AdSoyad":"IRMAK ÇULHAOĞLU","Ad":"IRMAK","Puan":78.39,"Sinif":"AL - 12. Sınıf / A Şubesi (ALANI YOK)","Siralama":94},
+  {"OgrenciNo":"227","AdSoyad":"YAĞMUR ÇULHAOĞLU","Ad":"YAĞMUR","Puan":78.26,"Sinif":"AL - 12. Sınıf / A Şubesi (ALANI YOK)","Siralama":95},
+  {"OgrenciNo":"252","AdSoyad":"TOPRAK SARI","Ad":"TOPRAK","Puan":78.15,"Sinif":"AL - 9. Sınıf / D Şubesi (ALANI YOK)","Siralama":96},
+  {"OgrenciNo":"171","AdSoyad":"TOPRAK ALEMDAR","Ad":"TOPRAK","Puan":78.11,"Sinif":"AL - 9. Sınıf / A Şubesi (ALANI YOK)","Siralama":97},
+  {"OgrenciNo":"945","AdSoyad":"BENSU MUTLU","Ad":"BENSU","Puan":78.11,"Sinif":"AL - 9. Sınıf / D Şubesi (ALANI YOK)","Siralama":98},
+  {"OgrenciNo":"714","AdSoyad":"BEYZA BOĞUCU","Ad":"BEYZA","Puan":78.1,"Sinif":"AL - 11. Sınıf / B Şubesi (ALANI YOK)","Siralama":99},
+  {"OgrenciNo":"170","AdSoyad":"BEREN ÇETİNKAYA","Ad":"BEREN","Puan":78.08,"Sinif":"AL - 9. Sınıf / B Şubesi (ALANI YOK)","Siralama":100},
+  {"OgrenciNo":"209","AdSoyad":"FADİME TINGIR","Ad":"FADİME","Puan":78.05,"Sinif":"AL - 11. Sınıf / B Şubesi (ALANI YOK)","Siralama":101},
+  {"OgrenciNo":"127","AdSoyad":"DEMİR DEMİRAY","Ad":"DEMİR","Puan":78.03,"Sinif":"AL - 9. Sınıf / D Şubesi (ALANI YOK)","Siralama":102},
+  {"OgrenciNo":"292","AdSoyad":"CEYLİN ILDIZ","Ad":"CEYLİN","Puan":77.96,"Sinif":"AL - 9. Sınıf / C Şubesi (ALANI YOK)","Siralama":103},
+  {"OgrenciNo":"717","AdSoyad":"ELİF GÜNEY","Ad":"ELİF","Puan":77.71,"Sinif":"AL - 10. Sınıf / A Şubesi (ALANI YOK)","Siralama":104},
+  {"OgrenciNo":"105","AdSoyad":"VİYAN ÇİMEN","Ad":"VİYAN","Puan":77.63,"Sinif":"AL - 9. Sınıf / A Şubesi (ALANI YOK)","Siralama":105},
+  {"OgrenciNo":"581","AdSoyad":"EMİNE NUR FELYA IŞIKSOY","Ad":"EMİNE","Puan":77.44,"Sinif":"AL - 11. Sınıf / B Şubesi (ALANI YOK)","Siralama":106},
+  {"OgrenciNo":"210","AdSoyad":"ASYA TAŞKIN","Ad":"ASYA","Puan":77.4,"Sinif":"AL - 9. Sınıf / B Şubesi (ALANI YOK)","Siralama":107},
+  {"OgrenciNo":"145","AdSoyad":"SILA GENÇ","Ad":"SILA","Puan":77.25,"Sinif":"AL - 9. Sınıf / B Şubesi (ALANI YOK)","Siralama":108},
+  {"OgrenciNo":"779","AdSoyad":"ZEYNEP ÇALDIRA","Ad":"ZEYNEP","Puan":77.22,"Sinif":"AL - 10. Sınıf / C Şubesi (ALANI YOK)","Siralama":109},
+  {"OgrenciNo":"267","AdSoyad":"BÜŞRA BEKMEZCİ","Ad":"BÜŞRA","Puan":77.07,"Sinif":"AL - 9. Sınıf / D Şubesi (ALANI YOK)","Siralama":110},
+  {"OgrenciNo":"673","AdSoyad":"EDA SARIOĞLU","Ad":"EDA","Puan":77.03,"Sinif":"AL - 12. Sınıf / A Şubesi (ALANI YOK)","Siralama":111},
+  {"OgrenciNo":"253","AdSoyad":"POYRAZ BEKEN","Ad":"POYRAZ","Puan":77.01,"Sinif":"AL - 9. Sınıf / A Şubesi (ALANI YOK)","Siralama":112},
+  {"OgrenciNo":"902","AdSoyad":"HADİCE MUAHAMMED","Ad":"HADİCE","Puan":76.93,"Sinif":"AL - 11. Sınıf / C Şubesi (ALANI YOK)","Siralama":113},
+  {"OgrenciNo":"240","AdSoyad":"MELİSA SARIOĞULLARI","Ad":"MELİSA","Puan":76.82,"Sinif":"AL - 9. Sınıf / C Şubesi (ALANI YOK)","Siralama":114},
+  {"OgrenciNo":"280","AdSoyad":"ONUR ERDOĞAN","Ad":"ONUR","Puan":76.6,"Sinif":"AL - 9. Sınıf / A Şubesi (ALANI YOK)","Siralama":115},
+  {"OgrenciNo":"285","AdSoyad":"ELANUR ÖZEL","Ad":"ELANUR","Puan":76.57,"Sinif":"AL - 9. Sınıf / A Şubesi (ALANI YOK)","Siralama":116},
+  {"OgrenciNo":"403","AdSoyad":"MUHAMMED EMİN KAYA","Ad":"MUHAMMED","Puan":76.56,"Sinif":"AL - 11. Sınıf / C Şubesi (ALANI YOK)","Siralama":117},
+  {"OgrenciNo":"287","AdSoyad":"EMİR TALHA KESKİN","Ad":"EMİR","Puan":76.43,"Sinif":"AL - 9. Sınıf / C Şubesi (ALANI YOK)","Siralama":118},
+  {"OgrenciNo":"294","AdSoyad":"RAHİME SUNGUR","Ad":"RAHİME","Puan":76.26,"Sinif":"AL - 9. Sınıf / B Şubesi (ALANI YOK)","Siralama":119},
+  {"OgrenciNo":"720","AdSoyad":"EMİR ÇEKİLMEZ","Ad":"EMİR","Puan":76.2,"Sinif":"AL - 11. Sınıf / B Şubesi (ALANI YOK)","Siralama":120},
+  {"OgrenciNo":"207","AdSoyad":"MELİSA AKBIYIK","Ad":"MELİSA","Puan":76.18,"Sinif":"AL - 9. Sınıf / C Şubesi (ALANI YOK)","Siralama":121},
+  {"OgrenciNo":"687","AdSoyad":"MELEK İNAN","Ad":"MELEK","Puan":76,"Sinif":"AL - 12. Sınıf / A Şubesi (ALANI YOK)","Siralama":122},
+  {"OgrenciNo":"768","AdSoyad":"ARDA KAVAS","Ad":"ARDA","Puan":75.93,"Sinif":"AL - 10. Sınıf / B Şubesi (ALANI YOK)","Siralama":123},
+  {"OgrenciNo":"596","AdSoyad":"SAADET ERKAYA","Ad":"SAADET","Puan":75.91,"Sinif":"AL - 12. Sınıf / D Şubesi (ALANI YOK)","Siralama":124},
+  {"OgrenciNo":"10","AdSoyad":"SALİYE İLAN","Ad":"SALİYE","Puan":75.81,"Sinif":"AL - 12. Sınıf / D Şubesi (ALANI YOK)","Siralama":125},
+  {"OgrenciNo":"799","AdSoyad":"HASAN TARLAK","Ad":"HASAN","Puan":75.81,"Sinif":"AL - 10. Sınıf / A Şubesi (ALANI YOK)","Siralama":126},
+  {"OgrenciNo":"147","AdSoyad":"EGEMİR BEYDEŞ","Ad":"EGEMİR","Puan":75.73,"Sinif":"AL - 9. Sınıf / C Şubesi (ALANI YOK)","Siralama":127},
+  {"OgrenciNo":"802","AdSoyad":"ALİ BAHADIR KARAKUŞ","Ad":"ALİ","Puan":75.62,"Sinif":"AL - 10. Sınıf / C Şubesi (ALANI YOK)","Siralama":128},
+  {"OgrenciNo":"222","AdSoyad":"FERAY ATBAŞ","Ad":"FERAY","Puan":75.59,"Sinif":"AL - 9. Sınıf / C Şubesi (ALANI YOK)","Siralama":129},
+  {"Ogrenci Llan":"192","AdSoyad":"ELA MUTLU","Ad":"ELA","Puan":75.57,"Sinif":"AL - 9. Sınıf / C Şubesi (ALANI YOK)","Siralama":130},
+  {"OgrenciNo":"250","AdSoyad":"HALE EMEK","Ad":"HALE","Puan":75.5,"Sinif":"AL - 10. Sınıf / B Şubesi (ALANI YOK)","Siralama":131},
+  {"OgrenciNo":"167","AdSoyad":"ALYA ÇELİKDERE","Ad":"ALYA","Puan":75.34,"Sinif":"AL - 9. Sınıf / D Şubesi (ALANI YOK)","Siralama":132},
+  {"OgrenciNo":"153","AdSoyad":"ÖZGÜR YAVUZ","Ad":"ÖZGÜR","Puan":75.28,"Sinif":"AL - 9. Sınıf / B Şubesi (ALANI YOK)","Siralama":133},
+  {"OgrenciNo":"141","AdSoyad":"MAKBULE YILDIZ","Ad":"MAKBULE","Puan":75.03,"Sinif":"AL - 9. Sınıf / D Şubesi (ALANI YOK)","Siralama":134},
+  {"OgrenciNo":"812","AdSoyad":"ŞİAR RONİ PEHLİVAN","Ad":"ŞİAR","Puan":75.03,"Sinif":"AL - 10. Sınıf / A Şubesi (ALANI YOK)","Siralama":135},
+  {"OgrenciNo":"903","AdSoyad":"DURU ERDİNÇ","Ad":"DURU","Puan":75.03,"Sinif":"AL - 10. Sınıf / A Şubesi (ALANI YOK)","Siralama":136},
+  {"OgrenciNo":"712","AdSoyad":"GÜLRİZ BİLGE ERÇAKMAK","Ad":"GÜLRİZ","Puan":75,"Sinif":"AL - 11. Sınıf / A Şubesi (ALANI YOK)","Siralama":137},
+  {"OgrenciNo":"910","AdSoyad":"FATİH TEKİN","Ad":"FATİH","Puan":74.91,"Sinif":"AL - 11. Sınıf / A Şubesi (ALANI YOK)","Siralama":138},
+  {"OgrenciNo":"485","AdSoyad":"RAĞAD MARAŞLI","Ad":"RAĞAD","Puan":74.73,"Sinif":"AL - 11. Sınıf / A Şubesi (ALANI YOK)","Siralama":139},
+  {"OgrenciNo":"181","AdSoyad":"ALİ EFE MUSLU","Ad":"ALİ","Puan":74.69,"Sinif":"AL - 9. Sınıf / D Şubesi (ALANI YOK)","Siralama":140},
+  {"OgrenciNo":"225","AdSoyad":"CANSU AYSAL","Ad":"CANSU","Puan":74.58,"Sinif":"AL - 9. Sınıf / D Şubesi (ALANI YOK)","Siralama":141},
+  {"OgrenciNo":"504","AdSoyad":"BERKAY MADANOĞLU","Ad":"BERKAY","Puan":74.53,"Sinif":"AL - 12. Sınıf / D Şubesi (ALANI YOK)","Siralama":142},
+  {"OgrenciNo":"798","AdSoyad":"FATMANUR ÇETİNKAYA","Ad":"FATMANUR","Puan":74.38,"Sinif":"AL - 10. Sınıf / C Şubesi (ALANI YOK)","Siralama":143},
+  {"OgrenciNo":"558","AdSoyad":"HÜSEYİN EFE KOÇ","Ad":"HÜSEYİN","Puan":74.36,"Sinif":"AL - 11. Sınıf / C Şubesi (ALANI YOK)","Siralama":144},
+  {"OgrenciNo":"359","AdSoyad":"TUĞBANAZ KOÇ","Ad":"TUĞBANAZ","Puan":74.24,"Sinif":"AL - 11. Sınıf / C Şubesi (ALANI YOK)","Siralama":145},
+  {"OgrenciNo":"111","AdSoyad":"NİSANUR ŞİRİN","Ad":"NİSANUR","Puan":74.22,"Sinif":"AL - 12. Sınıf / A Şubesi (ALANI YOK)","Siralama":146},
+  {"OgrenciNo":"124","AdSoyad":"ELİF ÇEKİÇ","Ad":"ELİF","Puan":74.2,"Sinif":"AL - 9. Sınıf / D Şubesi (ALANI YOK)","Siralama":147},
+  {"OgrenciNo":"932","AdSoyad":"CEYLİN AKYOL","Ad":"CEYLİN","Puan":74.01,"Sinif":"AL - 9. Sınıf / D Şubesi (ALANI YOK)","Siralama":148},
+  {"OgrenciNo":"671","AdSoyad":"ELA GÜNEŞ","Ad":"ELA","Puan":73.74,"Sinif":"AL - 12. Sınıf / B Şubesi (ALANI YOK)","Siralama":149},
+  {"OgrenciNo":"236","AdSoyad":"AYŞE ÖZADAM","Ad":"AYŞE","Puan":73.69,"Sinif":"AL - 9. Sınıf / A Şubesi (ALANI YOK)","Siralama":150},
+  {"OgrenciNo":"107","AdSoyad":"HAYRUNNİSA BUDAMİR","Ad":"HAYRUNNİSA","Puan":73.67,"Sinif":"AL - 12. Sınıf / B Şubesi (ALANI YOK)","Siralama":151},
+  {"OgrenciNo":"234","AdSoyad":"İLKNUR BOZKURT","Ad":"İLKNUR","Puan":73.44,"Sinif":"AL - 9. Sınıf / A Şubesi (ALANI YOK)","Siralama":152},
+  {"OgrenciNo":"826","AdSoyad":"FADİME SENA KAPUCU","Ad":"FADİME","Puan":73.43,"Sinif":"AL - 10. Sınıf / A Şubesi (ALANI YOK)","Siralama":153},
+  {"OgrenciNo":"130","AdSoyad":"EFE KESİK","Ad":"EFE","Puan":73.42,"Sinif":"AL - 9. Sınıf / D Şubesi (ALANI YOK)","Siralama":154},
+  {"OgrenciNo":"272","AdSoyad":"ESİLA GÖZDE KOÇAK","Ad":"ESİLA","Puan":73.41,"Sinif":"AL - 9. Sınıf / B Şubesi (ALANI YOK)","Siralama":155},
+  {"OgrenciNo":"320","AdSoyad":"BERKAY KOÇ","Ad":"BERKAY","Puan":73.26,"Sinif":"AL - 12. Sınıf / D Şubesi (ALANI YOK)","Siralama":156},
+  {"OgrenciNo":"103","AdSoyad":"YÜKSEL EGE BOYRAZ","Ad":"YÜKSEL","Puan":73.23,"Sinif":"AL - 9. Sınıf / C Şubesi (ALANI YOK)","Siralama":157},
+  {"OgrenciNo":"821","AdSoyad":"ALİ HÜSEYİN YURDAKUL","Ad":"ALİ","Puan":73,"Sinif":"AL - 10. Sınıf / B Şubesi (ALANI YOK)","Siralama":158},
+  {"OgrenciNo":"824","AdSoyad":"ÜMMÜ GÜLSÜM YURTÇU","Ad":"ÜMMÜ","Puan":72.77,"Sinif":"AL - 10. Sınıf / B Şubesi (ALANI YOK)","Siralama":159},
+  {"OgrenciNo":"282","AdSoyad":"BEREN ÇAKIR","Ad":"BEREN","Puan":72.63,"Sinif":"AL - 9. Sınıf / A Şubesi (ALANI YOK)","Siralama":160},
+  {"OgrenciNo":"134","AdSoyad":"NAZ TOKGÖZ","Ad":"NAZ","Puan":72.4,"Sinif":"AL - 12. Sınıf / B Şubesi (ALANI YOK)","Siralama":161},
+  {"OgrenciNo":"196","AdSoyad":"MUSTAFA EGE ÖZEK","Ad":"MUSTAFA","Puan":72.39,"Sinif":"AL - 9. Sınıf / C Şubesi (ALANI YOK)","Siralama":162},
+  {"OgrenciNo":"816","AdSoyad":"MELİKE ASLAN","Ad":"MELİKE","Puan":72.39,"Sinif":"AL - 10. Sınıf / A Şubesi (ALANI YOK)","Siralama":163},
+  {"OgrenciNo":"140","AdSoyad":"YİĞİT TUNA KAPTAN","Ad":"YİĞİT","Puan":72.25,"Sinif":"AL - 9. Sınıf / A Şubesi (ALANI YOK)","Siralama":164},
+  {"OgrenciNo":"914","AdSoyad":"ZEYNEP DURU YAVUZ","Ad":"ZEYNEP","Puan":72.15,"Sinif":"AL - 10. Sınıf / A Şubesi (ALANI YOK)","Siralama":165},
+  {"OgrenciNo":"924","AdSoyad":"SERA ALAYOUB","Ad":"SERA","Puan":72.01,"Sinif":"AL - 10. Sınıf / A Şubesi (ALANI YOK)","Siralama":166},
+  {"OgrenciNo":"254","AdSoyad":"BEYZA KARTAL","Ad":"BEYZA","Puan":71.87,"Sinif":"AL - 9. Sınıf / C Şubesi (ALANI YOK)","Siralama":167},
+  {"OgrenciNo":"728","AdSoyad":"ERVANUR YAREN EKDİ","Ad":"ERVANUR","Puan":71.85,"Sinif":"AL - 11. Sınıf / A Şubesi (ALANI YOK)","Siralama":168},
+  {"OgrenciNo":"800","AdSoyad":"BAŞAR TOPTAŞ","Ad":"BAŞAR","Puan":71.84,"Sinif":"AL - 10. Sınıf / B Şubesi (ALANI YOK)","Siralama":169},
+  {"OgrenciNo":"791","AdSoyad":"AYÇA HACIOĞLU","Ad":"AYÇA","Puan":71.76,"Sinif":"AL - 10. Sınıf / C Şubesi (ALANI YOK)","Siralama":170},
+  {"OgrenciNo":"670","AdSoyad":"ELİF GÜNEŞ","Ad":"ELİF","Puan":71.73,"Sinif":"AL - 12. Sınıf / B Şubesi (ALANI YOK)","Siralama":171},
+  {"OgrenciNo":"700","AdSoyad":"İPEK TANRIÖVER","Ad":"İPEK","Puan":71.67,"Sinif":"AL - 10. Sınıf / C Şubesi (ALANI YOK)","Siralama":172},
+  {"OgrenciNo":"281","AdSoyad":"ARDA TAHA ATALAY","Ad":"ARDA","Puan":71.53,"Sinif":"AL - 9. Sınıf / B Şubesi (ALANI YOK)","Siralama":173},
+  {"OgrenciNo":"921","AdSoyad":"CEYHUN TOSUN","Ad":"CEYHUN","Puan":71.53,"Sinif":"AL - 9. Sınıf / C Şubesi (ALANI YOK)","Siralama":174},
+  {"OgrenciNo":"230","AdSoyad":"YUSUF KAYRA ŞAHİN","Ad":"YUSUF","Puan":71.39,"Sinif":"AL - 9. Sınıf / A Şubesi (ALANI YOK)","Siralama":175},
+  {"OgrenciNo":"244","AdSoyad":"ELİF ÇELİK","Ad":"ELİF","Puan":71.36,"Sinif":"AL - 12. Sınıf / D Şubesi (ALANI YOK)","Siralama":176},
+  {"OgrenciNo":"238","AdSoyad":"KEREM EFE DURANOĞLU","Ad":"KEREM","Puan":71.32,"Sinif":"AL - 9. Sınıf / B Şubesi (ALANI YOK)","Siralama":177},
+  {"OgrenciNo":"935","AdSoyad":"ASYA TUFAN","Ad":"ASYA","Puan":71.29,"Sinif":"AL - 9. Sınıf / C Şubesi (ALANI YOK)","Siralama":178},
+  {"OgrenciNo":"125","AdSoyad":"MUHAMMED ENES İPEK","Ad":"MUHAMMED","Puan":71.25,"Sinif":"AL - 9. Sınıf / C Şubesi (ALANI YOK)","Siralama":179},
+  {"OgrenciNo":"677","AdSoyad":"AHMET TAMER ATEŞ","Ad":"AHMET","Puan":71.22,"Sinif":"AL - 12. Sınıf / A Şubesi (ALANI YOK)","Siralama":180},
+  {"OgrenciNo":"820","AdSoyad":"TAHA SUCUK","Ad":"TAHA","Puan":70.62,"Sinif":"AL - 10. Sınıf / A Şubesi (ALANI YOK)","Siralama":181},
+  {"OgrenciNo":"708","AdSoyad":"ELİF NAZ TOPTAŞ","Ad":"ELİF","Puan":70.57,"Sinif":"AL - 10. Sınıf / B Şubesi (ALANI YOK)","Siralama":182},
+  {"OgrenciNo":"173","AdSoyad":"NOUR ALKAMAR HAJ HASAN","Ad":"NOUR","Puan":70.55,"Sinif":"AL - 9. Sınıf / D Şubesi (ALANI YOK)","Siralama":183},
+  {"OgrenciNo":"810","AdSoyad":"KAAN ÇAPACI","Ad":"KAAN","Puan":70.54,"Sinif":"AL - 10. Sınıf / A Şubesi (ALANI YOK)","Siralama":184},
+  {"OgrenciNo":"183","AdSoyad":"KARAHAN AK","Ad":"KARAHAN","Puan":70.32,"Sinif":"AL - 9. Sınıf / C Şubesi (ALANI YOK)","Siralama":185},
+  {"OgrenciNo":"213","AdSoyad":"NAZ TOPAÇ","Ad":"NAZ","Puan":69.92,"Sinif":"AL - 9. Sınıf / C Şubesi (ALANI YOK)","Siralama":186},
+  {"OgrenciNo":"204","AdSoyad":"DURU SEVGİ KARAARSLAN","Ad":"DURU","Puan":69.7,"Sinif":"AL - 9. Sınıf / A Şubesi (ALANI YOK)","Siralama":187},
+  {"OgrenciNo":"724","AdSoyad":"MUHAMMET ÖMÜR KARADİKEN","Ad":"MUHAMMET","Puan":69.69,"Sinif":"AL - 10. Sınıf / B Şubesi (ALANI YOK)","Siralama":188},
+  {"OgrenciNo":"925","AdSoyad":"HATİCE NUR KABUL","Ad":"HATİCE","Puan":69.33,"Sinif":"AL - 9. Sınıf / D Şubesi (ALANI YOK)","Siralama":189},
+  {"OgrenciNo":"770","AdSoyad":"FATMANUR TÜRKER","Ad":"FATMANUR","Puan":69.29,"Sinif":"AL - 10. Sınıf / C Şubesi (ALANI YOK)","Siralama":190},
+  {"OgrenciNo":"106","AdSoyad":"ENAM ABDULLAH","Ad":"ENAM","Puan":69.01,"Sinif":"AL - 12. Sınıf / A Şubesi (ALANI YOK)","Siralama":191},
+  {"OgrenciNo":"270","AdSoyad":"ÖMER EGE ÖNER","Ad":"ÖMER","Puan":68.78,"Sinif":"AL - 9. Sınıf / A Şubesi (ALANI YOK)","Siralama":192},
+  {"OgrenciNo":"808","AdSoyad":"DİLEK ŞEN","Ad":"DİLEK","Puan":68.56,"Sinif":"AL - 10. Sınıf / C Şubesi (ALANI YOK)","Siralama":193},
+  {"OgrenciNo":"730","AdSoyad":"TALYA NAZ ERALP","Ad":"TALYA","Puan":68.53,"Sinif":"AL - 11. Sınıf / A Şubesi (ALANI YOK)","Siralama":194},
+  {"OgrenciNo":"721","AdSoyad":"SILA ZÜLAL ÇETİN","Ad":"SILA","Puan":68.47,"Sinif":"AL - 11. Sınıf / B Şubesi (ALANI YOK)","Siralama":195},
+  {"OgrenciNo":"909","AdSoyad":"NEHİR KARATAŞ","Ad":"NEHİR","Puan":68.13,"Sinif":"AL - 12. Sınıf / C Şubesi (ALANI YOK)","Siralama":196},
+  {"OgrenciNo":"722","AdSoyad":"PELİN ÖZDİL","Ad":"PELİN","Puan":68.03,"Sinif":"AL - 11. Sınıf / B Şubesi (ALANI YOK)","Siralama":197},
+  {"OgrenciNo":"793","AdSoyad":"MUSTAFA BERK BEKAROĞLU","Ad":"MUSTAFA","Puan":67.93,"Sinif":"AL - 10. Sınıf / C Şubesi (ALANI YOK)","Siralama":198},
+  {"OgrenciNo":"271","AdSoyad":"AHMET EREN ŞAHİN","Ad":"AHMET","Puan":67.86,"Sinif":"AL - 9. Sınıf / B Şubesi (ALANI YOK)","Siralama":199},
+  {"OgrenciNo":"920","AdSoyad":"RAHİME NUR ARAS","Ad":"RAHİME","Puan":67.86,"Sinif":"AL - 11. Sınıf / C Şubesi (ALANI YOK)","Siralama":200},
+  {"OgrenciNo":"129","AdSoyad":"EMİRHAN YEL","Ad":"EMİRHAN","Puan":67.66,"Sinif":"AL - 10. Sınıf / B Şubesi (ALANI YOK)","Siralama":201},
+  {"OgrenciNo":"66","AdSoyad":"EMİRHAN ÖZVİŞNECİ","Ad":"EMİRHAN","Puan":67.3,"Sinif":"AL - 12. Sınıf / C Şubesi (ALANI YOK)","Siralama":202},
+  {"OgrenciNo":"830","AdSoyad":"ALİ EFE ÇİNETÇİ","Ad":"ALİ","Puan":67.16,"Sinif":"AL - 10. Sınıf / A Şubesi (ALANI YOK)","Siralama":203},
+  {"OgrenciNo":"775","AdSoyad":"HALUK AKGÜL","Ad":"HALUK","Puan":66.91,"Sinif":"AL - 10. Sınıf / A Şubesi (ALANI YOK)","Siralama":204},
+  {"OgrenciNo":"177","AdSoyad":"HÜMEYRA EYİYOL","Ad":"HÜMEYRA","Puan":66.87,"Sinif":"AL - 10. Sınıf / A Şubesi (ALANI YOK)","Siralama":205},
+  {"OgrenciNo":"279","AdSoyad":"AHMED ABDULLAH","Ad":"AHMED","Puan":66.85,"Sinif":"AL - 9. Sınıf / C Şubesi (ALANI YOK)","Siralama":206},
+  {"OgrenciNo":"101","AdSoyad":"EYLÜL FEYZA ÇAPUK","Ad":"EYLÜL","Puan":66.83,"Sinif":"AL - 9. Sınıf / B Şubesi (ALANI YOK)","Siralama":207},
+  {"OgrenciNo":"913","AdSoyad":"KEREM DOĞAN","Ad":"KEREM","Puan":66.67,"Sinif":"AL - 11. Sınıf / C Şubesi (ALANI YOK)","Siralama":208},
+  {"OgrenciNo":"290","AdSoyad":"EGE KURT","Ad":"EGE","Puan":66.59,"Sinif":"AL - 9. Sınıf / C Şubesi (ALANI YOK)","Siralama":209},
+  {"OgrenciNo":"241","AdSoyad":"ALİ BARTU BENCİK","Ad":"ALİ","Puan":66.48,"Sinif":"AL - 9. Sınıf / A Şubesi (ALANI YOK)","Siralama":210},
+  {"OgrenciNo":"28","AdSoyad":"HİRANUR BÜLBÜL","Ad":"HİRANUR","Puan":66.43,"Sinif":"AL - 10. Sınıf / A Şubesi (ALANI YOK)","Siralama":211},
+  {"OgrenciNo":"266","AdSoyad":"İPEK ÇETİNEL","Ad":"İPEK","Puan":66.38,"Sinif":"AL - 9. Sınıf / A Şubesi (ALANI YOK)","Siralama":212},
+  {"OgrenciNo":"757","AdSoyad":"BATIN GILIÇ","Ad":"BATIN","Puan":66.37,"Sinif":"AL - 10. Sınıf / C Şubesi (ALANI YOK)","Siralama":213},
+  {"OgrenciNo":"405","AdSoyad":"BEYZA PERK","Ad":"BEYZA","Puan":66.32,"Sinif":"AL - 11. Sınıf / C Şubesi (ALANI YOK)","Siralama":214},
+  {"OgrenciNo":"765","AdSoyad":"MEHMET BAVER YAŞİK","Ad":"MEHMET","Puan":66.27,"Sinif":"AL - 10. Sınıf / B Şubesi (ALANI YOK)","Siralama":215},
+  {"OgrenciNo":"723","AdSoyad":"BÜŞRA YILDIRIM","Ad":"BÜŞRA","Puan":66.25,"Sinif":"AL - 11. Sınıf / A Şubesi (ALANI YOK)","Siralama":216},
+  {"OgrenciNo":"787","AdSoyad":"KUTSAL DEVRİM YILMAZ","Ad":"KUTSAL","Puan":66.15,"Sinif":"AL - 10. Sınıf / B Şubesi (ALANI YOK)","Siralama":217},
+  {"OgrenciNo":"783","AdSoyad":"FURKAN CANDAN","Ad":"FURKAN","Puan":65.88,"Sinif":"AL - 10. Sınıf / A Şubesi (ALANI YOK)","Siralama":218},
+  {"OgrenciNo":"420","AdSoyad":"ŞEVKİ EMİR YILDIZ","Ad":"ŞEVKİ","Puan":65.33,"Sinif":"AL - 10. Sınıf / C Şubesi (ALANI YOK)","Siralama":219},
+  {"OgrenciNo":"33","AdSoyad":"KEVSER ÖZALP","Ad":"KEVSER","Puan":65.2,"Sinif":"AL - 11. Sınıf / A Şubesi (ALANI YOK)","Siralama":220},
+  {"OgrenciNo":"334","AdSoyad":"HAYRÜNÜSA KESKİN","Ad":"HAYRÜNÜSA","Puan":65.11,"Sinif":"AL - 11. Sınıf / B Şubesi (ALANI YOK)","Siralama":221},
+  {"OgrenciNo":"286","AdSoyad":"SEÇKİN UTKU ANŞEN","Ad":"SEÇKİN","Puan":64.96,"Sinif":"AL - 9. Sınıf / C Şubesi (ALANI YOK)","Siralama":222},
+  {"OgrenciNo":"458","AdSoyad":"HAMİDENUR ÖZÇELİK","Ad":"HAMİDENUR","Puan":64.9,"Sinif":"AL - 10. Sınıf / A Şubesi (ALANI YOK)","Siralama":223},
+  {"OgrenciNo":"734","AdSoyad":"AHMET MURAT ATALAY","Ad":"AHMET","Puan":64.87,"Sinif":"AL - 11. Sınıf / B Şubesi (ALANI YOK)","Siralama":224},
+  {"OgrenciNo":"911","AdSoyad":"AMAR KADİR","Ad":"AMAR","Puan":64.64,"Sinif":"AL - 11. Sınıf / A Şubesi (ALANI YOK)","Siralama":225},
+  {"OgrenciNo":"330","AdSoyad":"MİZGİN BATUR","Ad":"MİZGİN","Puan":64.62,"Sinif":"AL - 11. Sınıf / C Şubesi (ALANI YOK)","Siralama":226},
+  {"OgrenciNo":"703","AdSoyad":"KAAN SERT","Ad":"KAAN","Puan":64.56,"Sinif":"AL - 10. Sınıf / A Şubesi (ALANI YOK)","Siralama":227},
+  {"OgrenciNo":"707","AdSoyad":"ELİF PELŞİN BUTAY","Ad":"ELİF","Puan":64.54,"Sinif":"AL - 10. Sınıf / B Şubesi (ALANI YOK)","Siralama":228},
+  {"OgrenciNo":"189","AdSoyad":"RAHİME BİÇER","Ad":"RAHİME","Puan":64.48,"Sinif":"AL - 11. Sınıf / B Şubesi (ALANI YOK)","Siralama":229},
+  {"OgrenciNo":"260","AdSoyad":"CEYLA NUR GÜRBÜZ","Ad":"CEYLA","Puan":64.47,"Sinif":"AL - 9. Sınıf / C Şubesi (ALANI YOK)","Siralama":230},
+  {"OgrenciNo":"413","AdSoyad":"DEFNE ÜRGÜP","Ad":"Angles","Puan":64.28,"Sinif":"AL - 12. Sınıf / C Şubesi (ALANI YOK)","Siralama":231},
+  {"OgrenciNo":"759","AdSoyad":"ECRİN ŞABANOĞLU","Ad":"ECRİN","Puan":63.92,"Sinif":"AL - 10. Sınıf / C Şubesi (ALANI YOK)","Siralama":232},
+  {"OgrenciNo":"929","AdSoyad":"GÖRKEM GÜR","Ad":"GÖRKEM","Puan":63.92,"Sinif":"AL - 12. Sınıf / C Şubesi (ALANI YOK)","Siralama":233},
+  {"OgrenciNo":"829","AdSoyad":"ALMİNA AGAOĞLU","Ad":"ALMİNA","Puan":63.91,"Sinif":"AL - 10. Sınıf / C Şubesi (ALANI YOK)","Siralama":234},
+  {"OgrenciNo":"743","AdSoyad":"MARAH HALLUF","Ad":"MARAH","Puan":63.73,"Sinif":"AL - 11. Sınıf / A Şubesi (ALANI YOK)","Siralama":235},
+  {"OgrenciNo":"388","AdSoyad":"AHMET OKAN ASLAN","Ad":"AHMET","Puan":63.61,"Sinif":"AL - 10. Sınıf / C Şubesi (ALANI YOK)","Siralama":236},
+  {"OgrenciNo":"175","AdSoyad":"YUSUF ALİ ARSLAN","Ad":"YUSUF","Puan":63.57,"Sinif":"AL - 10. Sınıf / B Şubesi (ALANI YOK)","Siralama":237},
+  {"OgrenciNo":"786","AdSoyad":"GÜLSÜM KILBAŞ","Ad":"GÜLSÜM","Puan":63.51,"Sinif":"AL - 10. Sınıf / B Şubesi (ALANI YOK)","Siralama":238},
+  {"OgrenciNo":"785","AdSoyad":"BERİNAY KILINÇ","Ad":"BERİNAY","Puan":63.49,"Sinif":"AL - 10. Sınıf / A Şubesi (ALANI YOK)","Siralama":239},
+  {"OgrenciNo":"792","AdSoyad":"BARIŞ KASAR","Ad":"BARIŞ","Puan":63.43,"Sinif":"AL - 10. Sınıf / B Şubesi (ALANI YOK)","Siralama":240},
+  {"OgrenciNo":"706","AdSoyad":"ABDULKADİR ÖZKAN","Ad":"ABDULKADİR","Puan":63.4,"Sinif":"AL - 10. Sınıf / C Şubesi (ALANI YOK)","Siralama":241},
+  {"OgrenciNo":"486","AdSoyad":"AYŞE MELEK ÖRME","Ad":"AYŞE","Puan":63.24,"Sinif":"AL - 12. Sınıf / C Şubesi (ALANI YOK)","Siralama":242},
+  {"OgrenciNo":"773","AdSoyad":"ELA KOCAKAYALI","Ad":"ELA","Puan":62.87,"Sinif":"AL - 10. Sınıf / C Şubesi (ALANI YOK)","Siralama":243},
+  {"OgrenciNo":"710","AdSoyad":"HAZAL MELEK KURT","Ad":"HAZAL","Puan":62.39,"Sinif":"AL - 12. Sınıf / C Şubesi (ALANI YOK)","Siralama":244},
+  {"OgrenciNo":"922","AdSoyad":"İBRAHİM ÖZSOY","Ad":"İBRAHİM","Puan":61.96,"Sinif":"AL - 12. Sınıf / B Şubesi (ALANI YOK)","Siralama":245},
+  {"OgrenciNo":"57","AdSoyad":"SUDEN TAŞCI","Ad":"SUDEN","Puan":61.92,"Sinif":"AL - 10. Sınıf / B Şubesi (ALANI YOK)","Siralama":246},
+  {"OgrenciNo":"788","AdSoyad":"EYLÜL SILA YILMAZ","Ad":"EYLÜL","Puan":61.81,"Sinif":"AL - 10. Sınıf / B Şubesi (ALANI YOK)","Siralama":247},
+  {"OgrenciNo":"109","AdSoyad":"EDA ÇETİN","Ad":"EDA","Puan":61.62,"Sinif":"AL - 9. Sınıf / C Şubesi (ALANI YOK)","Siralama":248},
+  {"OgrenciNo":"771","AdSoyad":"BETÜL ELİF SARI","Ad":"BETÜL","Puan":61.47,"Sinif":"AL - 10. Sınıf / A Şubesi (ALANI YOK)","Siralama":249},
+  {"OgrenciNo":"804","AdSoyad":"İSMAİL EFE ÜNAL","Ad":"İSMAİL","Puan":61.46,"Sinif":"AL - 10. Sınıf / C Şubesi (ALANI YOK)","Siralama":250},
+  {"OgrenciNo":"796","AdSoyad":"YUSUF İHSAN ALATEKİN","Ad":"YUSUF","Puan":61.42,"Sinif":"AL - 10. Sınıf / C Şubesi (ALANI YOK)","Siralama":251},
+  {"OgrenciNo":"923","AdSoyad":"HATİCE CAN","Ad":"HATİCE","Puan":60.77,"Sinif":"AL - 12. Sınıf / C Şubesi (ALANI YOK)","Siralama":252},
+  {"OgrenciNo":"736","AdSoyad":"ERKİN BİLGİN","Ad":"ERKİN","Puan":59.97,"Sinif":"AL - 11. Sınıf / B Şubesi (ALANI YOK)","Siralama":253},
+  {"OgrenciNo":"713","AdSoyad":"YAĞMUR NAZ KAYA","Ad":"YAĞMUR","Puan":59.91,"Sinif":"AL - 10. Sınıf / C Şubesi (ALANI YOK)","Siralama":254},
+  {"OgrenciNo":"912","AdSoyad":"MİRAY DEMİRAY","Ad":"MİRAY","Puan":59.66,"Sinif":"AL - 12. Sınıf / C Şubesi (ALANI YOK)","Siralama":255},
+  {"OgrenciNo":"782","AdSoyad":"HAKAN KUŞ","Ad":"HAKAN","Puan":59.44,"Sinif":"AL - 10. Sınıf / B Şubesi (ALANI YOK)","Siralama":256},
+  {"OgrenciNo":"917","AdSoyad":"SUDE YALÇIN","Ad":"SUDE","Puan":59.25,"Sinif":"AL - 12. Sınıf / C Şubesi (ALANI YOK)","Siralama":257},
+  {"OgrenciNo":"936","AdSoyad":"NEHİR ESLEK","Ad":"NEHİR","Puan":59.01,"Sinif":"AL - 10. Sınıf / C Şubesi (ALANI YOK)","Siralama":258},
+  {"OgrenciNo":"336","AdSoyad":"MELEK FERAY CANKURT","Ad":"MELEK","Puan":58.92,"Sinif":"AL - 11. Sınıf / B Şubesi (ALANI YOK)","Siralama":259},
+  {"OgrenciNo":"121","AdSoyad":"ALİ SECCAD KAYAŞ","Ad":"ALİ","Puan":58.86,"Sinif":"AL - 11. Sınıf / C Şubesi (ALANI YOK)","Siralama":260},
+  {"OgrenciNo":"120","AdSoyad":"AHMET MENTEŞE","Ad":"AHMET","Puan":58.75,"Sinif":"AL - 10. Sınıf / C Şubesi (ALANI YOK)","Siralama":261},
+  {"OgrenciNo":"901","AdSoyad":"MÜGENUR TOPTAŞ","Ad":"MÜGENUR","Puan":58.5,"Sinif":"AL - 11. Sınıf / B Şubesi (ALANI YOK)","Siralama":262},
+  {"OgrenciNo":"237","AdSoyad":"ZEHRA TAŞKALE","Ad":"ZEHRA","Puan":58.46,"Sinif":"AL - 11. Sınıf / B Şubesi (ALANI YOK)","Siralama":263},
+  {"OgrenciNo":"257","AdSoyad":"EFE ŞEN","Ad":"EFE","Puan":58.35,"Sinif":"AL - 10. Sınıf / B Şubesi (ALANI YOK)","Siralama":264},
+  {"OgrenciNo":"374","AdSoyad":"TUNA MAHMUT KAPLAN","Ad":"TUNA","Puan":58.28,"Sinif":"AL - 10. Sınıf / B Şubesi (ALANI YOK)","Siralama":265},
+  {"OgrenciNo":"594","AdSoyad":"ENES TOKMAK","Ad":"ENES","Puan":58.25,"Sinif":"AL - 11. Sınıf / A Şubesi (ALANI YOK)","Siralama":266},
+  {"OgrenciNo":"695","AdSoyad":"REYYAN İSMAİL","Ad":"REYYAN","Puan":58.09,"Sinif":"AL - 12. Sınıf / B Şubesi (ALANI YOK)","Siralama":267},
+  {"OgrenciNo":"831","AdSoyad":"ASYA SEZER","Ad":"ASYA","Puan":58.07,"Sinif":"AL - 10. Sınıf / B Şubesi (ALANI YOK)","Siralama":268},
+  {"OgrenciNo":"206","AdSoyad":"EYLÜL ŞİMŞEK","Ad":"EYLÜL","Puan":57.97,"Sinif":"AL - 11. Sınıf / A Şubesi (ALANI YOK)","Siralama":269},
+  {"OgrenciNo":"422","AdSoyad":"AHMET KAAN TARIM","Ad":"AHMET","Puan":57.57,"Sinif":"AL - 12. Sınıf / B Şubesi (ALANI YOK)","Siralama":270},
+  {"OgrenciNo":"904","AdSoyad":"RUGUYE AKBABA","Ad":"RUGUYE","Puan":57.55,"Sinif":"AL - 11. Sınıf / A Şubesi (ALANI YOK)","Siralama":271},
+  {"OgrenciNo":"813","AdSoyad":"ELA GÜL","Ad":"ELA","Puan":57.08,"Sinif":"AL - 10. Sınıf / B Şubesi (ALANI YOK)","Siralama":272},
+  {"OgrenciNo":"345","AdSoyad":"SUDENAZ AZBAY","Ad":"SUDENAZ","Puan":56.96,"Sinif":"AL - 12. Sınıf / B Şubesi (ALANI YOK)","Siralama":273},
+  {"OgrenciNo":"556","AdSoyad":"ALİCAN ÇETİN","Ad":"ALİCAN","Puan":56.65,"Sinif":"AL - 12. Sınıf / C Şubesi (ALANI YOK)","Siralama":274},
+  {"OgrenciNo":"815","AdSoyad":"METİN MEMİŞ","Ad":"METİN","Puan":56.63,"Sinif":"AL - 10. Sınıf / C Şubesi (ALANI YOK)","Siralama":275},
+  {"OgrenciNo":"408","AdSoyad":"EZEL NAZ BATUR","Ad":"EZEL","Puan":56.58,"Sinif":"AL - 11. Sınıf / C Şubesi (ALANI YOK)","Siralama":276},
+  {"OgrenciNo":"797","AdSoyad":"EGE ATİLLA ÜSTÜNDAĞ","Ad":"EGE","Puan":56.19,"Sinif":"AL - 10. Sınıf / C Şubesi (ALANI YOK)","Siralama":277},
+  {"OgrenciNo":"220","AdSoyad":"CEMRE SÖZEN","Ad":"CEMRE","Puan":55.91,"Sinif":"AL - 12. Sınıf / B Şubesi (ALANI YOK)","Siralama":278},
+  {"OgrenciNo":"284","AdSoyad":"EREN VATANSEVER","Ad":"EREN","Puan":55.56,"Sinif":"AL - 12. Sınıf / C Şubesi (ALANI YOK)","Siralama":279},
+  {"OgrenciNo":"573","AdSoyad":"EYÜPCAN BAZIK","Ad":"EYÜPCAN","Puan":55.44,"Sinif":"AL - 12. Sınıf / B Şubesi (ALANI YOK)","Siralama":280},
+  {"OgrenciNo":"480","AdSoyad":"SUEDA ÖZTÜRK","Ad":"SUEDA","Puan":55.12,"Sinif":"AL - 12. Sınıf / C Şubesi (ALANI YOK)","Siralama":281},
+  {"OgrenciNo":"432","AdSoyad":"MUSTAFA KEMAL ALDEMİR","Ad":"MUSTAFA","Puan":54.6,"Sinif":"AL - 12. Sınıf / C Şubesi (ALANI YOK)","Siralama":282},
+  {"OgrenciNo":"3","AdSoyad":"İKRA KOÇ","Ad":"İKRA","Puan":54.17,"Sinif":"AL - 11. Sınıf / A Şubesi (ALANI YOK)","Siralama":283},
+  {"OgrenciNo":"229","AdSoyad":"ARDA KOÇ","Ad":"ARDA","Puan":53.68,"Sinif":"AL - 10. Sınıf / A Şubesi (ALANI YOK)","Siralama":284},
+  {"OgrenciNo":"568","AdSoyad":"MEHMET KAYA","Ad":"MEHMET","Puan":52.8,"Sinif":"AL - 12. Sınıf / C Şubesi (ALANI YOK)","Siralama":285},
+  {"OgrenciNo":"683","AdSoyad":"UMUT ALTINOK","Ad":"UMUT","Puan":52.7,"Sinif":"AL - 12. Sınıf / A Şubesi (ALANI YOK)","Siralama":286},
+  {"OgrenciNo":"711","AdSoyad":"CEYDANUR BAYIK","Ad":"CEYDANUR","Puan":52.68,"Sinif":"AL - 11. Sınıf / A Şubesi (ALANI YOK)","Siralama":287},
+  {"OgrenciNo":"463","AdSoyad":"MELEK KIRLI","Ad":"MELEK","Puan":52.67,"Sinif":"AL - 11. Sınıf / B Şubesi (ALANI YOK)","Siralama":288},
+  {"OgrenciNo":"233","AdSoyad":"SENA ÖZTÜRK","Ad":"SENA","Puan":52.02,"Sinif":"AL - 12. Sınıf / B Şubesi (ALANI YOK)","Siralama":289},
+  {"OgrenciNo":"415","AdSoyad":"EYMEN EMİR KARAKUŞ","Ad":"EYMEN","Puan":51.82,"Sinif":"AL - 10. Sınıf / C Şubesi (ALANI YOK)","Siralama":290},
+  {"OgrenciNo":"930","AdSoyad":"BURAK OKUMUŞ","Ad":"BURAK","Puan":50.98,"Sinif":"AL - 12. Sınıf / B Şubesi (ALANI YOK)","Siralama":291},
+  {"OgrenciNo":"916","AdSoyad":"ERDAL AZİZ ŞAYLI","Ad":"ERDAL","Puan":50.87,"Sinif":"AL - 11. Sınıf / A Şubesi (ALANI YOK)","Siralama":292},
+  {"OgrenciNo":"478","AdSoyad":"SAADET YÖNDEN","Ad":"SAADET","Puan":50.77,"Sinif":"AL - 12. Sınıf / C Şubesi (ALANI YOK)","Siralama":293},
+  {"OgrenciNo":"937","AdSoyad":"SEÇİL ALVER","Ad":"SEÇİL","Puan":50.75,"Sinif":"AL - 12. Sınıf / C Şubesi (ALANI YOK)","Siralama":294},
+  {"OgrenciNo":"247","AdSoyad":"KEMAL MUTLU","Ad":"KEMAL","Puan":50.11,"Sinif":"AL - 11. Sınıf / A Şubesi (ALANI YOK)","Siralama":295},
+  {"OgrenciNo":"168","AdSoyad":"SELİN VURAL","Ad":"SELİN","Puan":48.07,"Sinif":"AL - 10. Sınıf / C Şubesi (ALANI YOK)","Siralama":296},
+  {"OgrenciNo":"807","AdSoyad":"VİLDAN PERİHAN ÇEKİCİ","Ad":"VİLDAN","Puan":48.0,"Sinif":"AL - 10. Sınıf / B Şubesi (ALANI YOK)","Siralama":297},
+  {"OgrenciNo":"185","AdSoyad":"MÜNEVVER KORKMAZ","Ad":"MÜNEVVER","Puan":47.95,"Sinif":"AL - 11. Sınıf / B Şubesi (ALANI YOK)","Siralama":298},
+  {"OgrenciNo":"918","AdSoyad":"TUĞBA ALTINKAYA","Ad":"TUĞBA","Puan":47.68,"Sinif":"AL - 11. Sınıf / A Şubesi (ALANI YOK)","Siralama":299},
+  {"OgrenciNo":"160","AdSoyad":"ALİ EYMEN YAKAR","Ad":"ALİ","Puan":47.28,"Sinif":"AL - 9. Sınıf / A Şubesi (ALANI YOK)","Siralama":300},
+  {"OgrenciNo":"322","AdSoyad":"YUNUS ATAK","Ad":"YUNUS","Puan":45.43,"Sinif":"AL - 11. Sınıf / A Şubesi (ALANI YOK)","Siralama":301},
+  {"OgrenciNo":"554","AdSoyad":"ZAMZAM MOHAMAD","Ad":"ZAMZAM","Puan":45.16,"Sinif":"AL - 12. Sınıf / A Şubesi (ALANI YOK)","Siralama":302},
+  {"OgrenciNo":"727","AdSoyad":"BUĞRA ÇETİNKAYA","Ad":"BUĞRA","Puan":43.48,"Sinif":"AL - 11. Sınıf / A Şubesi (ALANI YOK)","Siralama":303},
+  {"OgrenciNo":"684","AdSoyad":"YUSUF KURT","Ad":"YUSUF","Puan":42.95,"Sinif":"AL - 12. Sınıf / A Şubesi (ALANI YOK)","Siralama":304},
+  {"OgrenciNo":"998","AdSoyad":"ENES EFE GÜLER","Ad":"ENES","Puan":39.92,"Sinif":"AL - 11. Sınıf / B Şubesi (ALANI YOK)","Siralama":305},
+  {"OgrenciNo":"396","AdSoyad":"AYŞE TUANA ALTUN","Ad":"AYŞE","Puan":37.73,"Sinif":"AL - 11. Sınıf / A Şubesi (ALANI YOK)","Siralama":306},
+  {"OgrenciNo":"49","AdSoyad":"CANSU ÇELİK","Ad":"CANSU","Puan":37.58,"Sinif":"AL - 11. Sınıf / B Şubesi (ALANI YOK)","Siralama":307},
+  {"OgrenciNo":"178","AdSoyad":"ECEM YILMAZ","Ad":"ECEM","Puan":35.01,"Sinif":"AL - 11. Sınıf / B Şubesi (ALANI YOK)","Siralama":308},
+  {"OgrenciNo":"900","AdSoyad":"MEHMET ALİ ERDOĞANYILMAZ","Ad":"MEHMET","Puan":34.26,"Sinif":"AL - 11. Sınıf / A Şubesi (ALANI YOK)","Siralama":309},
+  {"OgrenciNo":"128","AdSoyad":"ALI OBID","Ad":"ALI","Puan":33.28,"Sinif":"AL - 11. Sınıf / A Şubesi (ALANI YOK)","Siralama":310},
+  {"OgrenciNo":"275","AdSoyad":"ÖMER HALİD YALÇIN","Ad":"ÖMER","Puan":5.19,"Sinif":"AL - 11. Sınıf / B Şubesi (ALANI YOK)","Siralama":311},
+  {"OgrenciNo":"906","AdSoyad":"BENGÜ OKTAR","Ad":"BENGÜ","Puan":4.6,"Sinif":"AL - 11. Sınıf / B Şubesi (ALANI YOK)","Siralama":312},
+  {"OgrenciNo":"116","AdSoyad":"MERVE İRTAK","Ad":"MERVE","Puan":4.57,"Sinif":"AL - 12. Sınıf / C Şubesi (ALANI YOK)","Siralama":313},
+  {"OgrenciNo":"591","AdSoyad":"EMİRHAN OKTAY","Ad":"EMİRHAN","Puan":3.14,"Sin fantast":"AL - 12. Sınıf / C Şubesi (ALANI YOK)","Siralama":314},
+  {"OgrenciNo":"114","AdSoyad":"NEŞET NACAR","Ad":"NEŞET","Puan":0.0,"Sinif":"AL - 9. Sınıf / A Şubesi (ALANI YOK)","Siralama":315},
+  {"OgrenciNo":"182","AdSoyad":"ABDULLAH ERDEM POLAT","Ad":"ABDULLAH","Puan":0.0,"Sinif":"AL - 9. Sınıf / C Şubesi (ALANI YOK)","Siralama":316},
+  {"OgrenciNo":"301","AdSoyad":"AYŞE NUR YÜKSEL","Ad":"AYŞE","Puan":0.0,"Sinif":"AL - 10. Sınıf / B Şubesi (ALANI YOK)","Siralama":317},
+  {"OgrenciNo":"490","AdSoyad":"DENİZ DEMİRCİLER","Ad":"DENİZ","Puan":0.0,"Sinif":"AL - 11. Sınıf / B Şubesi (ALANI YOK)","Siralama":318},
+  {"OgrenciNo":"739","AdSoyad":"EMİRHAN İNCU","Ad":"EMİRHAN","Puan":0.0,"Sinif":"AL - 10. Sınıf / B Şubesi (ALANI YOK)","Siralama":319},
+  {"OgrenciNo":"806","AdSoyad":"SONGÜL AYGÜN","Ad":"SONGÜL","Puan":0.0,"Sinif":"AL - 9. Sınıf / D Şubesi (ALANI YOK)","Siralama":320},
+  {"OgrenciNo":"919","AdSoyad":"NESLİHAN FİLİZ","Ad":"NESLİHAN","Puan":0.0,"Sinif":"AL - 9. Sınıf / A Şubesi (ALANI YOK)","Siralama":321} ];
+            const allSchoolSchedules = { /* ... Önceki tam veri ... */ "9/A":{Pazartesi:["BTVT","ASTM","ASTM","EDB","BIY","FIZ","MAT","MAT"],Salı:["ADBMAH","DIN","REH","KIM","COĞ","SAĞ","EDB","EDB"],Çarşamba:["ING","ING","MAT","MAT","TAR","COĞ","BIY","PGHT1"],Perşembe:["TAR","DIN","METTAH","METTAH","MAT","MAT","BED","BED"],Cuma:["ING","ING","KIM","FIZ","RESMÜZ","RESMÜZ","EDB","EDB"]},"9/B":{Pazartesi:["METTAH","METTAH","MAT","MAT","BIY","DIN","FIZ","BTVT"],Salı:["KIM","COĞ","EDB","EDB","MAT","MAT","SAĞ","FIZ"],Çarşamba:["DIN","EDB","EDB","TAR","BED","BED","MAT","MAT"],Perşembe:["ING","ING","COĞ","TAR","KIM","REH","EDB","PGHT1"],Cuma:["RESMÜZ","RESMÜZ","ING","ING","ASTM","ASTM","BIY","ADBMAH"]},"9/C":{Pazartesi:["COĞ","EDB","EDB","BTVT","KIM","REH","BED","BED"],Salı:["MAT","MAT","RESMÜZ","RESMÜZ","DIN","FIZ","METTAH","METTAH"],Çarşamba:["ING","ING","SAĞ","ASTM","ASTM","BIY","COĞ","PGHT1"],Perşembe:["ADBMAH","EDB","MAT","MAT","TAR","KIM","BIY","DIN"],Cuma:["ING","ING","MAT","MAT","EDB","EDB","TAR","FIZ"]},"9/D":{Pazartesi:["ADBMAH","COĞ","SAĞ","BIY","MAT","MAT","BTVT","PGHT1"],Salı:["EDB","EDB","MAT","MAT","BED","BED","BIY","REH"],Çarşamba:["MAT","MAT","ING","ING","KIM","FIZ","EDB","EDB"],Perşembe:["EDB","COĞ","TAR","DIN","ASTM","ASTM","RESMÜZ","RESMÜZ"],Cuma:["TAR","METTAH","METTAH","DIN","KIM","FIZ","ING","ING"]},"10/A":{Pazartesi:["TAR","EDB","EDB","FIZ","RESMÜZ","RESMÜZ","ING","ING"],Salı:["DIN","KAHLM1","BIY","FIZ","PTVY2","PTVY2","MAT","MAT"],Çarşamba:["MAT","MAT","FEL","COĞ","BIY","TAR","EDB","EDB"],Perşembe:["COĞ","KIM","IKÇEVY","IKÇEVY","REH","EDB","MAT","MAT"],Cuma:["BED3","BED3","BED3","KIM","DIN","FEL","ING","ING"]},"10/B":{Pazartesi:["BED3","BED3","BED3","DIN","MAT","MAT","BIY","COĞ"],Salı:["ING","ING","KIM","KAHLM1","PTVY2","PTVY2","MAT","MAT"],Çarşamba:["COĞ","DIN","TAR","EDB","MAT","MAT","FEL","FIZ"],Perşembe:["ING","ING","IKÇEVY","IKÇEVY","BIY","FEL","EDB","EDB"],Cuma:["KIM","TAR","REH","FIZ","EDB","EDB","RESMÜZ","RESMÜZ"]},"10/C":{Pazartesi:["ING","ING","BIY","REH","EDB","EDB","COĞ","FIZ"],Salı:["RESMÜZ","RESMÜZ","MAT","MAT","PTVY2","PTVY2","EDB","EDB"],Çarşamba:["TAR","FEL","MAT","MAT","ING","ING","DIN","COĞ"],Perşembe:["KIM","TAR","IKÇEVY","IKÇEVY","EDB","FIZ","BIY","FEL"],Cuma:["DIN","KIM","KAHLM1","BED3","BED3","BED3","MAT","MAT"]},"11/A":{Pazartesi:["MAT","MAT","STAR","STAR","STDE","STDE","EDB","EDB"],Salı:["ALM","ING","ING","DIN","MAT","MAT","COĞ","FEL"],Çarşamba:["EDB","EDB","MATUY","MATUY","DIN","REH","BED","BED"],Perşembe:["COĞ","MAT","MAT","STDE","STDE","TAR","ALM","PSK"],Cuma:["RESMÜZ","RESMÜZ","FEL","TAR","EDB","EDB","PSK","ING"]},"11/B":{Pazartesi:["MAT","MAT","ING","ING","EDB","EDB","DIN","ALM"],Salı:["TAR","MATUY","MATUY","COĞ","EDB","REH","RESMÜZ","RESMÜZ"],Çarşamba:["MAT","MAT","TAR","FEL","STDE","STDE","ING","ING"],Perşembe:["PSK","STDE","DIN","COĞ","MAT","MAT","STAR","STAR"],Cuma:["EDB","EDB","PSK","BED3","BED3","BED3","ALM","FEL"]},"11/C":{Pazartesi:["ALM","BMT2","BMT2","EDB","EDB","ING12","ING12","ING12"],Salı:["ING12","ING12","ING12","REH","EDB","EDB","BED","BED"],Çarşamba:["FEL","TAR","ING","ING","COĞ","ING12","ING12","ING12"],Perşembe:["RESMÜZ","RESMÜZ","ING","ING","TMAT","TMAT","DIN","EDB"],Cuma:["COĞ","ALM","DIN","ING12","ING12","ING12","FEL","TAR"]},"12/A":{Pazartesi:["RESMÜZ","RESMÜZ","KIM4","KIM4","ASTS","BIY04","BIY04","DIN"],Salı:["EDB","EDB","INK","REH","ING","ING","MAT","MAT"],Çarşamba:["KIM4","KIM4","EDB","MAT","MAT","ING","ING","ALM"],Perşembe:["MAT","MAT","INK","BED3","BED3","BED3","FIZ4","FIZ4"],Cuma:["ALM","DIN","EDB","EDB","BIY04","BIY04","FIZ4","FIZ4"]},"12/B":{Pazartesi:["DIN","TKVMT","TKVMT","ALM","COĞ4","COĞ4","STDE","STDE"],Salı:["MAT","MAT","EDB","EDB","INK","DEM","ING","ING"],Çarşamba:["EDB","EDB","ALM","REH","INK","DIN","BED","BED"],Perşembe:["MAT","MAT","RESMÜZ","RESMÜZ","PSK","EDB","MATUY","MATUY"],Cuma:["ING","ING","MAT","MAT","PSK","STDE","COĞ4","COĞ4"]},"12/C":{Pazartesi:["MATUY","MATUY","MAT","MAT","BED","BED","STDE","STDE"],Salı:["ING","ING","DIN","TKVMT","TKVMT","REH","DEM","STDE"],Çarşamba:["ALM","COĞ4","COĞ4","INK","DIN","EDB","MAT","MAT"],Perşembe:["INK","PSK","EDB","EDB","RESMÜZ","RESMÜZ","MAT","MAT"],Cuma:["PSK","COĞ4","COĞ4","ING","ING","ALM","EDB","EDB"]},"12/D":{Pazartesi:["ING","ING","DIN","INK","BMT2","BMT2","RESMÜZ","RESMÜZ"],Salı:["COĞ","INK","ING12","ING12","ING12","EDB","ING","ING"],Çarşamba:["KAHLM1","KAHLM1","ING12","ING12","ING12","ALM","ALM","DIN"],Perşembe:["BED","BED","ING12","ING12","ING12","REH","EDB","EDB"],Cuma:["TMAT","TMAT","ING12","ING12","ING12","COĞ","EDB","EDB"]} };
+            const subjectNameMap = { /* ... Önceki tam veri ... */ "ADBMAH":"Adabı Muaşeret", "ASTM":"Astronomi ve Uzay Bilimleri", "BED":"Beden Eğitimi", "BIY":"Biyoloji", "BTVT":"Bilişim Teknolojileri ve Yazılım", "COĞ":"Coğrafya", "DIN":"Din Kültürü ve Ahlak Bilgisi", "EDB":"Türk Dili ve Edebiyatı", "FIZ":"Fizik", "ING":"İngilizce", "KIM":"Kimya", "MAT":"Matematik", "METTAH":"Metin Tahlilleri", "PGHT1":"Peygamberimizin Hayatı", "REH":"Rehberlik", "RESMÜZ":"Resim/Müzik", "SAĞ":"Sağlık Bilgisi ve Trafik Kültürü", "TAR":"Tarih", "BED3":"Beden Eğitimi", "FEL":"Felsefe", "IKÇEVY":"İklim Çevre ve Yenilikçi Çözümler", "KAHLM1":"Klasik Ahlak Metinleri", "PTVY2":"Proje Tasarımı ve Uygulamaları", "ALM":"Almanca", "BMT2":"Bilişim Teknolojileri ve Yazılım", "ING12":"İngilizce (Yoğun)", "MATUY":"Matematik Uygulamaları", "PSK":"Psikoloji", "STAR":"Seçmeli Tarih", "STDE":"Seçmeli Türk Dili ve Edebiyatı", "TMAT":"Temel Matematik", "AST1":"Astronomi ve Uzay Bilimleri", "BIY04":"Biyoloji (Seçmeli/4 Saat)", "COĞ4":"Coğrafya (Seçmeli/4 Saat)", "DEM":"Demokrasi ve İnsan Hakları", "FIZ4":"Fizik (Seçmeli/4 Saat)", "INK":"T.C. İnkılap Tarihi ve Atatürkçülük", "KIM4":"Kimya (Seçmeli/4 Saat)", "TKVMT":"Türk Kültür ve Medeniyet Tarihi", "ASTS": "Astronomi Seçmeli" };
+            const excludedSubjectsByClass = { /* ... Önceki tam veri ... */ "11/A": ["COĞ", "COĞ4"], "11/B": ["FIZ", "KIM", "BIY", "FIZ4", "KIM4", "BIY04"], "11/C": ["FIZ", "KIM", "BIY", "FIZ4", "KIM4", "BIY04"], "12/A": ["COĞ", "COĞ4"], "12/B": ["FIZ", "KIM", "BIY", "FIZ4", "KIM4", "BIY04"], "12/C": ["FIZ", "KIM", "BIY", "FIZ4", "KIM4", "BIY04"], "12/D": ["FIZ", "KIM", "BIY", "FIZ4", "KIM4", "BIY04"] };
+            const studyAllowedSubjectPool = ["MAT", "EDB", "FIZ", "KIM", "BIY", "TAR", "COĞ", "FIZ4", "KIM4", "BIY04", "COĞ4", "MATUY", "TMAT", "INK", "STDE", "STAR", "TKVMT", "ING", "ALM", "ING12", "FEL", "DIN"];
+            const languageSubjects = ["ING", "ALM", "ING12"];
+            const nonStudySubjects = ["BED", "BED3", "RESMÜZ", "REH", "BTVT", "BMT2", "ADBMAH", "SAĞ", "METTAH", "ASTM", "AST1", "ASTS", "PTVY2", "PGHT1", "KAHLM1", "PSK", "DEM", "IKÇEVY"];
+            const MAIN_STUDY_SUBJECTS = ["MAT", "EDB", "FIZ", "KIM", "BIY", "TAR", "COĞ", "ING"];
+            const STYLE_VISUAL = "görerek öğrenme stili"; const STYLE_AUDITORY = "sese duyarlı öğrenme stili"; const STYLE_KINESTHETIC = "kinestetik öğrenme stili";
+
+            // ======================================================
+            // == ELEMENT REFERANSLARI (DÜZELTİLDİ) ==
+            // ======================================================
+            // Önceki hatayı düzeltmek için referansları tekrar tanımlıyoruz:
+            const typewriterElement = document.getElementById('typewriter');
+            const initialCursorElement = document.querySelector('#welcome-area .cursor');
+            const welcomeArea = document.getElementById('welcome-area');
+            const loginArea = document.getElementById('login-area');
+            const studentNumberInput = document.getElementById('student-number');
+            const studentPasswordInput = document.getElementById('student-password');
+            const loginButton = document.getElementById('login-button'); // BU TANIM EKSİKTİ!
+            const loginErrorElement = document.getElementById('login-error');
+            const infoArea = document.getElementById('info-area');
+            const greetingElement = document.getElementById('greeting');
+            const classInfoElement = document.getElementById('class-info');
+            const rankInfoElement = document.getElementById('rank-info');
+            const scoreFeedbackElement = document.getElementById('score-feedback');
+            const currentStyleInfoElement = document.getElementById('current-style-info');
+            const mainMenuArea = document.getElementById('main-menu-area');
+            const menuInfoElement = document.getElementById('menu-info');
+            const subjectButtonsContainer = document.getElementById('subject-buttons-container');
+            const styleTestLink = document.getElementById('style-test-link');
+            const styleInputButton = document.getElementById('style-input-button');
+            const settingsButton = document.getElementById('settings-button');
+            const generateScheduleButton = document.getElementById('generate-schedule-button');
+            const contentArea = document.getElementById('content-area');
+            const contentMessage = document.getElementById('content-message');
+            const learningStyleResultsInputArea = document.getElementById('learning-style-results-input-area');
+            const manualVisualScoreInput = document.getElementById('manual-visual-score');
+            const manualAuditoryScoreInput = document.getElementById('manual-auditory-score');
+            const manualKinestheticScoreInput = document.getElementById('manual-kinesthetic-score');
+            const saveStyleButton = document.getElementById('save-style-button');
+            const learningStyleAnalysis = document.getElementById('learning-style-analysis');
+            const styleSaveMessage = document.getElementById('style-save-message');
+            const settingsArea = document.getElementById('settings-area');
+            const activityInputArea = document.getElementById('activity-section');
+            const activityNameInput = document.getElementById('activity-name');
+            const activityDaySelect = document.getElementById('activity-day');
+            const activityStartTimeInput = document.getElementById('activity-start-time');
+            const activityEndTimeInput = document.getElementById('activity-end-time');
+            const addActivityButton = document.getElementById('add-activity-button');
+            const activityErrorElement = document.getElementById('activity-error');
+            const addedActivitiesList = document.getElementById('added-activities-list');
+            const noActivityMessage = document.getElementById('no-activity-message');
+            const saveActivitiesButton = document.getElementById('save-activities-button');
+            const saveMessageElement = document.getElementById('save-message');
+            const studyPreferenceSection = document.getElementById('study-preference-section');
+            const subjectSelectionList = document.getElementById('subject-selection-list');
+            const savePreferencesButton = document.getElementById('save-preferences-button');
+            const preferenceSaveMessage = document.getElementById('preference-save-message');
+            const scheduleDisplayArea = document.getElementById('schedule-display-area');
+            const scheduleContainer = document.getElementById('schedule-container');
+
+            // ======================================================
+            // == DURUM DEĞİŞKENLERİ ==
+            // ======================================================
+            let currentStudent = null; let studentActivities = []; let currentLearningStyle = null; let currentStudyPreferences = [];
+
+            // ======================================================
+            // == YARDIMCI FONKSİYONLAR ==
+            // ======================================================
+            // (Fonksiyonlar önceki kodla aynı, değişiklik yok)
+            function initializeApp() { console.log("Uygulama Başlatıldı."); typeWriterInitial(); }
+            const welcomeTextInitial = "Merhaba! Ben okul asistanınım. Numaranı ve şifreni girerek başlayabilirsin."; let charIndexInitial = 0; const typingSpeedInitial = 50; function typeWriterInitial() { if (charIndexInitial < welcomeTextInitial.length) { typewriterElement.textContent += welcomeTextInitial.charAt(charIndexInitial); charIndexInitial++; if(initialCursorElement) initialCursorElement.style.opacity = '1'; setTimeout(typeWriterInitial, typingSpeedInitial); } else { if(initialCursorElement) initialCursorElement.style.display = 'none'; loginArea.classList.remove('hidden'); studentNumberInput.focus(); } }
+            function typewriterEffect(element, text, speed, cursorElement, callback) { let i = 0; element.innerHTML = ''; element.style.opacity = '1'; if(cursorElement) cursorElement.style.opacity = '1'; function type() { if (i < text.length) { element.innerHTML += text.charAt(i); i++; setTimeout(type, speed); } else { if(cursorElement) cursorElement.style.opacity = '0'; if (callback) callback(); } } type(); }
+            function generatePassword(student) { if (!student || !student.AdSoyad || !student.OgrenciNo) return null; const adSoyad = student.AdSoyad.trim().toUpperCase(); const parts = adSoyad.split(' '); if (parts.length < 2) { if (parts.length === 1 && parts[0].length >= 2) { const ilkIkiHarf = parts[0].substring(0, 2); let numaraToplami = 0; for (const digit of student.OgrenciNo) if (!isNaN(parseInt(digit))) numaraToplami += parseInt(digit); return `${ilkIkiHarf}${numaraToplami}`; } return `SIFRE${student.OgrenciNo.slice(-2)}`; } const ilkHarf = parts[0].charAt(0); const sonHarf = parts[parts.length - 1].charAt(0); let numaraToplami = 0; for (const digit of student.OgrenciNo) if (!isNaN(parseInt(digit))) numaraToplami += parseInt(digit); return `${ilkHarf}${sonHarf}${numaraToplami}`; }
+            function hideAllWindows(){ loginArea.classList.add('hidden'); infoArea.classList.add('hidden'); mainMenuArea.classList.add('hidden'); learningStyleResultsInputArea.classList.add('hidden'); settingsArea.classList.add('hidden'); contentArea.classList.add('hidden'); scheduleDisplayArea.classList.add('hidden'); greetingElement.innerHTML = ''; menuInfoElement.innerHTML = ''; greetingElement.style.opacity = '0'; menuInfoElement.style.opacity = '0'; const cursor1 = document.getElementById('cursor-greeting'); const cursor2 = document.getElementById('cursor-menu'); if (cursor1) cursor1.style.opacity = '0'; if (cursor2) cursor2.style.opacity = '0'; }
+            function findStudent(number) { return studentData.find(s => s.OgrenciNo === number); }
+            function getScoreFeedback(score) { const roundedScore = score.toFixed(2); if (score >= 90) return [`Ortalaman (${roundedScore}) harika! 🎉 Böyle devam etmelisin.`, true]; if (score >= 80) return [`Ortalaman (${roundedScore}) gayet iyi! 👍 Başarını sürdürmek için çabalamaya devam et.`, false]; if (score >= 70) return [`Ortalaman (${roundedScore}) fena değil. Biraz daha gayretle daha iyi olabilirsin. 💪`, false]; if (score >= 50) return [`Ortalaman (${roundedScore}) geçer düzeyde. İstersen zayıf olduğun konulara odaklanabiliriz. 🤔`, false]; return [`Ortalaman (${roundedScore}) biraz düşük görünüyor. Endişelenme, birlikte bir plan yaparak yükseltebiliriz! 🤝`, false]; }
+            function extractClassId(classString) { if (!classString) return null; const matchDirect = classString.match(/(\d{1,2})\/([A-Z])$/i); if (matchDirect) return `${matchDirect[1]}/${matchDirect[2].toUpperCase()}`; const matchVerbose = classString.match(/(\d{1,2})\.\s*Sınıf\s*\/\s*([A-Z])\s*Şubesi/i); if (matchVerbose) return `${matchVerbose[1]}/${matchVerbose[2].toUpperCase()}`; const fallbackMatch = classString.match(/(\d{1,2})\s*\/\s*([A-Z])/i); if (fallbackMatch) return `${fallbackMatch[1]}/${fallbackMatch[2].toUpperCase()}`; console.warn(`Sınıf ID'si çıkarılamadı: ${classString}`); return null; }
+            function populateSubjectButtons(classId) { subjectButtonsContainer.innerHTML = ''; let subjectsToShow = []; const gradeLevel = parseInt(classId.split('/')[0]); if (gradeLevel === 9 || gradeLevel === 10) { subjectsToShow = ["MAT", "FIZ", "KIM", "BIY", "TAR", "COĞ", "DIN", "ING"]; } else if (classId === "11/B" || classId === "12/B" || classId === "12/C") { subjectsToShow = ["MAT", "EDB", "TAR", "COĞ", "FEL", "DIN"]; } else if (classId === "11/A" || classId === "12/A") { subjectsToShow = ["MAT", "FIZ", "KIM", "BIY", "EDB", "TAR"]; } else if (classId === "11/C" || classId === "12/D") { subjectsToShow = ["ING", "ALM", "EDB", "TMAT", "TAR", "COĞ"]; } else { console.warn(`Tanımsız sınıf (${classId}) için varsayılan ders butonları gösteriliyor.`); subjectsToShow = ["MAT", "EDB", "FIZ", "KIM", "BIY", "TAR", "COĞ", "ING"]; } subjectsToShow.forEach(abbr => { const fullName = subjectNameMap[abbr.toUpperCase()] || abbr; const button = document.createElement('button'); button.className = 'subject-button'; button.dataset.subject = abbr.toUpperCase(); button.textContent = fullName; button.addEventListener('click', handleSubjectButtonClick); subjectButtonsContainer.appendChild(button); }); }
+            function handleSubjectButtonClick(event) { const subjectAbbr = event.target.getAttribute('data-subject').toUpperCase(); const subjectFullName = subjectNameMap[subjectAbbr] || subjectAbbr; hideAllWindows(); contentArea.classList.remove('hidden'); contentMessage.textContent = `${subjectFullName} dersi için içerik yakında... 😊`; infoArea.classList.remove('hidden'); mainMenuArea.classList.remove('hidden'); }
+
+            // ======================================================
+            // == ANA İŞLEVLER ==
+            // ======================================================
+
+            // --- Giriş ---
+            // Event Listenerlar artık başta tanımlı olan loginButton değişkenini kullanacak
+            loginButton.addEventListener('click', handleLoginAttempt);
+            studentNumberInput.addEventListener('keypress', (event) => { if (event.key === 'Enter') studentPasswordInput.focus(); });
+            studentPasswordInput.addEventListener('keypress', (event) => { if (event.key === 'Enter') handleLoginAttempt(); });
+            function handleLoginAttempt() { const enteredNumber = studentNumberInput.value.trim(); const enteredPassword = studentPasswordInput.value.trim(); loginErrorElement.textContent = ''; currentStudent = null; studentActivities = []; currentLearningStyle = null; currentStudyPreferences = []; hideAllWindows(); if (!enteredNumber || !enteredPassword) { loginErrorElement.textContent = 'Lütfen okul numaranızı ve şifrenizi girin.'; loginArea.classList.remove('hidden'); return; } currentStudent = findStudent(enteredNumber); if (currentStudent) { const correctPassword = generatePassword(currentStudent); if (enteredPassword === correctPassword) { console.log("Giriş başarılı:", currentStudent); welcomeArea.classList.add('hidden'); const classId = extractClassId(currentStudent.Sinif); if(classId) { populateSubjectButtons(classId); } else { console.error("Sınıf ID alınamadı, butonlar oluşturulamadı."); subjectButtonsContainer.innerHTML = '<p class="error-message">Ders butonları yüklenemedi.</p>'; } displayStudentInfo(currentStudent); loadStudentActivities(); loadLearningStyle(); loadStudyPreferences(); studentPasswordInput.value = ''; } else { loginErrorElement.textContent = 'Şifre yanlış!'; loginArea.classList.remove('hidden'); studentPasswordInput.value = ''; studentPasswordInput.focus(); } } else { loginErrorElement.textContent = 'Bu numaraya sahip bir öğrenci bulunamadı.'; loginArea.classList.remove('hidden'); studentPasswordInput.value = ''; } }
+
+            // --- Öğrenci Bilgisi Gösterme ---
+            function displayStudentInfo(student) { greetingElement.innerHTML = ''; menuInfoElement.innerHTML = ''; greetingElement.style.opacity = '0'; menuInfoElement.style.opacity = '0'; const cursor1 = document.getElementById('cursor-greeting'); const cursor2 = document.getElementById('cursor-menu'); if (cursor1) cursor1.style.opacity = '0'; if (cursor2) cursor2.style.opacity = '0'; const greetingText = `Kişiselleştirilmiş yapay zeka sayfana hoş geldin ${student.Ad.toUpperCase()}! 👋`; const menuInfoText = `Bugün hangi dersleri çalışmak istersin? İstersen ders programını gözden geçirebilirsin.`; classInfoElement.textContent = `Sınıfın: ${student.Sinif || 'Bilgi Yok'}`; rankInfoElement.textContent = `Okuldaki sıralaman: ${student.Siralama}.`; const [feedbackText, applyAnimation] = getScoreFeedback(student.Puan); scoreFeedbackElement.textContent = feedbackText; scoreFeedbackElement.className = ''; if (applyAnimation) { scoreFeedbackElement.classList.add('pulse-feedback'); } else { scoreFeedbackElement.style.color = ''; scoreFeedbackElement.style.fontWeight = ''; } infoArea.classList.remove('hidden'); mainMenuArea.classList.remove('hidden'); const typingSpeed = 40; typewriterEffect(greetingElement, greetingText, typingSpeed, cursor1, () => { setTimeout(() => { typewriterEffect(menuInfoElement, menuInfoText, typingSpeed, cursor2, () => { console.log("Tüm karşılama mesajları yazıldı."); }); }, 300); }); saveMessageElement.textContent = ''; styleSaveMessage.textContent = ''; preferenceSaveMessage.textContent = ''; displayCurrentLearningStyle(); }
+
+            // --- Buton Event Listeners ---
+            // (generateScheduleButton, saveStyleButton, vs. tanımlamaları ve listener atamaları yukarıda element referansları ile birlikte yapıldı)
+            styleInputButton.addEventListener('click', () => { hideAllWindows(); infoArea.classList.remove('hidden'); mainMenuArea.classList.remove('hidden'); learningStyleResultsInputArea.classList.remove('hidden'); });
+            settingsButton.addEventListener('click', () => { hideAllWindows(); infoArea.classList.remove('hidden'); mainMenuArea.classList.remove('hidden'); settingsArea.classList.remove('hidden'); renderActivities(); populateStudyPreferencesUI(); });
+            generateScheduleButton.addEventListener('click', () => { /* ... Kod aynı ... */ if (!currentStudent) { alert("Program oluşturmak için lütfen önce öğrenci girişi yapın."); return; } if (!currentLearningStyle) { alert("Lütfen önce öğrenme stili sonuçlarınızı girip kaydedin."); hideAllWindows(); infoArea.classList.remove('hidden'); mainMenuArea.classList.remove('hidden'); learningStyleResultsInputArea.classList.remove('hidden'); return; } console.log("Program oluşturma başlatıldı."); scheduleContainer.innerHTML = '<p>Program oluşturuluyor...</p>'; hideAllWindows(); infoArea.classList.remove('hidden'); mainMenuArea.classList.remove('hidden'); scheduleDisplayArea.classList.remove('hidden'); try { const studentClassString = currentStudent.Sinif; const studentPuan = currentStudent.Puan; const classId = extractClassId(studentClassString); if (!classId) { throw new Error(`Öğrencinin sınıf formatı anlaşılamadı: ${studentClassString}`); } const studentSchoolSchedule = allSchoolSchedules[classId]; if (!studentSchoolSchedule) { throw new Error(`${classId} sınıfı için ders programı bulunamadı.`); } const studyPlan = generateStudyPlan(classId, studentSchoolSchedule, studentActivities, studentPuan, currentLearningStyle); console.log("Oluşturulan Çalışma Planı:", studyPlan); displaySchedule(studyPlan); } catch (error) { console.error("Program oluşturma sırasında hata:", error); scheduleContainer.innerHTML = `<p class="error-message">Program oluşturulurken bir hata oluştu: ${error.message}. Lütfen sınıf bilgisini (${currentStudent.Sinif}) kontrol edin veya destek isteyin.</p>`; const existingTipsArea = document.getElementById('study-tips-area'); if(existingTipsArea) existingTipsArea.remove(); } });
+            saveStyleButton.addEventListener('click', analyzeAndSaveLearningStyle);
+            addActivityButton.addEventListener('click', () => { /* ... Aktivite Ekleme Kodu aynı ... */ activityErrorElement.textContent = ''; const name = activityNameInput.value.trim(); const day = activityDaySelect.value; const startTime = activityStartTimeInput.value; const endTime = activityEndTimeInput.value; if (!name || !day || !startTime || !endTime) { activityErrorElement.textContent = 'Lütfen tüm alanları doldurun.'; return; } if (startTime >= endTime) { activityErrorElement.textContent = 'Bitiş saati, başlangıç saatinden sonra olmalıdır.'; return; } const newActivity = { id: Date.now(), name: name, day: day, startTime: startTime, endTime: endTime }; studentActivities.push(newActivity); renderActivities(); clearActivityForm(); saveMessageElement.textContent = 'Aktivite eklendi. Kaydetmeyi unutma!'; saveMessageElement.className = 'info-message'; saveMessageElement.style.color = 'orange'; });
+            saveActivitiesButton.addEventListener('click', () => { /* ... Aktivite Kaydetme Kodu aynı ... */ if (currentStudent) { try { localStorage.setItem(`activities_${currentStudent.OgrenciNo}`, JSON.stringify(studentActivities)); saveMessageElement.textContent = 'Aktiviteler başarıyla kaydedildi!'; saveMessageElement.className = 'info-message success-message'; saveMessageElement.style.color = 'var(--success-color)'; } catch (error) { console.error("LocalStorage kaydetme hatası:", error); saveMessageElement.textContent = 'Aktiviteler kaydedilirken bir hata oluştu.'; saveMessageElement.className = 'error-message'; } } else { saveMessageElement.textContent = 'Önce öğrenci girişi yapmalısınız.'; saveMessageElement.className = 'error-message'; } });
+            savePreferencesButton.addEventListener('click', () => { /* ... Tercih Kaydetme Kodu aynı ... */ if (!currentStudent) { preferenceSaveMessage.textContent = 'Önce öğrenci girişi yapmalısınız.'; preferenceSaveMessage.className = 'error-message'; return; } const selectedSubjects = []; const checkboxes = subjectSelectionList.querySelectorAll('input[type="checkbox"]:checked'); checkboxes.forEach(cb => { selectedSubjects.push(cb.value); }); currentStudyPreferences = selectedSubjects; console.log("Kaydedilen Ders Tercihleri:", currentStudyPreferences); try { localStorage.setItem(`studyPreferences_${currentStudent.OgrenciNo}`, JSON.stringify(currentStudyPreferences)); preferenceSaveMessage.textContent = 'Çalışma öncelikleri başarıyla kaydedildi!'; preferenceSaveMessage.className = 'info-message success-message'; } catch (error) { console.error("LocalStorage tercih kaydetme hatası:", error); preferenceSaveMessage.textContent = 'Öncelikler kaydedilirken bir hata oluştu.'; preferenceSaveMessage.className = 'error-message'; } });
+
+            // --- Öğrenme Stili Yönetimi ---
+            // (analyzeAndSaveLearningStyle, loadLearningStyle, displayCurrentLearningStyle fonksiyonları önceki kodla aynı)
+            function analyzeAndSaveLearningStyle() { const v = parseInt(manualVisualScoreInput.value) || 0; const a = parseInt(manualAuditoryScoreInput.value) || 0; const k = parseInt(manualKinestheticScoreInput.value) || 0; const total = v + a + k; manualVisualScoreInput.value = v; manualAuditoryScoreInput.value = a; manualKinestheticScoreInput.value = k; if (total === 0) { learningStyleAnalysis.innerHTML = `<p class="error-message">Lütfen testten aldığınız en az bir stil puanını girin.</p>`; learningStyleAnalysis.classList.remove('hidden'); styleSaveMessage.textContent = ''; currentLearningStyle = null; if (currentStudent) localStorage.removeItem(`learningStyle_${currentStudent.OgrenciNo}`); displayCurrentLearningStyle(); return; } const vPercent = ((v / total) * 100).toFixed(1); const aPercent = ((a / total) * 100).toFixed(1); const kPercent = ((k / total) * 100).toFixed(1); let dominantStyle = ''; let styleDescription = ''; const styles = []; const maxScore = Math.max(v, a, k); if (v === maxScore && v > 0) styles.push(STYLE_VISUAL); if (a === maxScore && a > 0) styles.push(STYLE_AUDITORY); if (k === maxScore && k > 0) styles.push(STYLE_KINESTHETIC); dominantStyle = styles.join(' / '); if (styles.length > 1) { styleDescription = "Çoklu öğrenme stiline sahipsin."; } else if (styles.length === 1) { styleDescription = `Baskın öğrenme stilin: ${dominantStyle}.`; } else { dominantStyle = "Belirlenemedi"; styleDescription = "Stil belirlenemedi (Puanları kontrol et)."; } currentLearningStyle = { v, a, k, dominant: dominantStyle }; learningStyleAnalysis.innerHTML = `<p><strong>Analiz Sonucu:</strong> ${styleDescription}</p><ul><li>Görsel: ${v} puan (%${vPercent})</li><li>İşitsel: ${a} puan (%${aPercent})</li><li>Kinestetik: ${k} puan (%${kPercent})</li></ul><p><em>Bu stile göre çalışma önerileri programa yansıtılacaktır.</em></p>`; learningStyleAnalysis.classList.remove('hidden'); if (currentStudent) { try { localStorage.setItem(`learningStyle_${currentStudent.OgrenciNo}`, JSON.stringify(currentLearningStyle)); styleSaveMessage.textContent = 'Stil sonuçları başarıyla kaydedildi!'; styleSaveMessage.className = 'info-message success-message'; displayCurrentLearningStyle(); } catch (error) { console.error("LocalStorage stil kaydetme hatası:", error); styleSaveMessage.textContent = 'Stil sonuçları kaydedilirken bir hata oluştu.'; styleSaveMessage.className = 'error-message'; } } else { styleSaveMessage.textContent = 'Stili kaydetmek için önce öğrenci girişi yapmalısınız.'; styleSaveMessage.className = 'error-message'; } }
+            function loadLearningStyle() { if (currentStudent) { const storageKey = `learningStyle_${currentStudent.OgrenciNo}`; const savedStyle = localStorage.getItem(storageKey); if (savedStyle) { try { currentLearningStyle = JSON.parse(savedStyle); manualVisualScoreInput.value = currentLearningStyle.v || 0; manualAuditoryScoreInput.value = currentLearningStyle.a || 0; manualKinestheticScoreInput.value = currentLearningStyle.k || 0; console.log("Yüklenen Öğrenme Stili:", currentLearningStyle); } catch (error) { console.error("LocalStorage stil yükleme hatası:", error); currentLearningStyle = null; manualVisualScoreInput.value = 0; manualAuditoryScoreInput.value = 0; manualKinestheticScoreInput.value = 0; } } else { currentLearningStyle = null; manualVisualScoreInput.value = 0; manualAuditoryScoreInput.value = 0; manualKinestheticScoreInput.value = 0; } displayCurrentLearningStyle(); learningStyleAnalysis.classList.add('hidden'); } else { currentLearningStyle = null; } }
+            function displayCurrentLearningStyle(){ if(currentLearningStyle && currentLearningStyle.dominant){ currentStyleInfoElement.textContent = `Kaydedilmiş Stil: ${currentLearningStyle.dominant} (G:${currentLearningStyle.v}, İ:${currentLearningStyle.a}, K:${currentLearningStyle.k})`; } else { currentStyleInfoElement.textContent = 'Henüz öğrenme stili sonucu girilmedi.'; } }
+
+            // --- Aktivite Yönetimi ---
+            // (renderActivities, clearActivityForm, loadStudentActivities fonksiyonları önceki kodla aynı)
+            function renderActivities() { addedActivitiesList.innerHTML = ''; if (noActivityMessage) noActivityMessage.style.display = 'none'; if (studentActivities.length === 0) { if(noActivityMessage) { noActivityMessage.style.display = 'list-item'; } else { const li = document.createElement('li'); li.id = "no-activity-message"; li.textContent = "Henüz aktivite eklenmedi."; addedActivitiesList.appendChild(li); } } else { studentActivities.forEach(activity => { const listItem = document.createElement('li'); listItem.innerHTML = `<span><strong>${activity.name}</strong> (${activity.day}, ${activity.startTime} - ${activity.endTime})</span> <button class="delete-activity-button" data-id="${activity.id}"><i class="fas fa-trash-alt"></i></button>`; listItem.querySelector('.delete-activity-button').addEventListener('click', (e) => { const idToDelete = parseInt(e.currentTarget.getAttribute('data-id')); studentActivities = studentActivities.filter(act => act.id !== idToDelete); renderActivities(); saveMessageElement.textContent = 'Aktivite silindi. Değişiklikleri kaydetmeyi unutma!'; saveMessageElement.className = 'info-message'; saveMessageElement.style.color = 'orange'; }); addedActivitiesList.appendChild(listItem); }); } }
+            function clearActivityForm() { activityNameInput.value = ''; activityDaySelect.selectedIndex = 0; activityStartTimeInput.value = ''; activityEndTimeInput.value = ''; }
+            function loadStudentActivities() { if (currentStudent) { const storageKey = `activities_${currentStudent.OgrenciNo}`; const savedActivities = localStorage.getItem(storageKey); if (savedActivities) { try { studentActivities = JSON.parse(savedActivities); } catch (error) { console.error("LocalStorage yükleme hatası:", error); studentActivities = []; } } else { studentActivities = []; } console.log("Yüklenen aktiviteler:", studentActivities); } else { studentActivities = []; } }
+
+            // --- Ders Çalışma Tercihleri Yönetimi ---
+            // (populateStudyPreferencesUI, loadStudyPreferences fonksiyonları önceki kodla aynı)
+            function populateStudyPreferencesUI() { if (!currentStudent) return; subjectSelectionList.innerHTML = ''; preferenceSaveMessage.textContent = ''; const classId = extractClassId(currentStudent.Sinif); const studentSchedule = classId ? allSchoolSchedules[classId] : null; const availableStudySubjects = new Set(); if (studentSchedule) { Object.values(studentSchedule).forEach(dailySchedule => { dailySchedule.forEach(abbr => { const upperAbbr = abbr.toUpperCase(); if (studyAllowedSubjectPool.includes(upperAbbr) && !nonStudySubjects.includes(upperAbbr)) { availableStudySubjects.add(upperAbbr); } }); }); } MAIN_STUDY_SUBJECTS.forEach(subj => { if (studyAllowedSubjectPool.includes(subj.toUpperCase()) && !nonStudySubjects.includes(subj.toUpperCase())) { availableStudySubjects.add(subj.toUpperCase()); } }); if (availableStudySubjects.size === 0) { subjectSelectionList.innerHTML = '<p style="color: var(--secondary-color);">Seçilebilecek ders bulunamadı.</p>'; return; } const savedPreferences = currentStudyPreferences || []; availableStudySubjects.forEach(abbr => { const fullName = subjectNameMap[abbr] || abbr; const checkboxId = `pref-${abbr}`; const label = document.createElement('label'); label.className = 'subject-checkbox-label'; label.htmlFor = checkboxId; const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.id = checkboxId; checkbox.value = abbr; checkbox.checked = savedPreferences.includes(abbr); const span = document.createElement('span'); span.textContent = fullName; label.appendChild(checkbox); label.appendChild(span); subjectSelectionList.appendChild(label); }); }
+            function loadStudyPreferences() { if (currentStudent) { const storageKey = `studyPreferences_${currentStudent.OgrenciNo}`; const savedPrefs = localStorage.getItem(storageKey); if (savedPrefs) { try { currentStudyPreferences = JSON.parse(savedPrefs); } catch (error) { console.error("LocalStorage tercih yükleme hatası:", error); currentStudyPreferences = []; } } else { currentStudyPreferences = []; } console.log("Yüklenen Ders Tercihleri:", currentStudyPreferences); } else { currentStudyPreferences = []; } }
+
+          // --- Ders Çalışma Programı Oluşturma (Ders Tercihleri ve MAT Ağırlıklandırması Düzeltildi) ---
+             function generateStudyPlan(classId, schoolSched, activities, studentScore, learningStyle) {
+                 const daysOfWeek = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]; const plan = {}; const timeSlots = []; for (let h = 7; h < 24; h++) { for (let m of [0, 30]) { if (h === 23 && m === 30) continue; timeSlots.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`); } } daysOfWeek.forEach(day => { plan[day] = {}; timeSlots.forEach(slot => { plan[day][slot] = { type: "empty", description: "-", styleHint: "" }; }); });
+                 const schoolHoursStartTimes_NEW = ["08:30", "09:20", "10:10", "11:00", "13:00", "13:50", "14:40", "15:30"]; const weeklySubjectCounts = {}; daysOfWeek.slice(0, 5).forEach(day => { if (schoolSched && schoolSched[day] && schoolSched[day].length > 0) { schoolSched[day].forEach((lessonAbbr, index) => { const abbrUpper = lessonAbbr ? lessonAbbr.toUpperCase() : null; if (abbrUpper && schoolHoursStartTimes_NEW[index]) { if (studyAllowedSubjectPool.includes(abbrUpper) && !nonStudySubjects.includes(abbrUpper)) { weeklySubjectCounts[abbrUpper] = (weeklySubjectCounts[abbrUpper] || 0) + 1; } const lessonName = subjectNameMap[abbrUpper] || lessonAbbr; const startTimeStr = schoolHoursStartTimes_NEW[index]; const startH = parseInt(startTimeStr.split(':')[0]); const startM = parseInt(startTimeStr.split(':')[1]); let placedSlots = 0; for (let i = 0; i < timeSlots.length && placedSlots < 2; i++) { const slotTime = timeSlots[i]; const slotH = parseInt(slotTime.split(':')[0]); const slotM = parseInt(slotTime.split(':')[1]); const slotStartMinutes = slotH * 60 + slotM; const lessonStartMinutes = startH * 60 + startM; if (slotStartMinutes >= lessonStartMinutes && slotStartMinutes < lessonStartMinutes + 55) { if (plan[day][slotTime] && plan[day][slotTime].type === "empty") { plan[day][slotTime] = { type: "school", description: lessonName, styleHint: "" }; placedSlots++; } } else if (slotStartMinutes >= lessonStartMinutes + 55 && placedSlots > 0) { break; } } } }); } }); activities.forEach(activity => { if (plan[activity.day] && activity.startTime && activity.endTime) { try { const startH = parseInt(activity.startTime.split(':')[0]); const startM = parseInt(activity.startTime.split(':')[1]); const endH = parseInt(activity.endTime.split(':')[0]); const endM = parseInt(activity.endTime.split(':')[1]); if (isNaN(startH) || isNaN(startM) || isNaN(endH) || isNaN(endM)) return; timeSlots.forEach(slotTime => { const slotH = parseInt(slotTime.split(':')[0]); const slotM = parseInt(slotTime.split(':')[1]); const slotStartMinutes = slotH * 60 + slotM; const activityStartMinutes = startH * 60 + startM; const activityEndMinutes = endH * 60 + endM; if (slotStartMinutes >= activityStartMinutes && slotStartMinutes < activityEndMinutes) { if (plan[activity.day][slotTime]) { plan[activity.day][slotTime] = { type: "activity", description: activity.name, styleHint: "" }; } } }); } catch (e) { console.error("Aktivite zamanı işlenirken hata:", activity, e); } } });
+                 const excluded = excludedSubjectsByClass[classId] || []; const isLanguageClass = classId.endsWith("/C") || classId.endsWith("/D"); let baseSubjectsToStudy = studyAllowedSubjectPool.slice(); if (!isLanguageClass) { baseSubjectsToStudy = baseSubjectsToStudy.filter(subj => !languageSubjects.includes(subj.toUpperCase())); }
+                 let finalSubjectsToStudyPool = baseSubjectsToStudy.filter(subj => !excluded.includes(subj.toUpperCase()) && !nonStudySubjects.includes(subj.toUpperCase()));
+                 const usePreferences = currentStudyPreferences && currentStudyPreferences.length > 0; if (usePreferences) { console.log("Ders tercihleri kullanılıyor:", currentStudyPreferences); finalSubjectsToStudyPool = finalSubjectsToStudyPool.filter(subj => currentStudyPreferences.includes(subj.toUpperCase())); if (finalSubjectsToStudyPool.length === 0) { console.warn("Seçilen tercihler arasında bu sınıf için çalışılabilecek ders bulunamadı. Program boş kalabilir."); } } else { console.log("Ders tercihleri kullanılmıyor, sınıfa uygun tüm dersler dikkate alınacak."); } console.log(`${classId} için SON çalışılabilir ders havuzu:`, finalSubjectsToStudyPool);
+
+                 // *** DÜZELTME: Ağırlıklı listeye Matematik de dahil ediliyor (eğer havuzda varsa) ***
+                 const weightedSubjectList = [];
+                 finalSubjectsToStudyPool.forEach(subj => { // Artık Matematik burada işleniyor
+                     const count = weeklySubjectCounts[subj.toUpperCase()] || 1;
+                     // Ağırlıklandırma (Sayısal ve Matematik için düşük puanda hafif artış)
+                     const weightMultiplier = (studentScore < 65 && ["FIZ", "KIM", "BIY", "FIZ4", "KIM4", "BIY04"].includes(subj.toUpperCase())) ? 1.5 :
+                                              (subj.toUpperCase() === 'MAT' && studentScore < 70) ? 1.3 :
+                                              1;
+                     for (let i = 0; i < Math.ceil(count * weightMultiplier); i++) {
+                         weightedSubjectList.push(subj);
+                     }
+                 });
+                 // Eğer havuzda ders vardı ama ağırlıklı liste boş kaldıysa (örn. count*multiplier < 1 ise), direkt ekle
+                 if (weightedSubjectList.length === 0 && finalSubjectsToStudyPool.length > 0) {
+                     weightedSubjectList.push(...finalSubjectsToStudyPool);
+                 }
+                 console.log("Ağırlıklı Çalışma Listesi (Matematik Dahil - Tercihler Uygulandıysa):", weightedSubjectList.slice());
+                 // *** DÜZELTME SONU ***
+
+                 // Rastgele çalışma slotlarını doldur (Ağırlıklı listeyi kullanarak)
+                 daysOfWeek.forEach((day, dayIndex) => { let consecutiveStudySlots = 0; const isKinesthetic = learningStyle.dominant && learningStyle.dominant.includes(STYLE_KINESTHETIC); const isAuditory = learningStyle.dominant && learningStyle.dominant.includes(STYLE_AUDITORY); const breakFrequency = isKinesthetic ? 2 : (isAuditory ? 4 : 3); timeSlots.forEach(slot => { if (plan[day][slot].type === "empty") { const slotH = parseInt(slot.split(':')[0]); const slotM = parseInt(slot.split(':')[1]); const isWeekday = dayIndex < 5; const isStudyTime = (isWeekday && slotH >= 17 && (slotH < 22 || (slotH === 22 && slotM === 0))) || (!isWeekday && slotH >= 9 && (slotH < 21 || (slotH === 21 && slotM === 0))); if (isStudyTime) { if ((slotH === 19 && slotM === 0) || (slotH === 19 && slotM === 30)) { plan[day][slot] = { type: "break", description: "Yemek Molası", styleHint: "" }; consecutiveStudySlots = 0; return; } if (consecutiveStudySlots < breakFrequency) { if (weightedSubjectList.length > 0) { const randomIndex = Math.floor(Math.random() * weightedSubjectList.length); const subjectAbbr = weightedSubjectList.splice(randomIndex, 1)[0]; const subjectName = subjectNameMap[subjectAbbr.toUpperCase()] || subjectAbbr; let workType = "Çalış"; let styleSuggestion = ""; let styleHintClass = ""; if (studentScore < 70) workType = "Tekrar"; else if (studentScore > 85 && studentScore <= 100) workType = "Test Çöz"; if (["FIZ", "KIM", "BIY", "MAT"].includes(subjectAbbr.toUpperCase()) && studentScore < 65) workType = "Temel Tekrar"; if (learningStyle.dominant) { if (learningStyle.dominant.includes(STYLE_VISUAL)) { styleSuggestion = " (Özet/Şema)"; styleHintClass = 'study-visual'; } else if (learningStyle.dominant.includes(STYLE_AUDITORY)) { styleSuggestion = " (Sesli Tekrar)"; styleHintClass = 'study-auditory'; } else if (learningStyle.dominant.includes(STYLE_KINESTHETIC)) { styleSuggestion = " (Uygulama/Ara)"; styleHintClass = 'study-kinesthetic'; } } let description = `${subjectName} ${workType}${styleSuggestion}`; plan[day][slot] = { type: "study", description: description, styleHint: styleHintClass }; consecutiveStudySlots++; weightedSubjectList.push(subjectAbbr); } else { plan[day][slot] = { type: "break", description: "Serbest Zaman", styleHint: "" }; consecutiveStudySlots = 0; } } else { plan[day][slot] = { type: "break", description: "Kısa Mola", styleHint: "" }; consecutiveStudySlots = 0; } } else { consecutiveStudySlots = 0; } } else { consecutiveStudySlots = 0; } }); });
+
+                 // Matematik Derslerini Yerleştirme (Garantili)
+                 const mathSubjectAbbr = "MAT"; const mathSubjectName = subjectNameMap[mathSubjectAbbr] || mathSubjectAbbr; const excludedClassesForMath = ["11/C", "12/D"];
+                 // Garantili ekleme kontrolü hala geçerli: Havuzda olmalı ve sınıf istisna olmamalı.
+                 const shouldAddGuaranteedMath = finalSubjectsToStudyPool.includes(mathSubjectAbbr.toUpperCase()) && !excludedClassesForMath.includes(classId);
+                 if (shouldAddGuaranteedMath) { console.log(`Garantili Matematik planlaması kontrol ediliyor ${classId} (tercihler uygunsa).`); const weekdays = daysOfWeek.slice(0, 5); const weekends = daysOfWeek.slice(5); const targetWeekdayMath = 3; const targetWeekendMath = 2; const addMathToDay = (day, targetSlots, currentDayIndex) => { let placed = false; const allPotentialSlots = timeSlots.filter(slot => { const slotH = parseInt(slot.split(':')[0]); const slotM = parseInt(slot.split(':')[1]); const isWeekday = currentDayIndex < 5; const isSuitableTime = (isWeekday && slotH >= 17 && (slotH < 22 || (slotH === 22 && slotM === 0))) || (!isWeekday && slotH >= 9 && (slotH < 21 || (slotH === 21 && slotM === 0))); return plan[day][slot].type === 'empty' && isSuitableTime; }); let chosenSlot = targetSlots.find(slot => allPotentialSlots.includes(slot)); if (!chosenSlot && allPotentialSlots.length > 0) { chosenSlot = allPotentialSlots[0]; } if (chosenSlot) { let workType = "Çalış"; let styleSuggestion = ""; let styleHintClass = ""; if (studentScore < 70) workType = "Tekrar"; else if (studentScore > 85) workType = "Test Çöz"; if (studentScore < 65) workType = "Temel Tekrar"; if (learningStyle.dominant) { if (learningStyle.dominant.includes(STYLE_VISUAL)) { styleSuggestion = " (Özet/Şema)"; styleHintClass = 'study-visual'; } else if (learningStyle.dominant.includes(STYLE_AUDITORY)) { styleSuggestion = " (Sesli Tekrar)"; styleHintClass = 'study-auditory'; } else if (learningStyle.dominant.includes(STYLE_KINESTHETIC)) { styleSuggestion = " (Uygulama/Ara)"; styleHintClass = 'study-kinesthetic'; } } let description = `${mathSubjectName} ${workType}${styleSuggestion}`; plan[day][chosenSlot] = { type: "study", description: description, styleHint: styleHintClass }; console.log(`${day} (${currentDayIndex}) ${chosenSlot} saatine Garantili Matematik eklendi.`); placed = true; } else { console.log(`${day} (${currentDayIndex}) günü Garantili Matematik için uygun boş slot bulunamadı.`); } return placed; }; let currentWeekdayMathDays = new Set(); weekdays.forEach(day => { if (Object.values(plan[day]).some(s => (s.type === 'school' || s.type === 'study') && s.description.includes(mathSubjectName))) { currentWeekdayMathDays.add(day); } }); let weekdayAttempts = 0; while (currentWeekdayMathDays.size < targetWeekdayMath && weekdayAttempts < weekdays.length * 2) { const availableDays = weekdays.filter(day => !currentWeekdayMathDays.has(day)); if (availableDays.length === 0) break; const dayToAdd = availableDays[Math.floor(Math.random() * availableDays.length)]; const dayToAddIndex = daysOfWeek.indexOf(dayToAdd); const preferredSlots = ["17:30", "18:00", "18:30", "20:00", "20:30"]; if (addMathToDay(dayToAdd, preferredSlots, dayToAddIndex)) { currentWeekdayMathDays.add(dayToAdd); } weekdayAttempts++; } console.log(`Hafta içi Matematik gün sayısı (garantili sonrası): ${currentWeekdayMathDays.size}`); let currentWeekendMathDays = new Set(); weekends.forEach(day => { if (Object.values(plan[day]).some(s => s.type === 'study' && s.description.includes(mathSubjectName))) { currentWeekendMathDays.add(day); } }); let weekendAttempts = 0; while (currentWeekendMathDays.size < targetWeekendMath && weekendAttempts < weekends.length * 3) { const availableDays = weekends.filter(day => !currentWeekendMathDays.has(day)); if (availableDays.length === 0) break; const dayToAdd = availableDays[Math.floor(Math.random() * availableDays.length)]; const dayToAddIndex = daysOfWeek.indexOf(dayToAdd); const preferredSlots = ["14:00", "14:30", "15:00", "15:30", "16:00", "11:00", "11:30"]; if (addMathToDay(dayToAdd, preferredSlots, dayToAddIndex)) { currentWeekendMathDays.add(dayToAdd); } weekendAttempts++; } console.log(`Hafta sonu Matematik gün sayısı (garantili sonrası): ${currentWeekendMathDays.size}`); } else { console.log(`${classId} sınıfı için özel Matematik planlaması yapılmadı (istisna veya tercihlerde yok).`); }
+                 return { schedule: plan, days: daysOfWeek, slots: timeSlots };
+            } // generateStudyPlan sonu
+
+            // --- Çalışma Tüyoları Fonksiyonları ---
+            // (getGeneralStudyTips, getScoreBasedTips, getLearningStyleTips fonksiyonları önceki kodla aynı)
+            function getGeneralStudyTips() { return [ "**Planlı Ol:** Ne zaman, hangi derse çalışacağını önceden belirle. Programına sadık kalmaya çalış.", "**Düzenli Tekrar:** Öğrendiklerini unutmamak için kısa aralıklarla tekrar yap. Özellikle yatmadan önce veya sabah ilk iş olarak tekrar yapmak faydalı olabilir.", "**Doğru Ortam:** Sessiz, iyi aydınlatılmış ve dikkat dağıtıcı unsurlardan uzak bir çalışma ortamı seç.", "**Mola Ver:** Uzun süre aralıksız çalışmak yerine, Pomodoro Tekniği gibi (örn: 25 dk çalışma, 5 dk mola) yöntemlerle kısa molalar ver.", "**Not Tutma:** Dersleri dinlerken veya okurken kendi cümlelerinle kısa notlar al. Anahtar kelimeleri, şemaları veya zihin haritalarını kullan.", "**Farklı Kaynaklar Kullan:** Sadece ders kitabına bağlı kalma. Konuyu pekiştirmek için ek kaynaklar, videolar veya online testler kullan.", "**Soru Sor:** Anlamadığın yerleri öğretmenine, arkadaşlarına veya ailene sormaktan çekinme.", "**Sağlıklı Yaşam:** Yeterli uyku, dengeli beslenme ve düzenli egzersiz öğrenme kapasiteni artırır.", "**Hedef Belirle:** Kendine ulaşılabilir, küçük hedefler koy. Başardıkça motivasyonun artacaktır.", "**Telefonu Uzak Tut:** Çalışma sırasında bildirimleri kapat veya telefonunu başka bir odaya koy." ]; }
+            function getScoreBasedTips(score) { if (score === null || score === undefined || isNaN(score)) return []; if (score >= 85) return ["**Puanına Özel:** Başarın harika! Bilgini derinleştirmek için ileri seviye sorular çözebilir, farklı kaynaklardan aynı konuyu araştırabilir ve proje tabanlı çalışmalara yönelebilirsin. Öğrendiklerini arkadaşlarına anlatarak pekiştirebilirsin."]; else if (score >= 70) return ["**Puanına Özel:** İyi gidiyorsun! Anlamakta zorlandığın veya unuttuğun konuları belirleyip onlara biraz daha ağırlık ver. Farklı soru tipleri çözerek eksiklerini kapatabilirsin. Öğrenme stilini daha aktif kullanmaya çalış."]; else if (score >= 50) return ["**Puanına Özel:** Temelin var ama geliştirmelisin. Özellikle anlamadığın konuların üzerine gitmekten çekinme. Temel kavramları tekrar et, bol bol basit ve orta düzeyde alıştırma çöz. Konu özetleri çıkarmak ve düzenli tekrar yapmak çok önemli."]; else return ["**Puanına Özel:** Endişelenme, durumu tersine çevirebiliriz! Öncelikle temel eksiklerini belirle. Anlamadığın konuları öğretmenlerinle veya başarılı arkadaşlarınla konuş. Çok temelden başlayarak, adım adım ilerle. Kısa ama düzenli çalışma seansları daha faydalı olabilir. Yardım istemekten çekinme."]; }
+            function getLearningStyleTips(style) { if (!style || !style.dominant) { return ["Öğrenme stilini belirleyip kaydettiğinde sana özel ipuçları burada görünecek."]; } let tips = []; const dominantLC = style.dominant.toLowerCase().trim(); let addedTip = false; if (dominantLC.includes(STYLE_VISUAL.toLowerCase())) { tips.push(`**${STYLE_VISUAL} İpuçları:** Renkli kalemler kullan, şemalar ve zihin haritaları çiz, önemli yerlerin altını çiz veya fosforlu kalemle işaretle, grafik ve tabloları incele, konu anlatım videoları izle.`); addedTip = true; } if (dominantLC.includes(STYLE_AUDITORY.toLowerCase())) { tips.push(`**${STYLE_AUDITORY} İpuçları:** Konuları sesli tekrar et, ders kayıtlarını veya konu anlatımlarını dinle, arkadaşlarınla konuları tartış, çalışma müziği (sözsüz) kullanabilirsin, öğrendiklerini birine anlatır gibi tekrar et.`); addedTip = true; } if (dominantLC.includes(STYLE_KINESTHETIC.toLowerCase())) { tips.push(`**${STYLE_KINESTHETIC} İpuçları:** Çalışırken kısa aralıklarla hareket et, konuları canlandırarak veya deney yaparak öğrenmeye çalış, notlarını kartlara yazıp eşleştirme yap, ayakta veya farklı pozisyonlarda çalışmayı dene, ders çalışırken elinde stres topu gibi bir nesne tutabilirsin.`); addedTip = true; } if (dominantLC.includes('/')) { if (!tips.some(tip => tip.startsWith("**Çoklu Stil"))) { tips.push(`**Çoklu Stil:** Farklı stil önerilerini birleştirerek sana en uygun yöntemi bulmaya çalış. Örneğin, ${STYLE_VISUAL} notlarını sesli tekrar edebilir veya ${STYLE_KINESTHETIC} olarak canlandırdığın bir konuyu şemalaştırabilirsin.`); addedTip = true; } } if (!addedTip) { return [`Belirlenen öğrenme stiline (${style.dominant}) özel bir ipucu şu an için bulunamadı. Genel ipuçlarını takip edebilirsin.`]; } return tips; }
+
+            // --- Programı Tablo ve Tüyolarla Gösterme ---
+            // (displaySchedule fonksiyonu önceki kodla aynı, regex düzeltmesi zaten yapıldı)
+            function displaySchedule(planData) { if (!planData || !planData.schedule) { console.error("displaySchedule: Geçersiz plan verisi!"); scheduleContainer.innerHTML = `<p class="error-message">Program verisi oluşturulamadı.</p>`; const existingTipsArea = document.getElementById('study-tips-area'); if (existingTipsArea) existingTipsArea.remove(); return; } const { schedule, days, slots } = planData; scheduleContainer.innerHTML = ''; const existingTipsArea = document.getElementById('study-tips-area'); if (existingTipsArea) existingTipsArea.remove(); const table = document.createElement('table'); table.classList.add('schedule-table'); const thead = table.createTHead(); const headerRow = thead.insertRow(); const thEmpty = document.createElement('th'); thEmpty.textContent = "Saat"; headerRow.appendChild(thEmpty); days.forEach(day => { const th = document.createElement('th'); th.textContent = day; headerRow.appendChild(th); }); const tbody = table.createTBody(); slots.forEach(slot => { const row = tbody.insertRow(); const timeCell = document.createElement('th'); timeCell.scope = "row"; timeCell.textContent = slot; timeCell.classList.add("time-header"); row.appendChild(timeCell); days.forEach(day => { const cell = row.insertCell(); const slotData = schedule[day] && schedule[day][slot] ? schedule[day][slot] : { type: "empty", description: "-", styleHint: "" }; cell.textContent = slotData.description; cell.className = `slot-${slotData.type} ${slotData.styleHint || ''}`; if (slotData.styleHint) { cell.innerHTML += `<span class="study-hint-icon"></span>`; } cell.title = slotData.description; }); }); scheduleContainer.appendChild(table); const tipsArea = document.createElement('div'); tipsArea.id = 'study-tips-area'; let tipsHTML = '<h3><i class="fas fa-lightbulb"></i> Kişiselleştirilmiş Çalışma Tüyoları</h3>'; const hasScore = currentStudent && currentStudent.Puan !== undefined && !isNaN(currentStudent.Puan); const hasStyle = currentLearningStyle && currentLearningStyle.dominant; if (hasScore || hasStyle) { tipsHTML += '<h4><i class="fas fa-user-cog"></i> Puanına ve Öğrenme Stiline Göre Çalışma Önerileri</h4><ul>'; const scoreTips = hasScore ? getScoreBasedTips(currentStudent.Puan) : []; const styleTips = hasStyle ? getLearningStyleTips(currentLearningStyle) : []; if (scoreTips.length > 0) { tipsHTML += scoreTips.map(tip => `<li>${tip.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</li>`).join(''); } else if (hasScore) { tipsHTML += `<li>Puanın (${currentStudent.Puan.toFixed(2)}) için şu an özel bir önerimiz yok, ancak genel ve stile özel ipuçları sana yardımcı olabilir.</li>`; } if (styleTips.length > 0) { if(scoreTips.length > 0) tipsHTML += '<li style="list-style: none; margin: 8px 0;"></li>'; tipsHTML += styleTips.map(tip => `<li>${tip.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</li>`).join(''); } else if (hasStyle) { if(scoreTips.length > 0) tipsHTML += '<li style="list-style: none; margin: 8px 0;"></li>'; tipsHTML += `<li>Öğrenme stilin (${currentLearningStyle.dominant}) için şu an özel bir önerimiz yok, puanına özel ve genel ipuçlarını değerlendirebilirsin.</li>`; } if (scoreTips.length === 0 && styleTips.length === 0 && (hasScore || hasStyle)) { tipsHTML += `<li>Puanın veya öğrenme stilin için şu an özel öneriler bulunmuyor. Genel ipuçlarına göz atabilirsin.</li>`; } if (!hasStyle) { if(scoreTips.length > 0 || (hasScore && scoreTips.length === 0) ) tipsHTML += '<li style="list-style: none; margin: 8px 0;"></li>'; tipsHTML += `<li>Öğrenme stilini henüz belirlemedin. <a href="öğrenme stilleri testi.html" target="_blank" style="color: var(--accent-color);">Testi çözüp</a> sonuçları girerek daha kişisel öneriler alabilirsin.</li>`; } tipsHTML += '</ul><hr style="margin: 15px 0 10px 0;">'; } else { tipsHTML += `<h4><i class="fas fa-user-cog"></i> Kişisel Öneriler</h4><p style="padding-left: 15px; margin-bottom: 10px;">Puanın veya öğrenme stilin belirlenmediği için kişisel öneriler sunamıyoruz. <a href="öğrenme stilleri testi.html" target="_blank" style="color: var(--accent-color);">Öğrenme Stili Testi</a>'ni çözüp sonuçları girerek sana özel ipuçları alabilirsin.</p><hr style="margin: 15px 0 10px 0;">`; } tipsHTML += '<h4><i class="fas fa-star"></i> Genel Çalışma İpuçları</h4><ul>'; const generalTips = getGeneralStudyTips(); generalTips.forEach(tip => tipsHTML += `<li>${tip.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</li>`); tipsHTML += '</ul>'; tipsArea.innerHTML = tipsHTML; scheduleDisplayArea.appendChild(tipsArea); }
+
+            // --- Uygulamayı Başlat ---
+            initializeApp();
+
+        }); // DOMContentLoaded Sonu
+    </script>
+</body>
+</html>
