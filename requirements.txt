@@ -9,3 +9,5 @@ numpy
 jsonref
 yfinance
 feedparser
+ccxt
+beautifulsoup4
