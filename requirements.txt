@@ -1,0 +1,8 @@
+ccxt
+google-genai
+instructor
+supabase
+pydantic
+requests
+pandas
+pandas_ta
