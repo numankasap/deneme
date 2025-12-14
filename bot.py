@@ -29,7 +29,12 @@ client_ai = instructor.from_gemini(
     mode=instructor.Mode.GEMINI_JSON,
 )
 
-exchange = ccxt.bybit()  # Binance yerine Bybit (Türkiye'de çalışır)
+exchange = ccxt.binance({
+    'proxies': {
+        'http': 'http://proxy.server:port',  # Buraya proxy adresi
+        'https': 'http://proxy.server:port',
+    },
+})
 
 # --- VERİ MODELİ (AI ÇIKTISI İÇİN) ---
 class MarketReport(BaseModel):
@@ -64,11 +69,34 @@ def get_technical_data(symbol):
     Fiyatı çeker ve RSI, SMA gibi indikatörleri hesaplar.
     """
     try:
-        # Son 100 mumu (1 Saatlik) çek
-        ohlcv = exchange.fetch_ohlcv(symbol, timeframe='1h', limit=100)
-        df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+        # Coingecko coin ID'leri
+        coin_map = {
+            'BTC/USDT': 'bitcoin',
+            'ETH/USDT': 'ethereum'
+        }
+        coin_id = coin_map.get(symbol)
         
-        # Teknik İndikatörler (Manuel hesaplama)
+        if not coin_id:
+            print(f"Coin bulunamadı: {symbol}")
+            return None
+        
+        # Coingecko'dan son 7 günlük veri (ücretsiz API)
+        url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart"
+        params = {'vs_currency': 'usd', 'days': '7', 'interval': 'hourly'}
+        response = requests.get(url, params=params)
+        
+        if response.status_code != 200:
+            print(f"Coingecko hatası: {response.status_code}")
+            return None
+        
+        data = response.json()
+        prices = [p[1] for p in data['prices']]
+        volumes = [v[1] for v in data['total_volumes']]
+        
+        # DataFrame oluştur
+        df = pd.DataFrame({'close': prices, 'volume': volumes})
+        
+        # Teknik İndikatörler
         df['rsi'] = calculate_rsi(df['close'], period=14)
         df['sma_50'] = calculate_sma(df['close'], period=50)
         df['ema_20'] = calculate_ema(df['close'], period=20)
@@ -77,13 +105,15 @@ def get_technical_data(symbol):
         
         return {
             "price": float(last_row['close']),
-            "rsi": round(float(last_row['rsi']), 2),
-            "sma_50": round(float(last_row['sma_50']), 2),
+            "rsi": round(float(last_row['rsi']), 2) if not pd.isna(last_row['rsi']) else 50,
+            "sma_50": round(float(last_row['sma_50']), 2) if not pd.isna(last_row['sma_50']) else last_row['close'],
             "price_vs_sma": "Üstünde" if last_row['close'] > last_row['sma_50'] else "Altında",
             "volume_change": "Yüksek" if last_row['volume'] > df['volume'].mean() else "Düşük"
         }
     except Exception as e:
         print(f"Veri hatası ({symbol}): {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 def analyze_market(symbol, tech_data):
