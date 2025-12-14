@@ -6,4 +6,4 @@ pydantic
 requests
 pandas
 numpy
-https://github.com/twopirllc/pandas-ta/archive/refs/heads/development.zip
+https://github.com/twopirllc/pandas-ta/archive/development.zip
