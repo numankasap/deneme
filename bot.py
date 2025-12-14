@@ -25,7 +25,7 @@ genai.configure(api_key=GEMINI_KEY)
 
 # Instructor ile Gemini'yi güçlendiriyoruz
 client_ai = instructor.from_gemini(
-    client=genai.GenerativeModel(model_name="gemini-2.0-flash"),
+    client=genai.GenerativeModel(model_name="gemini-2.5-flash"),
     mode=instructor.Mode.GEMINI_JSON,
 )
 
@@ -136,4 +136,5 @@ if __name__ == "__main__":
     
     # Raporu Telegram'a at
     send_telegram(full_report)
+
     print("✅ İşlem Tamam.")
