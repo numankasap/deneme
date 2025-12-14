@@ -113,9 +113,23 @@ def analyze_market(symbol, tech_data):
         print(f"AI Hatası: {e}")
         return None
 
-def send_telegram(msg):
+def send_telegram(msg, with_button=False):
+    """Telegram'a mesaj gönder, opsiyonel butonla"""
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": msg, "parse_mode": "Markdown"}
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID, 
+        "text": msg, 
+        "parse_mode": "Markdown"
+    }
+    
+    # Buton ekle (inline keyboard)
+    if with_button:
+        payload["reply_markup"] = {
+            "inline_keyboard": [
+                [{"text": "📊 Piyasa Raporu", "callback_data": "get_report"}]
+            ]
+        }
+    
     requests.post(url, json=payload)
 
 def save_to_db(symbol, tech_data, analysis: MarketReport):
@@ -133,7 +147,7 @@ def save_to_db(symbol, tech_data, analysis: MarketReport):
 if __name__ == "__main__":
     print("🚀 Analiz Başlıyor...")
     
-    full_report = "📊 **Piyasa Raporu**\n"
+    full_report = "📊 *Piyasa Raporu*\n\n"
     
     for symbol in SYMBOLS:
         print(f"İnceleniyor: {symbol}")
@@ -144,16 +158,18 @@ if __name__ == "__main__":
             if analysis:
                 save_to_db(symbol, tech, analysis)
                 
-                # Sadece önemli sinyallerde veya her seferinde rapor ekle
+                # Sinyal ikonu belirle
                 icon = "🟢" if analysis.recommendation == "AL" else "🔴" if analysis.recommendation == "SAT" else "⚪"
                 
-                full_report += f"\n**{symbol}**\n"
-                full_report += f"Fiyat: {tech['price']}\n"
-                full_report += f"Sinyal: {icon} {analysis.recommendation} (Risk: {analysis.risk_score}/10)\n"
-                full_report += f"RSI: {tech['rsi']}\n"
-                full_report += f"Not: _{analysis.brief_reason}_\n"
+                full_report += f"*{symbol}*\n"
+                full_report += f"💰 Fiyat: ${tech['price']:,.2f}\n"
+                full_report += f"{icon} Sinyal: *{analysis.recommendation}* (Risk: {analysis.risk_score}/10)\n"
+                full_report += f"📈 RSI: {tech['rsi']}\n"
+                full_report += f"💬 _{analysis.brief_reason}_\n\n"
     
-    # Raporu Telegram'a at
-    send_telegram(full_report)
+    full_report += f"⏰ Son Güncelleme: {pd.Timestamp.now().strftime('%H:%M')}"
+    
+    # Raporu Telegram'a gönder (butonlu)
+    send_telegram(full_report, with_button=True)
 
     print("✅ İşlem Tamam.")
