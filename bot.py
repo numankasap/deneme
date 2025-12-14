@@ -29,13 +29,6 @@ client_ai = instructor.from_gemini(
     mode=instructor.Mode.GEMINI_JSON,
 )
 
-exchange = ccxt.binance({
-    'proxies': {
-        'http': 'http://proxy.server:port',  # Buraya proxy adresi
-        'https': 'http://proxy.server:port',
-    },
-})
-
 # --- VERİ MODELİ (AI ÇIKTISI İÇİN) ---
 class MarketReport(BaseModel):
     trend: str = Field(description="Genel piyasa yönü: 'YÜKSELİŞ', 'DÜŞÜŞ' veya 'YATAY'")
