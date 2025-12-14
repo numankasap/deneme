@@ -60,33 +60,44 @@ def get_technical_data(symbol):
     Fiyatı çeker ve RSI, SMA gibi indikatörleri hesaplar.
     """
     try:
-        # CoinCap coin ID'leri
+        # Cryptocompare API (ücretsiz, güvenilir)
         coin_map = {
-            'BTC/USDT': 'bitcoin',
-            'ETH/USDT': 'ethereum'
+            'BTC/USDT': 'BTC',
+            'ETH/USDT': 'ETH'
         }
-        coin_id = coin_map.get(symbol)
+        coin = coin_map.get(symbol)
         
-        if not coin_id:
+        if not coin:
             print(f"Coin bulunamadı: {symbol}")
             return None
         
-        # CoinCap'ten saatlik veri (ücretsiz, API key gereksiz)
-        url = f"https://api.coincap.io/v2/assets/{coin_id}/history"
-        params = {'interval': 'h1'}  # 1 saatlik
-        response = requests.get(url, params=params)
+        # Cryptocompare'den saatlik OHLCV verisi
+        url = f"https://min-api.cryptocompare.com/data/v2/histohour"
+        params = {
+            'fsym': coin,
+            'tsym': 'USD',
+            'limit': 100
+        }
+        response = requests.get(url, params=params, timeout=10)
         
         if response.status_code != 200:
-            print(f"CoinCap hatası: {response.status_code}")
-            print(f"Response: {response.text}")
+            print(f"API hatası: {response.status_code}")
+            print(f"Response: {response.text[:200]}")
             return None
         
-        data = response.json()['data']
+        data = response.json()
+        
+        if data.get('Response') != 'Success':
+            print(f"API Error: {data.get('Message', 'Unknown error')}")
+            return None
+        
+        # OHLCV verisini al
+        bars = data['Data']['Data']
+        closes = [float(bar['close']) for bar in bars]
+        volumes = [float(bar['volumeto']) for bar in bars]
         
         # DataFrame oluştur
-        prices = [float(d['priceUsd']) for d in data[-100:]]  # Son 100 saat
-        df = pd.DataFrame({'close': prices})
-        df['volume'] = 1000000  # Volume verisi yok, sabit değer
+        df = pd.DataFrame({'close': closes, 'volume': volumes})
         
         # Teknik İndikatörler
         df['rsi'] = calculate_rsi(df['close'], period=14)
@@ -100,7 +111,7 @@ def get_technical_data(symbol):
             "rsi": round(float(last_row['rsi']), 2) if not pd.isna(last_row['rsi']) else 50,
             "sma_50": round(float(last_row['sma_50']), 2) if not pd.isna(last_row['sma_50']) else last_row['close'],
             "price_vs_sma": "Üstünde" if last_row['close'] > last_row['sma_50'] else "Altında",
-            "volume_change": "Normal"  # Volume verisi yok
+            "volume_change": "Yüksek" if last_row['volume'] > df['volume'].mean() else "Düşük"
         }
     except Exception as e:
         print(f"Veri hatası ({symbol}): {e}")
