@@ -1,10 +1,9 @@
 ccxt
-google-genai
+google-generativeai
 instructor
 supabase
 pydantic
 requests
 pandas
 numpy
-ta-lib
-https://github.com/twopirllc/pandas-ta/archive/development.zip
+pandas-ta
