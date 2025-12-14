@@ -24,7 +24,7 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 # Instructor ile Gemini'yi güçlendiriyoruz (yeni syntax)
 client_ai = instructor.from_genai(
     client=genai.Client(api_key=GEMINI_KEY),
-    mode=instructor.Mode.GEMINI_JSON,
+    mode=instructor.Mode.GENAI_STRUCTURED_OUTPUTS,  # Doğru mode
 )
 
 # --- VERİ MODELİ (AI ÇIKTISI İÇİN) ---
@@ -127,12 +127,15 @@ def analyze_market(symbol, tech_data):
     """
     
     try:
-        return client_ai.messages.create(
+        return client_ai.chat.completions.create(
+            model="gemini-2.0-flash-exp",
             messages=[{"role": "user", "content": prompt}],
             response_model=MarketReport,
         )
     except Exception as e:
         print(f"AI Hatası: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 def send_telegram(msg, with_button=False):
