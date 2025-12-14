@@ -6,4 +6,5 @@ pydantic
 requests
 pandas
 numpy
+ta-lib
 https://github.com/twopirllc/pandas-ta/archive/development.zip
