@@ -4,7 +4,7 @@ import requests
 import pandas as pd
 import numpy as np
 import instructor
-import google.generativeai as genai
+from google import genai
 from supabase import create_client
 from pydantic import BaseModel, Field
 
@@ -20,11 +20,10 @@ SYMBOLS = ['BTC/USDT', 'ETH/USDT'] # İzlenecek coinler
 
 # --- KURULUMLAR ---
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-genai.configure(api_key=GEMINI_KEY)
 
-# Instructor ile Gemini'yi güçlendiriyoruz
-client_ai = instructor.from_gemini(
-    client=genai.GenerativeModel(model_name="gemini-2.5-flash"),
+# Instructor ile Gemini'yi güçlendiriyoruz (yeni syntax)
+client_ai = instructor.from_genai(
+    client=genai.Client(api_key=GEMINI_KEY),
     mode=instructor.Mode.GEMINI_JSON,
 )
 
@@ -61,7 +60,7 @@ def get_technical_data(symbol):
     Fiyatı çeker ve RSI, SMA gibi indikatörleri hesaplar.
     """
     try:
-        # Coingecko coin ID'leri
+        # CoinCap coin ID'leri
         coin_map = {
             'BTC/USDT': 'bitcoin',
             'ETH/USDT': 'ethereum'
@@ -72,21 +71,22 @@ def get_technical_data(symbol):
             print(f"Coin bulunamadı: {symbol}")
             return None
         
-        # Coingecko'dan son 7 günlük veri (ücretsiz API)
-        url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart"
-        params = {'vs_currency': 'usd', 'days': '7', 'interval': 'hourly'}
+        # CoinCap'ten saatlik veri (ücretsiz, API key gereksiz)
+        url = f"https://api.coincap.io/v2/assets/{coin_id}/history"
+        params = {'interval': 'h1'}  # 1 saatlik
         response = requests.get(url, params=params)
         
         if response.status_code != 200:
-            print(f"Coingecko hatası: {response.status_code}")
+            print(f"CoinCap hatası: {response.status_code}")
+            print(f"Response: {response.text}")
             return None
         
-        data = response.json()
-        prices = [p[1] for p in data['prices']]
-        volumes = [v[1] for v in data['total_volumes']]
+        data = response.json()['data']
         
         # DataFrame oluştur
-        df = pd.DataFrame({'close': prices, 'volume': volumes})
+        prices = [float(d['priceUsd']) for d in data[-100:]]  # Son 100 saat
+        df = pd.DataFrame({'close': prices})
+        df['volume'] = 1000000  # Volume verisi yok, sabit değer
         
         # Teknik İndikatörler
         df['rsi'] = calculate_rsi(df['close'], period=14)
@@ -100,7 +100,7 @@ def get_technical_data(symbol):
             "rsi": round(float(last_row['rsi']), 2) if not pd.isna(last_row['rsi']) else 50,
             "sma_50": round(float(last_row['sma_50']), 2) if not pd.isna(last_row['sma_50']) else last_row['close'],
             "price_vs_sma": "Üstünde" if last_row['close'] > last_row['sma_50'] else "Altında",
-            "volume_change": "Yüksek" if last_row['volume'] > df['volume'].mean() else "Düşük"
+            "volume_change": "Normal"  # Volume verisi yok
         }
     except Exception as e:
         print(f"Veri hatası ({symbol}): {e}")
