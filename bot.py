@@ -29,7 +29,7 @@ client_ai = instructor.from_gemini(
     mode=instructor.Mode.GEMINI_JSON,
 )
 
-exchange = ccxt.binance()
+exchange = ccxt.bybit()  # Binance yerine Bybit (Türkiye'de çalışır)
 
 # --- VERİ MODELİ (AI ÇIKTISI İÇİN) ---
 class MarketReport(BaseModel):
