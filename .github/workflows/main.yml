@@ -1,0 +1,32 @@
+name: Hourly Crypto Analysis
+
+on:
+  schedule:
+    - cron: '0 * * * *' # Her saat başı (Dakika 0'da) çalışır
+  workflow_dispatch: # Manuel çalıştırma butonu ekler (Test için)
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest # GitHub'ın sağladığı sanal Linux makine
+
+    steps:
+      - name: Depoyu Çek (Checkout)
+        uses: actions/checkout@v3
+
+      - name: Python Kur
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Kütüphaneleri Yükle
+        run: |
+          pip install -r requirements.txt
+
+      - name: Botu Çalıştır
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python bot.py
