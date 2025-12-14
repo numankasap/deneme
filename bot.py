@@ -1,6 +1,5 @@
 import os
 import json
-import ccxt
 import requests
 import pandas as pd
 import numpy as np
