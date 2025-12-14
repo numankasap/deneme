@@ -26,15 +26,13 @@ client_ai = instructor.from_genai(
     mode=instructor.Mode.GENAI_STRUCTURED_OUTPUTS,
 )
 
-# --- VERİ MODELİ ---
+# --- VERİ MODELİ (GÜNCELLENDİ) ---
 class MarketReport(BaseModel):
-    market_sentiment_score: int = Field(description="0 (Aşırı Korku) ile 100 (Aşırı Açgözlülük) arasında puan.")
-    sentiment_summary: str = Field(description="Haberlerin ve makro verilerin piyasaya etkisinin özeti.")
-    macro_outlook: str = Field(description="Dolar (DXY) ve Borsa (SP500) durumunun kriptoya etkisi.")
-    technical_signal: str = Field(description="Sadece grafiğe dayalı sinyal: 'AL', 'SAT', 'NÖTR'")
-    final_action: str = Field(description="Tüm verilerin (Teknik + Temel) birleşimiyle nihai karar.")
-    logic_explanation: str = Field(description="Kararın mantığı. (Örn: 'Fiyat düştü ama haberler çok iyi, bu bir alım fırsatıdır')")
-
+    market_sentiment_score: int = Field(description="0-100 arası puan.")
+    sentiment_summary: str = Field(description="Haberlerin özeti (TÜRKÇE).")
+    macro_outlook: str = Field(description="Makro durum yorumu (TÜRKÇE).")
+    final_action: str = Field(description="Karar: 'GÜÇLÜ AL', 'AL', 'BEKLE', 'SAT', 'GÜÇLÜ SAT' (TÜRKÇE).")
+    logic_explanation: str = Field(description="Kararın detaylı mantığı ve sebebi (TÜRKÇE).")
 # --- 1. MAKRO VERİLER (DXY & SP500) ---
 def get_macro_data():
     try:
@@ -78,13 +76,24 @@ def get_crypto_news():
         return ["Haber verisi alınamadı."]
 
 def get_fear_and_greed():
-    """Alternative.me API'den Korku ve Açgözlülük Endeksini çeker"""
+    """İngilizce veriyi Türkçeye çevirir"""
+    translation = {
+        "Extreme Fear": "Aşırı Korku 😱",
+        "Fear": "Korku 😨",
+        "Neutral": "Nötr 😐",
+        "Greed": "Açgözlülük 🤑",
+        "Extreme Greed": "Aşırı Açgözlülük 🚀"
+    }
     try:
         r = requests.get("https://api.alternative.me/fng/", timeout=10)
         data = r.json()
-        return int(data['data'][0]['value']), data['data'][0]['value_classification']
+        val = int(data['data'][0]['value'])
+        label_en = data['data'][0]['value_classification']
+        # Sözlükten Türkçe karşılığını al, yoksa İngilizcesini bırak
+        label_tr = translation.get(label_en, label_en) 
+        return val, label_tr
     except:
-        return 50, "Neutral"
+        return 50, "Nötr"
 
 # --- 3. TEKNİK HESAPLAMALAR (Manuel Pandas) ---
 def calculate_rsi(series, period=14):
@@ -142,31 +151,29 @@ def get_market_data(symbol):
         print(f"Borsa Veri Hatası ({symbol}): {e}")
         return None
 
-# --- 4. GEMINI ANALİZİ ---
+# --- 4. GEMINI ANALİZİ (TÜRKÇE ZORLAMALI) ---
 def analyze_with_gemini(symbol, market_data, macro_data, news, fng_score):
     
     prompt = f"""
-    Sen Dünyanın en iyi Hedge Fon Yöneticisisin. {symbol} için aşağıdaki verileri sentezle.
+    Sen Türk bir Kripto Fon Yöneticisisin. {symbol} için verileri analiz et.
     
-    1. TEMEL VE MAKRO VERİLER:
-    - Korku/Açgözlülük Endeksi: {fng_score} (0=Aşırı Korku, 100=Aşırı Açgözlülük)
-    - Makro Durum: {macro_data['status']} (DXY Değişimi: %{macro_data['dxy_change']})
-    - Son Haber Başlıkları: {news}
-    
-    2. TEKNİK VERİLER:
+    VERİLER:
+    - Korku Endeksi: {fng_score} (0-100)
+    - Makro: {macro_data['status']}
+    - Haberler: {news}
     - Fiyat: ${market_data['price']:,.2f}
-    - 24 Saatlik Değişim: %{market_data['change_24h']}
-    - RSI (14): {market_data['rsi']}
-    - Bollinger Konumu: {market_data['bb_pos']}
-    - Balina Aktivitesi (Hacim): {market_data['whale_activity']}
+    - Değişim (24s): %{market_data['change_24h']}
+    - RSI: {market_data['rsi']}
+    - Balina Aktivitesi: {market_data['whale_activity']}
     
-    ÖZEL MANTIK GÖREVİ (BUY THE DIP):
-    Eğer Fiyat %3'ten fazla düşmüşse (change_24h < -3) AMA Haberler/Makro olumluysa ve FNG Endeksi düşükse (Korku), 
-    bunu "DİPTEN ALIM FIRSATI" olarak değerlendir.
+    GÖREV:
+    Bu verileri yorumla ve yatırımcıya tavsiye ver.
     
-    Eğer Balina aktivitesi varsa ve fiyat düşüyorsa "SATIŞ BASKISI" uyarısı ver.
-    
-    Bu verileri harmanlayarak yatırım kararı ver.
+    ÇOK ÖNEMLİ KURALLAR:
+    1. YANITIN TAMAMI %100 TÜRKÇE OLACAK. Asla İngilizce kelime kullanma.
+    2. 'final_action' sadece şunlardan biri olabilir: 'GÜÇLÜ AL', 'AL', 'BEKLE', 'SAT', 'GÜÇLÜ SAT'.
+    3. 'logic_explanation' kısmında "RSI oversold" deme, "RSI aşırı satımda" de. "Bullish" yerine "Yükseliş" de.
+    4. Samimi ve profesyonel bir dil kullan.
     """
     
     try:
@@ -231,3 +238,4 @@ if __name__ == "__main__":
     
     send_telegram(report_msg)
     print("✅ Bitti.")
+
