@@ -27,8 +27,8 @@ client_ai = instructor.from_genai(
     mode=instructor.Mode.GENAI_STRUCTURED_OUTPUTS,
 )
 
-# Binance yerine Gate.io kullanıyoruz (GitHub Actions IP'sini bloklamaz)
-exchange = ccxt.gateio() 
+# Gate.io (ABD Dostu)
+exchange = ccxt.gateio()
 
 # --- VERİ MODELİ ---
 class MarketReport(BaseModel):
@@ -38,54 +38,7 @@ class MarketReport(BaseModel):
     final_action: str = Field(description="Karar: 'GÜÇLÜ AL', 'AL', 'BEKLE', 'SAT', 'GÜÇLÜ SAT' (TÜRKÇE).")
     logic_explanation: str = Field(description="Kararın mantığı. Çelişkili durumlarda Makro veriyi baz al. (TÜRKÇE).")
 
-# --- 1. MAKRO VERİLER ---
-def get_macro_data():
-    try:
-        tickers = ["DX-Y.NYB", "^GSPC"]
-        # auto_adjust=True ekledik, uyarıyı kaldırmak için
-        data = yf.download(tickers, period="5d", interval="1d", progress=False, auto_adjust=True)['Close']
-        
-        dxy_change = ((data['DX-Y.NYB'].iloc[-1] - data['DX-Y.NYB'].iloc[-2]) / data['DX-Y.NYB'].iloc[-2]) * 100
-        sp_change = ((data['^GSPC'].iloc[-1] - data['^GSPC'].iloc[-2]) / data['^GSPC'].iloc[-2]) * 100
-        
-        status = "Nötr"
-        if dxy_change > 0.3: status = "Negatif (Dolar Güçleniyor)"
-        elif sp_change < -0.5: status = "Negatif (Borsa Düşüyor)"
-        elif dxy_change < -0.3 and sp_change > 0.3: status = "Pozitif (Risk İştahı Yüksek)"
-        
-        return {
-            "dxy_change": round(float(dxy_change), 2),
-            "sp500_change": round(float(sp_change), 2),
-            "status": status
-        }
-    except:
-        return {"dxy_change": 0, "sp500_change": 0, "status": "Veri Yok"}
-
-# --- 2. HABER VE DUYGU ---
-def get_crypto_news():
-    try:
-        feed_url = "https://www.coindesk.com/arc/outboundfeeds/rss/"
-        feed = feedparser.parse(feed_url)
-        headlines = [entry.title for entry in feed.entries[:5]]
-        return headlines
-    except:
-        return ["Haber verisi alınamadı."]
-
-def get_fear_and_greed():
-    translation = {
-        "Extreme Fear": "Aşırı Korku 😱", "Fear": "Korku 😨",
-        "Neutral": "Nötr 😐", "Greed": "Açgözlülük 🤑", "Extreme Greed": "Aşırı Açgözlülük 🚀"
-    }
-    try:
-        r = requests.get("https://api.alternative.me/fng/", timeout=10)
-        data = r.json()
-        val = int(data['data'][0]['value'])
-        label_en = data['data'][0]['value_classification']
-        return val, translation.get(label_en, label_en)
-    except:
-        return 50, "Nötr"
-
-# --- 3. TEKNİK HESAPLAMALAR ---
+# --- YARDIMCI FONKSİYONLAR ---
 def calculate_rsi(series, period=14):
     delta = series.diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
@@ -100,21 +53,48 @@ def calculate_bollinger(series, period=20, std=2):
     lower = sma - (rstd * std)
     return upper, lower
 
-def get_market_data(symbol, timeframe='1h', limit=100):
+# --- 1. MAKRO & HABER ---
+def get_macro_data():
     try:
-        # ccxt üzerinden Gate.io verisi çekiyoruz (Daha güvenilir)
-        ohlcv = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
-        df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+        tickers = ["DX-Y.NYB", "^GSPC"]
+        data = yf.download(tickers, period="5d", interval="1d", progress=False, auto_adjust=True)['Close']
+        dxy_change = ((data['DX-Y.NYB'].iloc[-1] - data['DX-Y.NYB'].iloc[-2]) / data['DX-Y.NYB'].iloc[-2]) * 100
+        sp_change = ((data['^GSPC'].iloc[-1] - data['^GSPC'].iloc[-2]) / data['^GSPC'].iloc[-2]) * 100
         
+        status = "Nötr"
+        if dxy_change > 0.3: status = "Negatif (Dolar Güçleniyor)"
+        elif sp_change < -0.5: status = "Negatif (Borsa Düşüyor)"
+        elif dxy_change < -0.3 and sp_change > 0.3: status = "Pozitif (Risk İştahı Yüksek)"
+        return {"dxy_change": round(float(dxy_change), 2), "sp500_change": round(float(sp_change), 2), "status": status}
+    except:
+        return {"dxy_change": 0, "sp500_change": 0, "status": "Veri Yok"}
+
+def get_crypto_news():
+    try:
+        feed = feedparser.parse("https://www.coindesk.com/arc/outboundfeeds/rss/")
+        return [entry.title for entry in feed.entries[:5]]
+    except:
+        return ["Haber yok."]
+
+def get_fear_and_greed():
+    tr = {"Extreme Fear": "Aşırı Korku 😱", "Fear": "Korku 😨", "Neutral": "Nötr 😐", "Greed": "Açgözlülük 🤑", "Extreme Greed": "Aşırı Açgözlülük 🚀"}
+    try:
+        r = requests.get("https://api.alternative.me/fng/", timeout=10).json()
+        return int(r['data'][0]['value']), tr.get(r['data'][0]['value_classification'], "Nötr")
+    except:
+        return 50, "Nötr"
+
+# --- 2. VERİ ÇEKME ---
+def get_market_data(symbol):
+    try:
+        ohlcv = exchange.fetch_ohlcv(symbol, '1h', limit=100)
+        df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
         df['rsi'] = calculate_rsi(df['close'])
         df['bb_upper'], df['bb_lower'] = calculate_bollinger(df['close'])
         
         last = df.iloc[-1]
-        prev_24h = df.iloc[-24]
-        change_24h = ((last['close'] - prev_24h['close']) / prev_24h['close']) * 100
-        
-        avg_vol = df['volume'].mean()
-        whale_alert = "EVET" if last['volume'] > (avg_vol * 1.5) else "HAYIR"
+        change_24h = ((last['close'] - df.iloc[-24]['close']) / df.iloc[-24]['close']) * 100
+        whale_alert = "EVET" if last['volume'] > (df['volume'].mean() * 1.5) else "HAYIR"
         
         return {
             "price": last['close'],
@@ -123,41 +103,46 @@ def get_market_data(symbol, timeframe='1h', limit=100):
             "bb_pos": "Üst Bandı Deldi" if last['close'] > last['bb_upper'] else "Alt Bandı Deldi" if last['close'] < last['bb_lower'] else "Bant İçi",
             "whale_activity": whale_alert
         }
-    except Exception as e:
-        print(f"Veri Hatası ({symbol}): {e}")
+    except:
         return None
 
-# --- 4. ALTCOIN TARAMASI (GEM BULUCU) ---
+# --- 3. GEM AVCI (ALTCOIN TARAMA) ---
 def scan_gems():
-    """Gate.io'da RSI < 30 olan ve Hacmi Patlayan coinleri bulur"""
+    print("💎 Gem Taraması Başlıyor (Gate.io)...")
+    gems = []
     try:
-        print("💎 Gem Taraması Başlıyor (Gate.io)...")
         tickers = exchange.fetch_tickers()
-        gems = []
+        # Hacmi 500k$'dan büyük USDT paritelerini al
+        symbols = [s for s in tickers if s.endswith('/USDT') and tickers[s]['quoteVolume'] > 500000]
         
-        # Sadece USDT pariteleri ve Hacmi yüksek olanlar
-        symbols = [s for s in tickers if s.endswith('/USDT') and tickers[s]['quoteVolume'] > 1000000]
+        # Hacme göre sırala ve ilk 50'ye bak
+        sorted_symbols = sorted(symbols, key=lambda x: tickers[x]['quoteVolume'], reverse=True)[:50]
         
-        # İlk 20 coini tara (Hız için sınırlı)
-        for sym in symbols[:20]: 
+        for sym in sorted_symbols:
+            if sym in MAJOR_SYMBOLS: continue # BTC/ETH'yi atla
+            
             try:
                 ohlcv = exchange.fetch_ohlcv(sym, '1h', limit=20)
+                if not ohlcv: continue
+                
                 df = pd.DataFrame(ohlcv, columns=['t', 'o', 'h', 'l', 'c', 'v'])
                 rsi = calculate_rsi(df['c']).iloc[-1]
+                avg_vol = df['v'].mean()
+                cur_vol = df['v'].iloc[-1]
                 
-                # Kriter: RSI düşük VE Son mum hacmi ortalamanın 2 katı
-                if rsi < 35 and df['v'].iloc[-1] > (df['v'].mean() * 2):
-                    gems.append(f"💎 {sym} (RSI: {rsi:.1f})")
+                # GEVŞETİLMİŞ KRİTERLER: RSI < 40 VE Hacim > 1.5x Ortalama
+                if rsi < 40 and cur_vol > (avg_vol * 1.5):
+                    gem_msg = f"💎 *{sym}*\n   RSI: {rsi:.1f} (DİP) | 📊 Hacim: {cur_vol/avg_vol:.1f}x Patlama!"
+                    gems.append(gem_msg)
             except:
                 continue
-        return gems
     except Exception as e:
         print(f"Tarama Hatası: {e}")
-        return []
-
-# --- 5. GEMINI ANALİZİ (GÜNCELLENMİŞ MANTIK) ---
-def analyze_with_gemini(symbol, market_data, macro_data, news, fng_score):
     
+    return gems
+
+# --- 4. ANALİZ VE RAPOR ---
+def analyze_with_gemini(symbol, market_data, macro_data, news, fng_score):
     prompt = f"""
     Sen Türk bir Kripto Stratejistisin. {symbol} verilerini analiz et.
     
@@ -168,77 +153,53 @@ def analyze_with_gemini(symbol, market_data, macro_data, news, fng_score):
     - Fiyat: ${market_data['price']:,.2f} (%{market_data['change_24h']})
     - RSI: {market_data['rsi']}
     
-    KARAR KURALI (HIYERARŞİ):
-    1. EĞER Makro Durum "Negatif" İSE -> Teknik göstergeler (RSI) "Ucuz" dese bile, 
-       bunu "Ayı Tuzağı" olarak yorumla ve "BEKLE" veya "SAT" ver. Asla "AL" deme.
-    2. EĞER Makro "Pozitif" veya "Nötr" İSE -> Teknik verilere göre "AL" verebilirsin.
+    KARAR KURALI:
+    1. Makro "Negatif" ise "AL" deme, "BEKLE" de.
+    2. Makro "Pozitif" ise teknik veriye güven.
     
-    ÇIKTI KURALLARI:
-    - %100 Türkçe konuş.
-    - 'final_action' sadece: 'GÜÇLÜ AL', 'AL', 'BEKLE', 'SAT', 'GÜÇLÜ SAT'.
-    - Mantık kısmında bu çelişkiyi açıkla (Örn: RSI düşük ama Makro kötü olduğu için bekle).
+    %100 Türkçe konuş.
     """
-    
     try:
         return client_ai.chat.completions.create(
             model="gemini-2.0-flash-exp",
             messages=[{"role": "user", "content": prompt}],
             response_model=MarketReport,
         )
-    except Exception as e:
-        print(f"AI Hatası: {e}")
+    except:
         return None
 
 def send_telegram(msg):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": msg, "parse_mode": "Markdown"}
-    requests.post(url, json=payload)
-
-def save_db(symbol, price, report):
-    data = {
-        "symbol": symbol,
-        "price": price,
-        "trend": report.final_action,
-        "risk_score": 100 - report.market_sentiment_score,
-        "ai_comment": report.logic_explanation,
-        "technical_data": {"macro": report.macro_outlook}
-    }
-    try:
-        supabase.table('market_analysis').insert(data).execute()
-    except:
-        pass
+    requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": msg, "parse_mode": "Markdown"})
 
 # --- ANA PROGRAM ---
 if __name__ == "__main__":
-    print("🚀 Analiz Başlıyor...")
-    
+    print("1️⃣ Major Coin Analizi Yapılıyor...")
     macro = get_macro_data()
     news = get_crypto_news()
     fng_val, fng_label = get_fear_and_greed()
     
-    report_msg = f"🌍 *Piyasa Özeti*\n"
-    report_msg += f"💵 Makro: {macro['status']}\n"
-    report_msg += f"🎭 Hissiyat: {fng_val} ({fng_label})\n\n"
+    report_msg = f"🌍 *Piyasa Raporu* ({fng_label})\n"
+    report_msg += f"💵 Makro: {macro['status']}\n\n"
     
-    # 1. Major Coin Analizi
+    # BTC & ETH
     for symbol in MAJOR_SYMBOLS:
-        market_data = get_market_data(symbol)
-        if market_data:
-            analysis = analyze_with_gemini(symbol, market_data, macro, news, fng_val)
-            if analysis:
-                save_db(symbol, market_data['price'], analysis)
-                
-                icon = "🟢" if "AL" in analysis.final_action else "🔴" if "SAT" in analysis.final_action else "⚪"
-                
-                report_msg += f"*{symbol}* ${market_data['price']:,.2f}\n"
-                report_msg += f"Değişim: %{market_data['change_24h']} | RSI: {market_data['rsi']}\n"
-                report_msg += f"{icon} Karar: *{analysis.final_action}*\n"
-                report_msg += f"🧠 Mantık: _{analysis.logic_explanation}_\n\n"
+        data = get_market_data(symbol)
+        if data:
+            ai = analyze_with_gemini(symbol, data, macro, news, fng_val)
+            if ai:
+                icon = "🟢" if "AL" in ai.final_action else "🔴" if "SAT" in ai.final_action else "⚪"
+                report_msg += f"*{symbol}* ${data['price']:,.2f}\n"
+                report_msg += f"{icon} Karar: *{ai.final_action}*\n"
+                report_msg += f"💡 {ai.logic_explanation}\n\n"
+
+    print("2️⃣ Altcoin Taraması Yapılıyor...")
+    found_gems = scan_gems()
     
-    # 2. Gem Taraması Sonuçları
-    gems = scan_gems()
-    if gems:
-        report_msg += "💎 *Potansiyel Fırsatlar (Gate.io)*\n" + "\n".join(gems)
-    
+    if found_gems:
+        report_msg += "🚀 *Fırsat Altcoinler (Gem)*\n" + "\n".join(found_gems)
+    else:
+        report_msg += "👀 *Uygun gem bulunamadı.* (RSI < 40 kriterine uyan yok)"
+
     send_telegram(report_msg)
-    print("✅ Bitti.")
+    print("✅ Tüm İşlemler Tamamlandı.")
