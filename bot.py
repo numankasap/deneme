@@ -3,7 +3,7 @@ import json
 import ccxt
 import requests
 import pandas as pd
-import pandas_ta as ta
+import numpy as np
 import instructor
 import google.generativeai as genai
 from supabase import create_client
@@ -38,6 +38,25 @@ class MarketReport(BaseModel):
     recommendation: str = Field(description="Yatırımcıya tavsiye: 'AL', 'SAT', 'BEKLE'")
     brief_reason: str = Field(description="Analizin 1 cümlelik özeti.")
 
+# --- MANUEL TEKNİK İNDİKATÖRLER ---
+
+def calculate_rsi(prices, period=14):
+    """RSI hesaplama (pandas ile)"""
+    delta = prices.diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+    rs = gain / loss
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
+
+def calculate_sma(prices, period=50):
+    """Basit Hareketli Ortalama"""
+    return prices.rolling(window=period).mean()
+
+def calculate_ema(prices, period=20):
+    """Üstel Hareketli Ortalama"""
+    return prices.ewm(span=period, adjust=False).mean()
+
 # --- FONKSİYONLAR ---
 
 def get_technical_data(symbol):
@@ -49,17 +68,17 @@ def get_technical_data(symbol):
         ohlcv = exchange.fetch_ohlcv(symbol, timeframe='1h', limit=100)
         df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
         
-        # Teknik İndikatörler (Pandas TA ile)
-        df['rsi'] = df.ta.rsi(length=14)
-        df['sma_50'] = df.ta.sma(length=50)
-        df['ema_20'] = df.ta.ema(length=20)
+        # Teknik İndikatörler (Manuel hesaplama)
+        df['rsi'] = calculate_rsi(df['close'], period=14)
+        df['sma_50'] = calculate_sma(df['close'], period=50)
+        df['ema_20'] = calculate_ema(df['close'], period=20)
         
         last_row = df.iloc[-1]
         
         return {
-            "price": last_row['close'],
-            "rsi": round(last_row['rsi'], 2),
-            "sma_50": round(last_row['sma_50'], 2),
+            "price": float(last_row['close']),
+            "rsi": round(float(last_row['rsi']), 2),
+            "sma_50": round(float(last_row['sma_50']), 2),
             "price_vs_sma": "Üstünde" if last_row['close'] > last_row['sma_50'] else "Altında",
             "volume_change": "Yüksek" if last_row['volume'] > df['volume'].mean() else "Düşük"
         }
