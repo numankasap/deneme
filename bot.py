@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import yfinance as yf
 import feedparser
+import ccxt
 import instructor
 from google import genai
 from supabase import create_client
@@ -17,7 +18,7 @@ TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
 # --- AYARLAR ---
-SYMBOLS = ['BTC/USDT', 'ETH/USDT']
+MAJOR_SYMBOLS = ['BTC/USDT', 'ETH/USDT']
 
 # --- KURULUMLAR ---
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -25,77 +26,36 @@ client_ai = instructor.from_genai(
     client=genai.Client(api_key=GEMINI_KEY),
     mode=instructor.Mode.GENAI_STRUCTURED_OUTPUTS,
 )
+exchange = ccxt.binance()
 
-# --- VERİ MODELİ (GÜNCELLENDİ) ---
-class MarketReport(BaseModel):
+# ==========================================
+# BÖLÜM 1: VERİ MODELLERİ (AI ÇIKTILARI)
+# ==========================================
+
+# 1. Major Coin Rapor Modeli
+class MajorReport(BaseModel):
     market_sentiment_score: int = Field(description="0-100 arası puan.")
     sentiment_summary: str = Field(description="Haberlerin özeti (TÜRKÇE).")
     macro_outlook: str = Field(description="Makro durum yorumu (TÜRKÇE).")
-    final_action: str = Field(description="Karar: 'GÜÇLÜ AL', 'AL', 'BEKLE', 'SAT', 'GÜÇLÜ SAT' (TÜRKÇE).")
-    logic_explanation: str = Field(description="Kararın detaylı mantığı ve sebebi (TÜRKÇE).")
-# --- 1. MAKRO VERİLER (DXY & SP500) ---
-def get_macro_data():
-    try:
-        # DXY (Dolar) ve S&P 500
-        tickers = ["DX-Y.NYB", "^GSPC"]
-        data = yf.download(tickers, period="5d", interval="1d", progress=False)['Close']
-        
-        # Son değişim yüzdeleri
-        dxy_last = data['DX-Y.NYB'].iloc[-1]
-        dxy_prev = data['DX-Y.NYB'].iloc[-2]
-        dxy_change = ((dxy_last - dxy_prev) / dxy_prev) * 100
-        
-        sp_last = data['^GSPC'].iloc[-1]
-        sp_prev = data['^GSPC'].iloc[-2]
-        sp_change = ((sp_last - sp_prev) / sp_prev) * 100
-        
-        status = "Nötr"
-        if dxy_change > 0.3: status = "Negatif (Dolar Güçleniyor)"
-        elif sp_change < -0.5: status = "Negatif (Borsa Düşüyor)"
-        elif dxy_change < -0.3 and sp_change > 0.3: status = "Pozitif (Risk İştahı Yüksek)"
-        
-        return {
-            "dxy_change": round(float(dxy_change), 2),
-            "sp500_change": round(float(sp_change), 2),
-            "status": status
-        }
-    except Exception as e:
-        print(f"Makro Veri Hatası: {e}")
-        return {"dxy_change": 0, "sp500_change": 0, "status": "Veri Yok"}
+    final_action: str = Field(description="Karar: 'GÜÇLÜ AL', 'AL', 'BEKLE', 'SAT', 'GÜÇLÜ SAT'.")
+    logic_explanation: str = Field(description="Kararın detaylı mantığı (TÜRKÇE).")
 
-# --- 2. HABER VE DUYGU ANALİZİ ---
-def get_crypto_news():
-    """CoinDesk RSS beslemesinden son haberleri çeker"""
-    try:
-        feed_url = "https://www.coindesk.com/arc/outboundfeeds/rss/"
-        feed = feedparser.parse(feed_url)
-        headlines = [entry.title for entry in feed.entries[:5]] # Son 5 başlık
-        return headlines
-    except Exception as e:
-        print(f"Haber Hatası: {e}")
-        return ["Haber verisi alınamadı."]
+# 2. Gem (Altcoin) Rapor Modeli
+class GemPick(BaseModel):
+    coin_name: str = Field(description="Coin Sembolü.")
+    setup_type: str = Field(description="Fırsat Tipi: 'BALİNA GİRİŞİ', 'TREND DÖNÜŞÜ' veya 'HYPE'.")
+    score: int = Field(description="Potansiyel puanı (1-100).")
+    reason: str = Field(description="Neden seçildi? (TÜRKÇE).")
+    levels: str = Field(description="Giriş ve hedef seviyeleri.")
 
-def get_fear_and_greed():
-    """İngilizce veriyi Türkçeye çevirir"""
-    translation = {
-        "Extreme Fear": "Aşırı Korku 😱",
-        "Fear": "Korku 😨",
-        "Neutral": "Nötr 😐",
-        "Greed": "Açgözlülük 🤑",
-        "Extreme Greed": "Aşırı Açgözlülük 🚀"
-    }
-    try:
-        r = requests.get("https://api.alternative.me/fng/", timeout=10)
-        data = r.json()
-        val = int(data['data'][0]['value'])
-        label_en = data['data'][0]['value_classification']
-        # Sözlükten Türkçe karşılığını al, yoksa İngilizcesini bırak
-        label_tr = translation.get(label_en, label_en) 
-        return val, label_tr
-    except:
-        return 50, "Nötr"
+class GemStrategyReport(BaseModel):
+    market_summary: str = Field(description="Altcoin piyasası genel durumu.")
+    picks: list[GemPick] = Field(description="En iyi 3 coin seçimi.")
 
-# --- 3. TEKNİK HESAPLAMALAR (Manuel Pandas) ---
+# ==========================================
+# BÖLÜM 2: ORTAK FONKSİYONLAR
+# ==========================================
+
 def calculate_rsi(series, period=14):
     delta = series.diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
@@ -110,132 +70,223 @@ def calculate_bollinger(series, period=20, std=2):
     lower = sma - (rstd * std)
     return upper, lower
 
-def get_market_data(symbol):
+def send_telegram(msg):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": msg, "parse_mode": "Markdown"}
+    requests.post(url, json=payload)
+
+# ==========================================
+# BÖLÜM 3: MAJOR ANALİZ MODÜLÜ (BTC/ETH)
+# ==========================================
+
+def get_macro_data():
     try:
-        coin_map = {'BTC/USDT': 'BTC', 'ETH/USDT': 'ETH'}
-        coin = coin_map.get(symbol)
+        tickers = ["DX-Y.NYB", "^GSPC"]
+        data = yf.download(tickers, period="5d", interval="1d", progress=False)['Close']
+        dxy_change = ((data['DX-Y.NYB'].iloc[-1] - data['DX-Y.NYB'].iloc[-2]) / data['DX-Y.NYB'].iloc[-2]) * 100
+        sp_change = ((data['^GSPC'].iloc[-1] - data['^GSPC'].iloc[-2]) / data['^GSPC'].iloc[-2]) * 100
         
-        # Cryptocompare API
+        status = "Nötr"
+        if dxy_change > 0.3: status = "Negatif (Dolar Güçleniyor)"
+        elif sp_change < -0.5: status = "Negatif (Borsa Düşüyor)"
+        elif dxy_change < -0.3 and sp_change > 0.3: status = "Pozitif (Risk İştahı Yüksek)"
+        return {"dxy": round(float(dxy_change), 2), "sp500": round(float(sp_change), 2), "status": status}
+    except:
+        return {"dxy": 0, "sp500": 0, "status": "Veri Yok"}
+
+def get_crypto_news():
+    try:
+        feed = feedparser.parse("https://www.coindesk.com/arc/outboundfeeds/rss/")
+        return [entry.title for entry in feed.entries[:5]]
+    except:
+        return ["Haber verisi alınamadı."]
+
+def get_fear_and_greed():
+    trans = {"Extreme Fear": "Aşırı Korku 😱", "Fear": "Korku 😨", "Neutral": "Nötr 😐", "Greed": "Açgözlülük 🤑", "Extreme Greed": "Aşırı Açgözlülük 🚀"}
+    try:
+        r = requests.get("https://api.alternative.me/fng/", timeout=10).json()
+        val = int(r['data'][0]['value'])
+        label = r['data'][0]['value_classification']
+        return val, trans.get(label, label)
+    except:
+        return 50, "Nötr"
+
+def get_major_market_data(symbol):
+    try:
+        coin = symbol.split('/')[0]
         url = f"https://min-api.cryptocompare.com/data/v2/histohour?fsym={coin}&tsym=USD&limit=100"
         res = requests.get(url, timeout=10).json()
-        
         if res.get('Response') != 'Success': return None
         
         df = pd.DataFrame(res['Data']['Data'])
         df['close'] = df['close'].astype(float)
         df['volumeto'] = df['volumeto'].astype(float)
         
-        # İndikatörler
         df['rsi'] = calculate_rsi(df['close'])
         df['bb_upper'], df['bb_lower'] = calculate_bollinger(df['close'])
         
-        # Son veriler
         last = df.iloc[-1]
-        prev_24h = df.iloc[-24] # 24 saat önceki mum
-        
-        # Değişim
+        prev_24h = df.iloc[-24]
         change_24h = ((last['close'] - prev_24h['close']) / prev_24h['close']) * 100
-        
-        # Balina Aktivitesi (Hacim Anormalliği)
         avg_vol = df['volumeto'].mean()
-        whale_alert = "EVET" if last['volumeto'] > (avg_vol * 1.5) else "HAYIR"
         
         return {
             "price": last['close'],
             "change_24h": round(change_24h, 2),
             "rsi": round(last['rsi'], 2),
-            "bb_pos": "Üst Bandı Deldi" if last['close'] > last['bb_upper'] else "Alt Bandı Deldi" if last['close'] < last['bb_lower'] else "Bant İçi",
-            "whale_activity": whale_alert
+            "bb_pos": "Bant Dışı" if last['close'] > last['bb_upper'] or last['close'] < last['bb_lower'] else "Bant İçi",
+            "whale": "EVET" if last['volumeto'] > (avg_vol * 1.5) else "HAYIR"
         }
-    except Exception as e:
-        print(f"Borsa Veri Hatası ({symbol}): {e}")
+    except:
         return None
 
-# --- 4. GEMINI ANALİZİ (TÜRKÇE ZORLAMALI) ---
-def analyze_with_gemini(symbol, market_data, macro_data, news, fng_score):
-    
+def analyze_major_with_gemini(symbol, data, macro, news, fng):
     prompt = f"""
-    Sen Türk bir Kripto Fon Yöneticisisin. {symbol} için verileri analiz et.
+    Sen Türk bir Kripto Fon Yöneticisisin. {symbol} için:
+    VERİLER: Korku Endeksi: {fng} (0-100), Makro: {macro['status']}, Haberler: {news}, 
+    Fiyat: ${data['price']:,.2f}, Değişim: %{data['change_24h']}, RSI: {data['rsi']}, Balina: {data['whale']}.
     
-    VERİLER:
-    - Korku Endeksi: {fng_score} (0-100)
-    - Makro: {macro_data['status']}
-    - Haberler: {news}
-    - Fiyat: ${market_data['price']:,.2f}
-    - Değişim (24s): %{market_data['change_24h']}
-    - RSI: {market_data['rsi']}
-    - Balina Aktivitesi: {market_data['whale_activity']}
-    
-    GÖREV:
-    Bu verileri yorumla ve yatırımcıya tavsiye ver.
-    
-    ÇOK ÖNEMLİ KURALLAR:
-    1. YANITIN TAMAMI %100 TÜRKÇE OLACAK. Asla İngilizce kelime kullanma.
-    2. 'final_action' sadece şunlardan biri olabilir: 'GÜÇLÜ AL', 'AL', 'BEKLE', 'SAT', 'GÜÇLÜ SAT'.
-    3. 'logic_explanation' kısmında "RSI oversold" deme, "RSI aşırı satımda" de. "Bullish" yerine "Yükseliş" de.
-    4. Samimi ve profesyonel bir dil kullan.
+    KURALLAR:
+    1. YANIT %100 TÜRKÇE OLSUN.
+    2. Karar sadece: 'GÜÇLÜ AL', 'AL', 'BEKLE', 'SAT', 'GÜÇLÜ SAT'.
+    3. Eğer fiyat düşmüşse ama haberler iyiyse "Fırsat" vurgusu yap.
     """
-    
     try:
         return client_ai.chat.completions.create(
             model="gemini-2.0-flash-exp",
             messages=[{"role": "user", "content": prompt}],
-            response_model=MarketReport,
+            response_model=MajorReport,
         )
-    except Exception as e:
-        print(f"AI Hatası: {e}")
-        return None
+    except: return None
 
-def send_telegram(msg):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": msg, "parse_mode": "Markdown"}
-    requests.post(url, json=payload)
+# ==========================================
+# BÖLÜM 4: GEM AVCISI MODÜLÜ (ALTCOIN SCANNER)
+# ==========================================
 
-def save_db(symbol, price, report):
-    data = {
-        "symbol": symbol,
-        "price": price,
-        "trend": report.final_action,
-        "risk_score": 100 - report.market_sentiment_score, # Basit risk hesabı
-        "ai_comment": report.logic_explanation,
-        "technical_data": {"macro": report.macro_outlook, "news": report.sentiment_summary}
-    }
+def scan_binance_market():
+    print("📡 Binance Altcoin Taraması Başlıyor...")
     try:
-        supabase.table('market_analysis').insert(data).execute()
+        tickers = exchange.fetch_tickers()
+        valid_pairs = [s for s in tickers if s.endswith('/USDT') and tickers[s]['quoteVolume'] > 2000000] # 2M$ altı hacmi ele
+        
+        candidates = []
+        # Ön Eleme: %3 ile %15 arası artanlar veya %5 düşenler (Hareketli coinler)
+        for s in valid_pairs:
+            chg = tickers[s]['percentage']
+            if (chg > 3 and chg < 15) or (chg < -5):
+                candidates.append(s)
+        
+        # En yüksek hacimli 15 adayı seç
+        candidates = sorted(candidates, key=lambda x: tickers[x]['quoteVolume'], reverse=True)[:15]
+        
+        results = []
+        for s in candidates:
+            try:
+                ohlcv = exchange.fetch_ohlcv(s, '1h', limit=48)
+                df = pd.DataFrame(ohlcv, columns=['t','o','h','l','c','v'])
+                rsi = calculate_rsi(df['c']).iloc[-1]
+                vol_ratio = df['v'].iloc[-1] / df['v'].mean()
+                
+                # Sinyal Filtresi
+                is_whale = vol_ratio > 3 and df['c'].iloc[-1] > df['o'].iloc[-1] # Hacim patlaması + Yeşil mum
+                is_dip = rsi < 30 # Aşırı satım
+                
+                if is_whale or is_dip:
+                    results.append({"symbol": s, "price": df['c'].iloc[-1], "rsi": round(rsi,2), "vol_x": round(vol_ratio,1), "type": "Balina 🐳" if is_whale else "Dip 🌤️"})
+            except: continue
+        return results
     except Exception as e:
-        print(f"DB Hatası: {e}")
+        print(f"Tarama Hatası: {e}")
+        return []
 
-# --- ANA PROGRAM ---
-if __name__ == "__main__":
-    print("🌍 Global Analiz Başlatılıyor...")
+def get_trending_coins():
+    try:
+        r = requests.get("https://api.coingecko.com/api/v3/search/trending", timeout=5).json()
+        return [i['item']['symbol'] for i in r['coins'][:5]]
+    except: return []
+
+def analyze_gems_with_gemini(gems, trending):
+    gems_text = "\n".join([f"- {g['symbol']}: Fiyat {g['price']}, RSI {g['rsi']}, Hacim {g['vol_x']}x, Tip: {g['type']}" for g in gems])
     
-    # 1. Genel Verileri Çek
+    prompt = f"""
+    Sen Kripto Altcoin Avcısısın. Aşağıdaki teknik tarama sonuçlarını ve trendleri analiz et.
+    
+    TARAMA SONUÇLARI:
+    {gems_text}
+    
+    POPÜLER TRENDLER (HİKAYE):
+    {trending}
+    
+    GÖREV:
+    Bu listeden EN İYİ 3 potansiyeli seç.
+    - Teknik olarak "Balina" girişi olanlara öncelik ver.
+    - Eğer teknik sinyal veren coin Trend listesindeyse bu çok güçlüdür.
+    - Yanıt %100 TÜRKÇE olsun.
+    """
+    try:
+        return client_ai.chat.completions.create(
+            model="gemini-2.0-flash-exp",
+            messages=[{"role": "user", "content": prompt}],
+            response_model=GemStrategyReport,
+        )
+    except: return None
+
+# ==========================================
+# BÖLÜM 5: ANA AKIŞ
+# ==========================================
+
+def main_flow():
+    # --- AŞAMA 1: MAJOR ANALİZ (BTC/ETH) ---
+    print("1️⃣ Major Coin Analizi Yapılıyor...")
     macro = get_macro_data()
     news = get_crypto_news()
-    fng_val, fng_label = get_fear_and_greed()
+    fng, fng_lbl = get_fear_and_greed()
     
-    report_msg = f"🌍 *Piyasa Özeti*\n"
-    report_msg += f"💵 Makro: {macro['status']}\n"
-    report_msg += f"🎭 Hissiyat: {fng_val} ({fng_label})\n\n"
+    report_major = f"🌍 *Piyasa Raporu* ({fng_lbl})\n💵 Makro: {macro['status']}\n\n"
     
-    for symbol in SYMBOLS:
-        print(f"İnceleniyor: {symbol}")
-        market_data = get_market_data(symbol)
-        
-        if market_data:
-            analysis = analyze_with_gemini(symbol, market_data, macro, news, fng_val)
+    for s in MAJOR_SYMBOLS:
+        d = get_major_market_data(s)
+        if d:
+            ai = analyze_major_with_gemini(s, d, macro, news, fng)
+            if ai:
+                # DB Kayıt (Major)
+                try:
+                    supabase.table('market_analysis').insert({
+                        "symbol": s, "price": d['price'], "trend": ai.final_action, 
+                        "risk_score": 100-ai.market_sentiment_score, "ai_comment": ai.logic_explanation,
+                        "technical_data": {"macro": ai.macro_outlook}
+                    }).execute()
+                except: pass
+                
+                icon = "🟢" if "AL" in ai.final_action else "🔴" if "SAT" in ai.final_action else "⚪"
+                report_major += f"*{s}* ${d['price']:,.2f}\n"
+                report_major += f"{icon} Karar: *{ai.final_action}*\n"
+                report_major += f"💡 _{ai.logic_explanation}_\n\n"
+    
+    send_telegram(report_major)
+    
+    # --- AŞAMA 2: GEM TARAMASI (ALTCOINS) ---
+    print("2️⃣ Altcoin Taraması Yapılıyor...")
+    gems = scan_binance_market()
+    trends = get_trending_coins()
+    
+    if gems:
+        ai_gems = analyze_gems_with_gemini(gems, trends)
+        if ai_gems:
+            report_gems = f"💎 **GEM AVCISI RADARI**\n"
+            report_gems += f"ℹ️ _Piyasa Notu: {ai_gems.market_summary}_\n\n"
             
-            if analysis:
-                save_db(symbol, market_data['price'], analysis)
-                
-                icon = "🟢" if "AL" in analysis.final_action else "🔴" if "SAT" in analysis.final_action else "⚪"
-                if "FIRSAT" in analysis.logic_explanation.upper(): icon = "💎" # Fırsat ikonu
-                
-                report_msg += f"*{symbol}* ${market_data['price']:,.2f}\n"
-                report_msg += f"Değişim: %{market_data['change_24h']} | RSI: {market_data['rsi']}\n"
-                report_msg += f"{icon} Karar: *{analysis.final_action}*\n"
-                report_msg += f"🧠 Mantık: _{analysis.logic_explanation}_\n\n"
-    
-    send_telegram(report_msg)
-    print("✅ Bitti.")
+            for p in ai_gems.picks:
+                report_gems += f"🚀 **{p.coin_name}** ({p.setup_type})\n"
+                report_gems += f"Puan: {p.score}/100\n"
+                report_gems += f"Neden: _{p.reason}_\n"
+                report_gems += f"🎯 {p.levels}\n\n"
+            
+            report_gems += f"🔥 **Hype Olanlar:** {', '.join(trends)}"
+            send_telegram(report_gems)
+    else:
+        print("Uygun gem bulunamadı.")
 
+if __name__ == "__main__":
+    main_flow()
+    print("✅ Tüm İşlemler Tamamlandı.")
