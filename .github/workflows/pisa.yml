@@ -1,0 +1,38 @@
+name: PISA Soru Uretici Bot
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+    - cron: '0 15 * * *'
+  workflow_dispatch:
+    inputs:
+      soru_adedi:
+        description: 'Soru sayisi'
+        required: false
+        default: '50'
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python Kur
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Kutuphaneler
+        run: |
+          pip install google-generativeai supabase
+
+      - name: Bot Calistir
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SORU_ADEDI: ${{ github.event.inputs.soru_adedi || '50' }}
+        run: python pisa_bot.py
