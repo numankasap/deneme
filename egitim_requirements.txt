@@ -1,0 +1,11 @@
+# Core AI
+google-genai
+google-generativeai
+
+# Web & API
+requests
+feedparser
+beautifulsoup4
+
+# Utilities
+python-dateutil
