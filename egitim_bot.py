@@ -333,29 +333,73 @@ def get_math_news() -> List[Dict]:
 def get_ai_education_news() -> List[Dict]:
     """
     Yapay zeka ve eğitim haberleri
-    EdTech gelişmeleri
+    EdTech gelişmeleri - Genişletilmiş kaynak listesi
     """
     news = []
     
-    # AI & Education kaynakları
+    # ══════════════════════════════════════════════════════════════════════
+    # ÇALIŞAN EDTECH & AI EĞİTİM HABER KAYNAKLARI
+    # ══════════════════════════════════════════════════════════════════════
+    
     sources = [
-        ('https://www.edweek.org/rss/technology.xml', 'Education Week'),
-        ('https://www.edsurge.com/feeds/articles.rss', 'EdSurge'),
-        ('https://www.the74million.org/feed/', 'The 74'),
-        ('https://edtechmagazine.com/k12/rss.xml', 'EdTech Magazine'),
-        ('https://www.iste.org/feed', 'ISTE'),
+        # === ANA KAYNAKLAR (Doğrulanmış RSS) ===
+        ('https://www.edsurge.com/articles_rss', 'EdSurge', 'Ana'),
+        ('https://www.the74million.org/feed/', 'The 74 Million', 'Ana'),
+        ('https://www.eschoolnews.com/feed/', 'eSchool News', 'Ana'),
+        ('https://edtechmagazine.com/k12/rss.xml', 'EdTech Magazine', 'Ana'),
+        
+        # === EDTECH BLOGLAR ===
+        ('https://www.techlearning.com/rss.xml', 'Tech & Learning', 'EdTech'),
+        ('https://classtechtips.com/feed/', 'Class Tech Tips', 'EdTech'),
+        ('https://www.freetech4teachers.com/feeds/posts/default', 'Free Tech 4 Teachers', 'EdTech'),
+        ('https://ditchthattextbook.com/feed/', 'Ditch That Textbook', 'EdTech'),
+        
+        # === AI & TEKNOLOJİ ===
+        ('https://www.technologyreview.com/feed/', 'MIT Tech Review', 'AI'),
+        ('https://openai.com/blog/rss/', 'OpenAI', 'AI'),
+        
+        # === ÖĞRENME BİLİMİ ===
+        ('https://www.gettingsmart.com/feed/', 'Getting Smart', 'Araştırma'),
+        ('https://www.insidehighered.com/rss.xml', 'Inside Higher Ed', 'Araştırma'),
+        
+        # === KÜRESEL ===
+        ('https://www.weforum.org/agenda/feed', 'World Economic Forum', 'Global'),
+        
+        # === ÖĞRETİM ===
+        ('https://www.facultyfocus.com/feed/', 'Faculty Focus', 'Öğretim'),
+        ('https://www.elearningindustry.com/feed', 'eLearning Industry', 'Öğretim'),
     ]
     
     # AI/EdTech anahtar kelimeleri
     ai_keywords = [
-        'ai', 'artificial intelligence', 'machine learning', 'chatgpt', 'gpt',
-        'edtech', 'personalized learning', 'adaptive learning', 'intelligent tutoring',
-        'automation', 'digital learning', 'online education', 'virtual classroom',
-        'khan academy', 'duolingo', 'coursera', 'education technology',
-        'yapay zeka', 'makine öğrenmesi', 'kişiselleştirilmiş öğrenme'
+        # Yapay Zeka
+        'ai', 'artificial intelligence', 'machine learning', 'deep learning',
+        'chatgpt', 'gpt', 'claude', 'gemini', 'copilot',
+        'generative ai', 'genai', 'llm', 'large language model',
+        # EdTech
+        'edtech', 'education technology', 'learning platform',
+        'adaptive learning', 'personalized learning', 'intelligent tutoring',
+        'online learning', 'digital learning', 'hybrid learning',
+        # Platformlar
+        'khan academy', 'khanmigo', 'duolingo', 'coursera',
+        'google classroom', 'canvas', 'kahoot', 'quizlet',
+        # Eğitim Uygulamaları
+        'ai tutor', 'ai teacher', 'ai grading', 'ai assessment',
+        'automated feedback', 'learning analytics',
+        # Trendler
+        'future of education', 'digital transformation',
+        'ai literacy', 'computational thinking',
+        # Türkçe
+        'yapay zeka', 'eğitim teknolojisi'
     ]
     
-    for rss_url, source in sources:
+    # Yüksek öncelikli
+    high_priority_keywords = [
+        'chatgpt', 'ai tutor', 'ai teacher', 'khanmigo', 'generative ai',
+        'ai classroom', 'ai education', 'ai literacy', 'personalized learning ai'
+    ]
+    
+    for rss_url, source, category in sources:
         try:
             feed = feedparser.parse(rss_url)
             for entry in feed.entries[:4]:
@@ -366,20 +410,27 @@ def get_ai_education_news() -> List[Dict]:
                 # AI ile ilgili mi kontrol et
                 text = (title + ' ' + summary).lower()
                 is_ai_related = any(kw in text for kw in ai_keywords)
+                is_high_priority = any(kw in text for kw in high_priority_keywords)
                 
                 if is_ai_related:
                     news.append({
                         'title': title[:150],
-                        'summary': summary,
+                        'summary': summary[:200],
                         'source': source,
+                        'category': category,
                         'link': link,
                         'is_ai_related': True,
+                        'is_high_priority': is_high_priority,
                         'needs_translation': True
                     })
         except Exception as e:
+            print(f"RSS hatası ({source}): {e}")
             continue
     
-    return news[:8]
+    # Önce yüksek öncelikli
+    news = sorted(news, key=lambda x: (x.get('is_high_priority', False)), reverse=True)
+    
+    return news[:12]
 
 # ══════════════════════════════════════════════════════════════════════════════
 # ÖĞRENCİ GÜNDEMİ (TRENDING KONULAR)
@@ -388,14 +439,11 @@ def get_ai_education_news() -> List[Dict]:
 def get_student_trending_topics() -> List[Dict]:
     """
     Öğrencilerin gündemindeki konular
-    Ekşi Sözlük, Reddit Türkiye, Twitter trends (simüle)
+    Sık sorulan sorular ve güncel konular
     """
-    # Not: Gerçek API'ler için authentication gerekebilir
-    # Bu fonksiyon örnek trending konular döndürür
-    
     trending = []
     
-    # Ekşi Sözlük gündem (simüle - gerçek scraping için BeautifulSoup kullanılabilir)
+    # Ekşi Sözlük'ten eğitim başlıkları çekmeye çalış
     try:
         url = "https://eksisozluk.com/basliklar/gundem"
         headers = {
@@ -406,46 +454,104 @@ def get_student_trending_topics() -> List[Dict]:
         if r.status_code == 200:
             soup = BeautifulSoup(r.text, 'html.parser')
             
-            # Eğitim ile ilgili başlıkları filtrele
+            # Eğitim ile ilgili anahtar kelimeler
             education_keywords = [
                 'lgs', 'yks', 'tyt', 'ayt', 'ösym', 'sınav', 'okul', 'ders',
                 'öğretmen', 'öğrenci', 'üniversite', 'lise', 'matematik',
                 'fizik', 'kimya', 'biyoloji', 'türkçe', 'tarih', 'coğrafya',
-                'müfredat', 'meb', 'eğitim', 'kpss', 'ales', 'yds'
+                'müfredat', 'meb', 'eğitim', 'kpss', 'ales', 'yds', 'dgs',
+                'sınıf', 'not', 'karne', 'tatil', 'burs', 'yurt', 'kredi'
             ]
             
-            topics = soup.find_all('a', class_='topic-list-item') or soup.find_all('li')
+            # Başlıkları bul - farklı selector'lar dene
+            topic_links = soup.select('ul.topic-list a') or soup.select('a[href*="/"]')
             
-            for topic in topics[:30]:
-                title = topic.get_text(strip=True)
-                if any(kw in title.lower() for kw in education_keywords):
-                    entry_count = topic.find('small')
-                    count = entry_count.get_text(strip=True) if entry_count else ''
-                    
-                    trending.append({
-                        'topic': title[:100],
-                        'source': 'Ekşi Sözlük',
-                        'entry_count': count,
-                        'category': 'Eğitim'
-                    })
+            for link in topic_links[:50]:
+                title = link.get_text(strip=True)
+                href = link.get('href', '')
+                
+                # Sadece metin içeren ve eğitimle ilgili olanları al
+                if title and len(title) > 5 and len(title) < 100:
+                    # # işareti veya garip karakterler içermiyorsa
+                    if '#' not in title and 'tüm kanallar' not in title.lower():
+                        if any(kw in title.lower() for kw in education_keywords):
+                            # Entry sayısını bul
+                            small = link.find('small')
+                            count = small.get_text(strip=True) if small else ''
+                            
+                            trending.append({
+                                'topic': title[:80],
+                                'source': 'Ekşi Sözlük',
+                                'entry_count': count,
+                                'category': 'Gündem'
+                            })
+                            
+                            if len(trending) >= 6:
+                                break
     except Exception as e:
         print(f"Trending topics hatası: {e}")
     
-    # Eğer gerçek veri alınamazsa, sık sorulan konuları döndür
-    if not trending:
+    # Eğer yeterli veri gelmezse, güncel ve sık sorulan konuları ekle
+    if len(trending) < 5:
+        # Dinamik tarih hesapla
+        from datetime import datetime
+        today = datetime.now()
+        current_month = today.strftime('%B')
+        current_year = today.year
+        
+        # Mevsime göre güncel konular
+        month = today.month
+        
+        # Dönem bazlı konular
+        if month in [9, 10, 11]:  # Güz dönemi
+            seasonal_topics = [
+                {'topic': f'{current_year}-{current_year+1} müfredat değişiklikleri', 'category': 'Müfredat'},
+                {'topic': '1. dönem sınav tarihleri', 'category': 'Sınav'},
+                {'topic': 'Yeni eğitim öğretim yılı değişiklikleri', 'category': 'Güncel'},
+            ]
+        elif month in [12, 1]:  # Kış - yarıyıl
+            seasonal_topics = [
+                {'topic': 'Yarıyıl tatili ne zaman başlıyor?', 'category': 'Tatil'},
+                {'topic': '1. dönem karne notları', 'category': 'Not'},
+                {'topic': 'Yarıyıl tatilinde nasıl çalışmalı?', 'category': 'Çalışma'},
+            ]
+        elif month in [2, 3, 4, 5]:  # Bahar - sınav hazırlık
+            seasonal_topics = [
+                {'topic': 'LGS son tekrar stratejileri', 'category': 'LGS'},
+                {'topic': 'YKS motivasyon nasıl korunur?', 'category': 'YKS'},
+                {'topic': 'Deneme sınavı değerlendirme', 'category': 'Deneme'},
+            ]
+        else:  # Yaz
+            seasonal_topics = [
+                {'topic': 'YKS tercih robotu nasıl kullanılır?', 'category': 'Tercih'},
+                {'topic': 'Üniversite tercih stratejileri', 'category': 'Tercih'},
+                {'topic': 'Yaz tatilinde verimli çalışma', 'category': 'Çalışma'},
+            ]
+        
+        # Sabit popüler konular
         common_topics = [
-            {'topic': '2025 LGS ne zaman?', 'category': 'Sınav Takvimi'},
-            {'topic': 'YKS başvuruları ne zaman?', 'category': 'Sınav Takvimi'},
-            {'topic': 'Yeni müfredat değişiklikleri', 'category': 'Müfredat'},
-            {'topic': 'Beceri temelli sorular nasıl çözülür?', 'category': 'Çalışma'},
-            {'topic': 'TYT Matematik konuları', 'category': 'Konu Listesi'},
-            {'topic': 'LGS Matematik soru tipleri', 'category': 'Soru Analizi'},
-            {'topic': 'Verimli ders çalışma yöntemleri', 'category': 'Motivasyon'},
-            {'topic': 'Pomodoro tekniği nasıl uygulanır?', 'category': 'Çalışma'},
+            {'topic': '2026 LGS ne zaman yapılacak?', 'category': 'Sınav Takvimi'},
+            {'topic': '2026 YKS başvuru tarihleri', 'category': 'Sınav Takvimi'},
+            {'topic': 'Beceri temelli sorular nasıl çözülür?', 'category': 'Soru Çözümü'},
+            {'topic': 'TYT Matematik konu listesi ve ağırlıkları', 'category': 'Konu'},
+            {'topic': 'LGS paragraf soruları taktikleri', 'category': 'Taktik'},
+            {'topic': 'Pomodoro tekniği ile verimli çalışma', 'category': 'Çalışma'},
+            {'topic': 'Deneme sınavı analizi nasıl yapılır?', 'category': 'Analiz'},
+            {'topic': 'Sınav kaygısı ile başa çıkma', 'category': 'Motivasyon'},
         ]
-        trending = common_topics
+        
+        # Mevsimsel + sabit konuları birleştir
+        all_topics = seasonal_topics + common_topics
+        
+        # Mevcut trending'e ekle
+        for topic in all_topics:
+            if len(trending) < 8:
+                # Tekrar kontrolü
+                if not any(t['topic'] == topic['topic'] for t in trending):
+                    topic['source'] = 'Sık Sorulan'
+                    trending.append(topic)
     
-    return trending[:10]
+    return trending[:8]
 
 # ══════════════════════════════════════════════════════════════════════════════
 # GÜNÜN MOTİVASYON MESAJI
@@ -700,21 +806,62 @@ def generate_report() -> str:
     report.append("━" * 50)
     
     if ai_news:
+        # Önce yüksek öncelikli haberler
+        high_priority = [n for n in ai_news if n.get('is_high_priority')]
+        regular = [n for n in ai_news if not n.get('is_high_priority')]
+        
         translate_count = 0
-        for news in ai_news[:5]:
-            # İlk 3 haberi çevir
-            if news.get('needs_translation') and translate_count < 3:
-                title_tr = translate_to_turkish(news['title'], is_headline=True)
-                translate_count += 1
-                import time
-                time.sleep(0.3)
-            else:
-                title_tr = news['title']
+        
+        # Kritik AI haberleri
+        if high_priority:
+            report.append("\n🔥 ÖNE ÇIKAN GELİŞMELER:")
+            for news in high_priority[:3]:
+                if news.get('needs_translation') and translate_count < 5:
+                    title_tr = translate_to_turkish(news['title'], is_headline=True)
+                    translate_count += 1
+                    import time
+                    time.sleep(0.3)
+                else:
+                    title_tr = news['title']
+                
+                report.append(f"\n🚀 {title_tr}")
+                report.append(f"   📍 {news['source']} [{news.get('category', '')}]")
+        
+        # Diğer haberler - kategoriye göre grupla
+        if regular:
+            # Kategorilere ayır
+            categories = {}
+            for news in regular[:10]:
+                cat = news.get('category', 'Diğer')
+                if cat not in categories:
+                    categories[cat] = []
+                categories[cat].append(news)
             
-            report.append(f"\n🌐 {title_tr}")
-            report.append(f"   📍 {news['source']}")
+            # Her kategoriden max 2 haber göster
+            category_emojis = {
+                'Ana': '📰', 'EdTech': '💻', 'AI': '🧠', 
+                'Araştırma': '🔬', 'Global': '🌍', 'Öğretim': '📚',
+                'STEM': '🔢', 'TR': '🇹🇷', 'Diğer': '📌'
+            }
+            
+            for cat, items in categories.items():
+                if items and len(items) > 0:
+                    emoji = category_emojis.get(cat, '📌')
+                    report.append(f"\n{emoji} {cat.upper()}:")
+                    
+                    for news in items[:2]:
+                        if news.get('needs_translation') and translate_count < 8:
+                            title_tr = translate_to_turkish(news['title'], is_headline=True)
+                            translate_count += 1
+                            import time
+                            time.sleep(0.3)
+                        else:
+                            title_tr = news['title']
+                        
+                        report.append(f"• {title_tr[:100]}")
+                        report.append(f"  📍 {news['source']}")
     else:
-        report.append("• Henüz yeni haber yok")
+        report.append("\n• Henüz yeni haber yok")
     
     report.append("")
     
@@ -728,9 +875,9 @@ def generate_report() -> str:
     
     if math_news:
         translate_count = 0
-        for news in math_news[:4]:
-            # İlk 2 haberi çevir
-            if news.get('needs_translation') and translate_count < 2:
+        for news in math_news[:5]:
+            # İlk 4 haberi çevir
+            if news.get('needs_translation') and translate_count < 4:
                 title_tr = translate_to_turkish(news['title'], is_headline=True)
                 translate_count += 1
                 import time
