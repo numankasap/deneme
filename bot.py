@@ -517,7 +517,7 @@ def get_cryptopanic_hot_coins() -> List[Dict]:
             # İlk başlığı Türkçeye çevir
             translated_titles = []
             if data['titles']:
-                first_title = translate_to_turkish(data['titles'][0])
+                first_title = translate_to_turkish(data['titles'][0], is_headline=True)
                 translated_titles.append(first_title)
                 translated_titles.extend(data['titles'][1:])  # Diğerlerini olduğu gibi bırak
             
@@ -772,50 +772,237 @@ def get_top_gainers_losers() -> Dict:
 
 def get_economic_calendar() -> List[Dict]:
     """
-    Kripto için önemli ekonomik olaylar
+    Dinamik Ekonomik Takvim - Investing.com scraping
     FOMC, CPI, NFP gibi piyasayı etkileyen veriler
-    Investing.com RSS + manuel takvim
     """
     events = []
     
-    # 2025 Önemli Ekonomik Takvim (Manuel güncelleme gerekli)
-    # Bu tarihler yaklaşık, her ay güncellenmeli
-    important_dates = {
-        # Aralık 2025
-        '2025-12-17': {'event': '🏛 FOMC Faiz Kararı', 'impact': 'HIGH', 'time': '21:00 TR'},
-        '2025-12-18': {'event': '🏛 FOMC Açıklaması', 'impact': 'HIGH', 'time': '21:30 TR'},
-        '2025-12-20': {'event': '📊 PCE Enflasyon', 'impact': 'HIGH', 'time': '15:30 TR'},
-        '2025-12-24': {'event': '🏠 Yeni Konut Satışları', 'impact': 'MEDIUM', 'time': '17:00 TR'},
-        # Ocak 2026
-        '2026-01-03': {'event': '💼 NFP İstihdam Raporu', 'impact': 'HIGH', 'time': '15:30 TR'},
-        '2026-01-10': {'event': '📊 CPI Enflasyon', 'impact': 'HIGH', 'time': '15:30 TR'},
-        '2026-01-15': {'event': '📊 PPI Üretici Fiyatları', 'impact': 'MEDIUM', 'time': '15:30 TR'},
-        '2026-01-29': {'event': '🏛 FOMC Faiz Kararı', 'impact': 'HIGH', 'time': '21:00 TR'},
+    try:
+        # Investing.com ekonomik takvim (scraping)
+        from datetime import datetime, timedelta
+        today = datetime.now()
+        
+        # Önümüzdeki 7 gün için tarih aralığı
+        date_from = today.strftime('%Y-%m-%d')
+        date_to = (today + timedelta(days=7)).strftime('%Y-%m-%d')
+        
+        # Investing.com API benzeri endpoint (public)
+        url = "https://www.investing.com/economic-calendar/Service/getCalendarFilteredData"
+        
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'X-Requested-With': 'XMLHttpRequest',
+            'Content-Type': 'application/x-www-form-urlencoded'
+        }
+        
+        # Sadece yüksek etkili USD olayları
+        data = {
+            'country[]': '5',  # USA
+            'importance[]': '3',  # High importance only
+            'dateFrom': date_from,
+            'dateTo': date_to,
+            'currentTab': 'custom',
+            'limit_from': '0'
+        }
+        
+        r = requests.post(url, headers=headers, data=data, timeout=15)
+        
+        if r.status_code == 200:
+            # HTML parse et
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(r.text, 'html.parser')
+            
+            rows = soup.find_all('tr', class_='js-event-item')
+            
+            for row in rows[:10]:  # İlk 10 olay
+                try:
+                    event_name = row.find('td', class_='event').get_text(strip=True)
+                    event_time = row.get('data-event-datetime', '')
+                    
+                    # Önem seviyesi (bull sayısı)
+                    bulls = row.find_all('i', class_='grayFullBullishIcon')
+                    importance = len(bulls) if bulls else 0
+                    
+                    if importance >= 2:  # Sadece önemli olaylar
+                        impact = 'HIGH' if importance == 3 else 'MEDIUM'
+                        
+                        # Tarihi parse et
+                        try:
+                            event_dt = datetime.strptime(event_time[:16], '%Y/%m/%d %H:%M')
+                            days_left = (event_dt.date() - today.date()).days
+                            
+                            if days_left == 0:
+                                when = "🔴 BUGÜN"
+                            elif days_left == 1:
+                                when = "🟡 YARIN"
+                            else:
+                                when = f"📅 {days_left} gün"
+                            
+                            # Türkçe çeviri
+                            event_tr = translate_event_name(event_name)
+                            
+                            events.append({
+                                'date': event_dt.strftime('%Y-%m-%d'),
+                                'event': event_tr,
+                                'event_original': event_name,
+                                'impact': impact,
+                                'time': event_dt.strftime('%H:%M') + ' UTC',
+                                'when': when,
+                                'days_left': days_left
+                            })
+                        except:
+                            continue
+                except:
+                    continue
+    except Exception as e:
+        print(f"Investing.com takvim hatası: {e}")
+    
+    # Eğer scraping başarısız olduysa, yedek olarak bilinen önemli tarihleri kullan
+    if not events:
+        events = get_backup_economic_calendar()
+    
+    # Tarihe göre sırala
+    events = sorted(events, key=lambda x: x.get('days_left', 999))
+    
+    return events[:8]
+
+def translate_event_name(event_name: str) -> str:
+    """Ekonomik olay isimlerini Türkçeye çevir"""
+    translations = {
+        'FOMC Meeting': '🏛 FOMC Toplantısı',
+        'FOMC Minutes': '🏛 FOMC Tutanakları',
+        'FOMC Press Conference': '🏛 FOMC Basın Toplantısı',
+        'Fed Interest Rate Decision': '🏛 Fed Faiz Kararı',
+        'Federal Funds Rate': '🏛 Fed Faiz Oranı',
+        'CPI': '📊 TÜFE (CPI) Enflasyon',
+        'Core CPI': '📊 Çekirdek TÜFE',
+        'CPI m/m': '📊 Aylık TÜFE',
+        'CPI y/y': '📊 Yıllık TÜFE',
+        'PPI': '📊 ÜFE (PPI)',
+        'Core PPI': '📊 Çekirdek ÜFE',
+        'PCE': '📊 PCE Enflasyon',
+        'Core PCE': '📊 Çekirdek PCE',
+        'NFP': '💼 Tarım Dışı İstihdam (NFP)',
+        'Nonfarm Payrolls': '💼 Tarım Dışı İstihdam',
+        'Non-Farm Payrolls': '💼 Tarım Dışı İstihdam',
+        'Unemployment Rate': '💼 İşsizlik Oranı',
+        'Initial Jobless Claims': '💼 Haftalık İşsizlik Başvuruları',
+        'GDP': '📈 GSYİH',
+        'GDP Growth Rate': '📈 GSYİH Büyüme',
+        'Retail Sales': '🛒 Perakende Satışlar',
+        'Consumer Confidence': '😊 Tüketici Güveni',
+        'ISM Manufacturing PMI': '🏭 ISM İmalat PMI',
+        'ISM Services PMI': '🏭 ISM Hizmet PMI',
+        'Durable Goods Orders': '📦 Dayanıklı Mal Siparişleri',
+        'Housing Starts': '🏠 Konut Başlangıçları',
+        'New Home Sales': '🏠 Yeni Konut Satışları',
+        'Existing Home Sales': '🏠 Mevcut Konut Satışları',
+        'Building Permits': '🏠 İnşaat İzinleri',
+        'Trade Balance': '⚖️ Dış Ticaret Dengesi',
+        'Industrial Production': '🏭 Sanayi Üretimi',
+        'Crude Oil Inventories': '🛢️ Ham Petrol Stokları',
+        'EIA Crude Oil Stocks': '🛢️ EIA Petrol Stokları',
+        'Powell': '🎤 Powell Konuşması',
+        'Yellen': '🎤 Yellen Konuşması',
+        'Treasury': '💵 Hazine',
     }
     
+    # Tam eşleşme
+    for eng, tr in translations.items():
+        if eng.lower() in event_name.lower():
+            return tr
+    
+    # Eşleşme yoksa orijinal ismi döndür
+    return f"📌 {event_name}"
+
+def get_backup_economic_calendar() -> List[Dict]:
+    """
+    Yedek ekonomik takvim - API çalışmazsa kullanılır
+    FED takviminden bilinen tarihler
+    """
     from datetime import datetime, timedelta
     today = datetime.now()
     
-    # Önümüzdeki 7 gün içindeki olayları bul
-    for i in range(7):
-        check_date = (today + timedelta(days=i)).strftime('%Y-%m-%d')
-        if check_date in important_dates:
-            event = important_dates[check_date]
-            days_left = i
+    # 2025-2026 FOMC Toplantı Tarihleri (resmi FED takvimi)
+    fomc_dates = [
+        '2025-12-17', '2025-12-18',  # Aralık 2025
+        '2026-01-28', '2026-01-29',  # Ocak 2026
+        '2026-03-18', '2026-03-19',  # Mart 2026
+        '2026-05-05', '2026-05-06',  # Mayıs 2026
+        '2026-06-16', '2026-06-17',  # Haziran 2026
+    ]
+    
+    events = []
+    
+    for date_str in fomc_dates:
+        try:
+            event_date = datetime.strptime(date_str, '%Y-%m-%d')
+            days_left = (event_date.date() - today.date()).days
             
-            if days_left == 0:
-                when = "🔴 BUGÜN"
-            elif days_left == 1:
-                when = "🟡 YARIN"
-            else:
-                when = f"📅 {days_left} gün"
-            
+            if 0 <= days_left <= 30:
+                if days_left == 0:
+                    when = "🔴 BUGÜN"
+                elif days_left == 1:
+                    when = "🟡 YARIN"
+                else:
+                    when = f"📅 {days_left} gün"
+                
+                events.append({
+                    'date': date_str,
+                    'event': '🏛 FOMC Toplantısı',
+                    'event_original': 'FOMC Meeting',
+                    'impact': 'HIGH',
+                    'time': '21:00 TR',
+                    'when': when,
+                    'days_left': days_left
+                })
+        except:
+            continue
+    
+    # Aylık önemli veriler (yaklaşık tarihler - her ayın belirli haftaları)
+    # CPI genelde ayın 10-14'ü arası
+    # NFP genelde ayın ilk Cuma'sı
+    # PCE genelde ayın son haftası
+    
+    current_month = today.month
+    current_year = today.year
+    
+    # Bu ay ve gelecek ay için tahmini tarihler
+    for month_offset in [0, 1]:
+        check_month = current_month + month_offset
+        check_year = current_year
+        if check_month > 12:
+            check_month = 1
+            check_year += 1
+        
+        # CPI - ayın 12'si civarı
+        cpi_date = datetime(check_year, check_month, 12)
+        days_to_cpi = (cpi_date.date() - today.date()).days
+        if 0 <= days_to_cpi <= 14:
+            when = "🔴 BUGÜN" if days_to_cpi == 0 else "🟡 YARIN" if days_to_cpi == 1 else f"📅 {days_to_cpi} gün"
             events.append({
-                'date': check_date,
-                'event': event['event'],
-                'impact': event['impact'],
-                'time': event['time'],
-                'when': when
+                'date': cpi_date.strftime('%Y-%m-%d'),
+                'event': '📊 TÜFE (CPI) Enflasyon',
+                'impact': 'HIGH',
+                'time': '15:30 TR',
+                'when': when,
+                'days_left': days_to_cpi
+            })
+        
+        # NFP - ayın ilk Cuma'sı
+        first_day = datetime(check_year, check_month, 1)
+        days_until_friday = (4 - first_day.weekday()) % 7
+        nfp_date = first_day + timedelta(days=days_until_friday)
+        days_to_nfp = (nfp_date.date() - today.date()).days
+        if 0 <= days_to_nfp <= 14:
+            when = "🔴 BUGÜN" if days_to_nfp == 0 else "🟡 YARIN" if days_to_nfp == 1 else f"📅 {days_to_nfp} gün"
+            events.append({
+                'date': nfp_date.strftime('%Y-%m-%d'),
+                'event': '💼 Tarım Dışı İstihdam (NFP)',
+                'impact': 'HIGH',
+                'time': '15:30 TR',
+                'when': when,
+                'days_left': days_to_nfp
             })
     
     return events
@@ -871,9 +1058,10 @@ def get_crypto_events() -> List[Dict]:
     
     return events
 
-def translate_to_turkish(text: str) -> str:
+def translate_to_turkish(text: str, is_headline: bool = True) -> str:
     """
     Gemini API ile İngilizce metni Türkçeye çevir
+    Daha detaylı ve anlaşılır çeviri
     """
     if not text or not GEMINI_KEY:
         return text
@@ -881,20 +1069,46 @@ def translate_to_turkish(text: str) -> str:
     try:
         client = genai.Client(api_key=GEMINI_KEY)
         
-        response = client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=f"""Aşağıdaki kripto/finans haberini Türkçeye çevir. 
-Sadece çeviriyi yaz, başka bir şey ekleme. Kısa ve öz tut.
-Teknik terimleri (Bitcoin, Ethereum, SEC, ETF, FOMC vb.) çevirme, olduğu gibi bırak.
+        if is_headline:
+            prompt = f"""Aşağıdaki kripto/finans haber başlığını Türkçeye çevir.
+
+Kurallar:
+1. Tam ve eksiksiz çeviri yap, kısaltma yapma
+2. Anlaşılır ve akıcı Türkçe kullan
+3. Teknik terimleri çevirme: Bitcoin, Ethereum, SEC, ETF, FOMC, Fed, CPI, NFT, DeFi, whale, bull, bear gibi terimler olduğu gibi kalsın
+4. Şirket ve kişi isimlerini çevirme: Binance, Coinbase, BlackRock, Elon Musk vb.
+5. Sadece çeviriyi yaz, açıklama ekleme
+6. Para birimleri ve rakamları koru: $100K, %15, 1.5B vb.
+
+İngilizce başlık: {text}
+
+Türkçe çeviri:"""
+        else:
+            prompt = f"""Aşağıdaki kripto/finans haberini Türkçeye çevir.
+
+Kurallar:
+1. Tam ve detaylı çeviri yap
+2. Anlaşılır Türkçe kullan
+3. Teknik terimleri çevirme (Bitcoin, Ethereum, SEC, ETF, FOMC, whale vb.)
+4. Sadece çeviriyi yaz
 
 İngilizce: {text}
 
 Türkçe:"""
+        
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt
         )
         
         translated = response.text.strip()
+        # Bazen model "Türkçe çeviri:" gibi prefix ekliyor, temizle
+        if translated.lower().startswith("türkçe"):
+            translated = translated.split(":", 1)[-1].strip()
+        
         return translated if translated else text
     except Exception as e:
+        print(f"Çeviri hatası: {e}")
         return text  # Çeviri başarısız olursa orijinal metni döndür
 
 def get_latest_crypto_news() -> List[Dict]:
@@ -962,7 +1176,7 @@ def get_latest_crypto_news() -> List[Dict]:
     for item in news[:15]:
         if translate_count < max_translate and (item['is_high_impact'] or item['is_important']):
             # Başlığı Türkçeye çevir
-            item['title'] = translate_to_turkish(item['title_original'])
+            item['title'] = translate_to_turkish(item['title_original'], is_headline=True)
             translate_count += 1
             import time
             time.sleep(0.3)  # Rate limit için kısa bekleme
