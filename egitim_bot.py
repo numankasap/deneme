@@ -785,15 +785,30 @@ def generate_report() -> str:
         report.append("\n📢 MEB'DEN:")
         for news in meb_news[:3]:
             prefix = "🔴" if news.get('is_important') else "•"
-            report.append(f"{prefix} {news['title']}")
+            title = news['title'][:80]
+            link = news.get('link', '')
+            
+            if link:
+                report.append(f"{prefix} {title}")
+                report.append(f"   🔗 {link}")
+            else:
+                report.append(f"{prefix} {title}")
     
     # Sonra genel eğitim haberleri
     if education_news:
         report.append("\n📰 GÜNDEM:")
         for news in education_news[:5]:
             prefix = "🔴" if news.get('is_exam_related') else "📌" if news.get('is_important') else "•"
-            report.append(f"{prefix} {news['title']}")
-            report.append(f"   📍 {news['source']}")
+            title = news['title'][:80]
+            link = news.get('link', '')
+            source = news['source']
+            
+            if link:
+                report.append(f"{prefix} {title}")
+                report.append(f"   📍 {source} | 🔗 {link}")
+            else:
+                report.append(f"{prefix} {title}")
+                report.append(f"   📍 {source}")
     
     report.append("")
     
@@ -824,8 +839,13 @@ def generate_report() -> str:
                 else:
                     title_tr = news['title']
                 
+                link = news.get('link', '')
                 report.append(f"\n🚀 {title_tr}")
-                report.append(f"   📍 {news['source']} [{news.get('category', '')}]")
+                if link:
+                    report.append(f"   📍 {news['source']} [{news.get('category', '')}]")
+                    report.append(f"   🔗 {link}")
+                else:
+                    report.append(f"   📍 {news['source']} [{news.get('category', '')}]")
         
         # Diğer haberler - kategoriye göre grupla
         if regular:
@@ -858,8 +878,12 @@ def generate_report() -> str:
                         else:
                             title_tr = news['title']
                         
+                        link = news.get('link', '')
                         report.append(f"• {title_tr[:100]}")
-                        report.append(f"  📍 {news['source']}")
+                        if link:
+                            report.append(f"  📍 {news['source']} | 🔗 {link}")
+                        else:
+                            report.append(f"  📍 {news['source']}")
     else:
         report.append("\n• Henüz yeni haber yok")
     
@@ -885,8 +909,13 @@ def generate_report() -> str:
             else:
                 title_tr = news['title']
             
+            link = news.get('link', '')
             report.append(f"\n🔬 {title_tr}")
-            report.append(f"   📍 {news['source']} ({news.get('region', 'Dünya')})")
+            if link:
+                report.append(f"   📍 {news['source']} ({news.get('region', 'Dünya')})")
+                report.append(f"   🔗 {link}")
+            else:
+                report.append(f"   📍 {news['source']} ({news.get('region', 'Dünya')})")
     else:
         report.append("• Henüz yeni haber yok")
     
