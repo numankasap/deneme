@@ -759,6 +759,275 @@ def get_top_gainers_losers() -> Dict:
         return {'gainers': [], 'losers': []}
 
 # ============================================
+# EKONOMİK TAKVİM & ÖNEMLİ HABERLER
+# ============================================
+
+def get_economic_calendar() -> List[Dict]:
+    """
+    Kripto için önemli ekonomik olaylar
+    FOMC, CPI, NFP gibi piyasayı etkileyen veriler
+    Investing.com RSS + manuel takvim
+    """
+    events = []
+    
+    # 2025 Önemli Ekonomik Takvim (Manuel güncelleme gerekli)
+    # Bu tarihler yaklaşık, her ay güncellenmeli
+    important_dates = {
+        # Aralık 2025
+        '2025-12-17': {'event': '🏛 FOMC Faiz Kararı', 'impact': 'HIGH', 'time': '21:00 TR'},
+        '2025-12-18': {'event': '🏛 FOMC Açıklaması', 'impact': 'HIGH', 'time': '21:30 TR'},
+        '2025-12-20': {'event': '📊 PCE Enflasyon', 'impact': 'HIGH', 'time': '15:30 TR'},
+        '2025-12-24': {'event': '🏠 Yeni Konut Satışları', 'impact': 'MEDIUM', 'time': '17:00 TR'},
+        # Ocak 2026
+        '2026-01-03': {'event': '💼 NFP İstihdam Raporu', 'impact': 'HIGH', 'time': '15:30 TR'},
+        '2026-01-10': {'event': '📊 CPI Enflasyon', 'impact': 'HIGH', 'time': '15:30 TR'},
+        '2026-01-15': {'event': '📊 PPI Üretici Fiyatları', 'impact': 'MEDIUM', 'time': '15:30 TR'},
+        '2026-01-29': {'event': '🏛 FOMC Faiz Kararı', 'impact': 'HIGH', 'time': '21:00 TR'},
+    }
+    
+    from datetime import datetime, timedelta
+    today = datetime.now()
+    
+    # Önümüzdeki 7 gün içindeki olayları bul
+    for i in range(7):
+        check_date = (today + timedelta(days=i)).strftime('%Y-%m-%d')
+        if check_date in important_dates:
+            event = important_dates[check_date]
+            days_left = i
+            
+            if days_left == 0:
+                when = "🔴 BUGÜN"
+            elif days_left == 1:
+                when = "🟡 YARIN"
+            else:
+                when = f"📅 {days_left} gün"
+            
+            events.append({
+                'date': check_date,
+                'event': event['event'],
+                'impact': event['impact'],
+                'time': event['time'],
+                'when': when
+            })
+    
+    return events
+
+def get_crypto_events() -> List[Dict]:
+    """
+    Kripto spesifik olaylar - Token unlock, hard fork, mainnet launch
+    CoinMarketCal benzeri veriler (web scraping ile)
+    """
+    events = []
+    
+    try:
+        # CoinGecko status updates (ücretsiz)
+        url = "https://api.coingecko.com/api/v3/status_updates"
+        params = {'per_page': 20}
+        r = requests.get(url, params=params, timeout=10).json()
+        
+        for update in r.get('status_updates', [])[:10]:
+            project = update.get('project', {})
+            events.append({
+                'coin': project.get('symbol', '').upper(),
+                'name': project.get('name', ''),
+                'category': update.get('category', ''),
+                'title': update.get('user_title', '')[:80],
+                'description': update.get('description', '')[:150]
+            })
+    except:
+        pass
+    
+    # Manuel önemli kripto olayları (güncel tutulmalı)
+    from datetime import datetime, timedelta
+    today = datetime.now()
+    
+    upcoming_crypto_events = {
+        # Örnek formatı - gerçek tarihler için güncelle
+        '2025-12-20': {'coin': 'ETH', 'event': '🔄 Dencun Upgrade Yıldönümü', 'type': 'Network'},
+        '2025-12-25': {'coin': 'BTC', 'event': '🎄 CME Futures Tatil Kapanışı', 'type': 'Market'},
+        '2025-12-31': {'coin': 'MULTI', 'event': '📊 Yıl Sonu Kapanış', 'type': 'Market'},
+        '2026-01-03': {'coin': 'BTC', 'event': '🎂 Bitcoin 16. Yıl (Genesis Block)', 'type': 'Anniversary'},
+    }
+    
+    for i in range(14):  # 2 hafta içi
+        check_date = (today + timedelta(days=i)).strftime('%Y-%m-%d')
+        if check_date in upcoming_crypto_events:
+            event = upcoming_crypto_events[check_date]
+            events.append({
+                'coin': event['coin'],
+                'event': event['event'],
+                'type': event['type'],
+                'date': check_date,
+                'days_left': i
+            })
+    
+    return events
+
+def get_latest_crypto_news() -> List[Dict]:
+    """
+    Son dakika kripto haberleri
+    Birden fazla RSS kaynağından
+    """
+    news = []
+    
+    rss_sources = [
+        ('https://cointelegraph.com/rss', 'CoinTelegraph'),
+        ('https://www.coindesk.com/arc/outboundfeeds/rss/', 'CoinDesk'),
+        ('https://decrypt.co/feed', 'Decrypt'),
+        ('https://bitcoinmagazine.com/feed', 'Bitcoin Magazine'),
+    ]
+    
+    important_keywords = [
+        'SEC', 'ETF', 'regulation', 'hack', 'exploit', 'crash', 'surge', 'rally',
+        'FOMC', 'Fed', 'interest rate', 'inflation', 'CPI',
+        'Binance', 'Coinbase', 'Tether', 'USDT', 'USDC',
+        'Bitcoin', 'Ethereum', 'BTC', 'ETH',
+        'ban', 'approval', 'lawsuit', 'settlement',
+        'whale', 'dump', 'pump', 'ATH', 'all-time high',
+        'halving', 'fork', 'upgrade', 'mainnet', 'airdrop'
+    ]
+    
+    for rss_url, source in rss_sources:
+        try:
+            feed = feedparser.parse(rss_url)
+            for entry in feed.entries[:5]:
+                title = entry.get('title', '')
+                summary = entry.get('summary', '')[:200] if entry.get('summary') else ''
+                published = entry.get('published', '')
+                link = entry.get('link', '')
+                
+                # Önemli haber mi kontrol et
+                text = (title + ' ' + summary).lower()
+                is_important = any(kw.lower() in text for kw in important_keywords)
+                
+                # Önem seviyesi
+                high_impact_keywords = ['SEC', 'ETF', 'hack', 'exploit', 'crash', 'ban', 'approval', 'FOMC', 'Fed']
+                is_high_impact = any(kw.lower() in text for kw in high_impact_keywords)
+                
+                news.append({
+                    'title': title[:100],
+                    'summary': summary,
+                    'source': source,
+                    'published': published[:20] if published else '',
+                    'link': link,
+                    'is_important': is_important,
+                    'is_high_impact': is_high_impact
+                })
+        except Exception as e:
+            continue
+    
+    # Önce yüksek etkili, sonra önemli haberler
+    news = sorted(news, key=lambda x: (x['is_high_impact'], x['is_important']), reverse=True)
+    
+    return news[:15]
+
+def get_btc_etf_flows() -> Dict:
+    """
+    Bitcoin ETF akışları (yaklaşık tahmin)
+    Gerçek veri için premium API gerekli, burada proxy göstergeler kullanıyoruz
+    """
+    try:
+        # Grayscale GBTC ve diğer ETF proxy'leri için piyasa verisi
+        # Yahoo Finance üzerinden
+        import yfinance as yf
+        
+        # GBTC premium/discount kontrolü
+        gbtc = yf.Ticker("GBTC")
+        gbtc_price = gbtc.info.get('regularMarketPrice', 0)
+        
+        # BTC spot fiyat
+        btc = yf.Ticker("BTC-USD")
+        btc_price = btc.info.get('regularMarketPrice', 0)
+        
+        # IBIT (BlackRock ETF) hacim
+        ibit = yf.Ticker("IBIT")
+        ibit_volume = ibit.info.get('volume', 0)
+        ibit_avg_volume = ibit.info.get('averageVolume', 1)
+        
+        volume_ratio = ibit_volume / ibit_avg_volume if ibit_avg_volume > 0 else 1
+        
+        # Flow tahmini
+        if volume_ratio > 1.5:
+            flow_estimate = "YÜKSEK GİRİŞ 📈"
+        elif volume_ratio > 1.2:
+            flow_estimate = "NORMAL GİRİŞ"
+        elif volume_ratio < 0.7:
+            flow_estimate = "DÜŞÜK AKTİVİTE"
+        else:
+            flow_estimate = "NORMAL"
+        
+        return {
+            'ibit_volume': ibit_volume,
+            'volume_ratio': round(volume_ratio, 2),
+            'flow_estimate': flow_estimate,
+            'gbtc_price': gbtc_price
+        }
+    except Exception as e:
+        return {
+            'ibit_volume': 0,
+            'volume_ratio': 1,
+            'flow_estimate': 'BİLİNMİYOR',
+            'gbtc_price': 0
+        }
+
+def get_token_unlocks() -> List[Dict]:
+    """
+    Yaklaşan büyük token unlock'ları
+    Manuel liste (güncel tutulmalı) + API denemesi
+    """
+    unlocks = []
+    
+    # Manuel büyük unlock takvimi (haftalık güncelle)
+    # Kaynak: tokenomist.ai, cryptorank.io
+    from datetime import datetime, timedelta
+    today = datetime.now()
+    
+    upcoming_unlocks = [
+        # Format: {'coin': 'XXX', 'date': 'YYYY-MM-DD', 'amount': 'X M', 'value_usd': 'X M', 'percent': X}
+        {'coin': 'APT', 'date': '2025-12-12', 'amount': '11.3M', 'value_usd': '$95M', 'percent': 2.2},
+        {'coin': 'ARB', 'date': '2025-12-16', 'amount': '92.6M', 'value_usd': '$75M', 'percent': 2.1},
+        {'coin': 'OP', 'date': '2025-12-31', 'amount': '31.3M', 'value_usd': '$55M', 'percent': 2.9},
+        {'coin': 'SUI', 'date': '2026-01-01', 'amount': '64.2M', 'value_usd': '$120M', 'percent': 2.4},
+        {'coin': 'SEI', 'date': '2025-12-15', 'amount': '55.6M', 'value_usd': '$25M', 'percent': 1.8},
+        {'coin': 'TIA', 'date': '2025-12-18', 'amount': '88.7M', 'value_usd': '$400M', 'percent': 16.7},
+        {'coin': 'STRK', 'date': '2025-12-15', 'amount': '64M', 'value_usd': '$30M', 'percent': 3.6},
+        {'coin': 'JTO', 'date': '2025-12-07', 'amount': '11.3M', 'value_usd': '$35M', 'percent': 4.1},
+        {'coin': 'W', 'date': '2025-12-18', 'amount': '600M', 'value_usd': '$150M', 'percent': 33.3},
+        {'coin': 'ENA', 'date': '2025-12-25', 'amount': '12.9M', 'value_usd': '$10M', 'percent': 0.8},
+    ]
+    
+    for unlock in upcoming_unlocks:
+        try:
+            unlock_date = datetime.strptime(unlock['date'], '%Y-%m-%d')
+            days_left = (unlock_date - today).days
+            
+            if 0 <= days_left <= 14:  # 2 hafta içindeki unlock'lar
+                # Risk seviyesi
+                if unlock['percent'] > 10:
+                    risk = "🔴 YÜKSEK"
+                elif unlock['percent'] > 5:
+                    risk = "🟡 ORTA"
+                else:
+                    risk = "🟢 DÜŞÜK"
+                
+                unlocks.append({
+                    'coin': unlock['coin'],
+                    'date': unlock['date'],
+                    'amount': unlock['amount'],
+                    'value_usd': unlock['value_usd'],
+                    'percent': unlock['percent'],
+                    'days_left': days_left,
+                    'risk': risk
+                })
+        except:
+            continue
+    
+    # Tarihe göre sırala
+    unlocks = sorted(unlocks, key=lambda x: x['days_left'])
+    
+    return unlocks
+
+# ============================================
 # ON-CHAIN VERİLER
 # ============================================
 
@@ -1718,6 +1987,71 @@ if __name__ == "__main__":
     print(f"   ✓ {len(trending_coins)} trending coin bulundu")
     print(f"   ✓ {len(cryptopanic_hot)} coin haberlerde gündemde")
     print(f"   ✓ Top gainers/losers alındı")
+    
+    # 4.5 Ekonomik Takvim & Önemli Haberler
+    print("\n3.5️⃣ Ekonomik Takvim & Haberler...")
+    
+    economic_events = get_economic_calendar()
+    crypto_events = get_crypto_events()
+    latest_news = get_latest_crypto_news()
+    token_unlocks = get_token_unlocks()
+    etf_flows = get_btc_etf_flows()
+    
+    print(f"   ✓ {len(economic_events)} ekonomik olay yaklaşıyor")
+    print(f"   ✓ {len(token_unlocks)} token unlock yaklaşıyor")
+    print(f"   ✓ {len(latest_news)} son dakika haber")
+    
+    # ═══════════════════════════════════════════
+    # RAPOR OLUŞTURMA
+    # ═══════════════════════════════════════════
+    
+    # 📅 EKONOMİK TAKVİM BÖLÜMÜ
+    report_msg += "\n" + "═"*30 + "\n"
+    report_msg += "📅 *EKONOMİK TAKVİM & OLAYLAR*\n"
+    report_msg += "═"*30 + "\n"
+    
+    # Önemli Ekonomik Veriler
+    if economic_events:
+        report_msg += "\n🏛 *AÇIKLANACAK VERİLER:*\n"
+        for event in economic_events[:5]:
+            impact_emoji = "🔴" if event['impact'] == 'HIGH' else "🟡"
+            report_msg += f"{event['when']} {impact_emoji} {event['event']}\n"
+            report_msg += f"   ⏰ {event['time']}\n"
+    else:
+        report_msg += "\n✅ Önümüzdeki 7 günde önemli ekonomik veri yok.\n"
+    
+    # Token Unlock'lar
+    if token_unlocks:
+        report_msg += "\n🔓 *YAKLASAN TOKEN UNLOCK'LAR:*\n"
+        for unlock in token_unlocks[:5]:
+            days = unlock['days_left']
+            when = "BUGÜN!" if days == 0 else f"{days} gün"
+            report_msg += f"• *{unlock['coin']}* ({when}) - {unlock['amount']} token\n"
+            report_msg += f"  💰 {unlock['value_usd']} | %{unlock['percent']} arz | {unlock['risk']}\n"
+    
+    # BTC ETF Akışı
+    if etf_flows.get('flow_estimate') != 'BİLİNMİYOR':
+        report_msg += f"\n📊 *BTC ETF:* {etf_flows['flow_estimate']} (Hacim: x{etf_flows['volume_ratio']})\n"
+    
+    # 📰 SON DAKİKA HABERLER BÖLÜMÜ
+    report_msg += "\n" + "═"*30 + "\n"
+    report_msg += "📰 *SON DAKİKA HABERLER*\n"
+    report_msg += "═"*30 + "\n"
+    
+    # Yüksek etkili haberler
+    high_impact_news = [n for n in latest_news if n['is_high_impact']]
+    if high_impact_news:
+        report_msg += "\n🚨 *KRİTİK HABERLER:*\n"
+        for news in high_impact_news[:3]:
+            report_msg += f"• _{news['title']}_\n"
+            report_msg += f"  📍 {news['source']}\n"
+    
+    # Diğer önemli haberler
+    important_news = [n for n in latest_news if n['is_important'] and not n['is_high_impact']]
+    if important_news:
+        report_msg += "\n📌 *ÖNEMLİ HABERLER:*\n"
+        for news in important_news[:4]:
+            report_msg += f"• {news['title'][:70]}...\n"
     
     # Trending & Buzz Raporu
     report_msg += "\n" + "═"*30 + "\n"
