@@ -468,6 +468,7 @@ def get_cryptopanic_hot_coins() -> List[Dict]:
     """
     CryptoPanic'te en çok konuşulan coinler
     Haber sayısı ve olumlu/olumsuz oy oranlarına göre
+    Başlıklar Türkçeye çevrilir
     """
     if not CRYPTOPANIC_API:
         return []
@@ -499,7 +500,7 @@ def get_cryptopanic_hot_coins() -> List[Dict]:
                 coin_mentions[code]['positive'] += pos
                 coin_mentions[code]['negative'] += neg
                 if len(coin_mentions[code]['titles']) < 3:
-                    coin_mentions[code]['titles'].append(title[:60])
+                    coin_mentions[code]['titles'].append(title[:80])
         
         # Sentiment skoru hesapla ve sırala
         hot_coins = []
@@ -513,6 +514,13 @@ def get_cryptopanic_hot_coins() -> List[Dict]:
             # Buzz skoru = mention sayısı * (1 + sentiment)
             buzz_score = data['count'] * (1 + sentiment)
             
+            # İlk başlığı Türkçeye çevir
+            translated_titles = []
+            if data['titles']:
+                first_title = translate_to_turkish(data['titles'][0])
+                translated_titles.append(first_title)
+                translated_titles.extend(data['titles'][1:])  # Diğerlerini olduğu gibi bırak
+            
             hot_coins.append({
                 'symbol': code,
                 'mentions': data['count'],
@@ -520,7 +528,7 @@ def get_cryptopanic_hot_coins() -> List[Dict]:
                 'negative_votes': data['negative'],
                 'sentiment': round(sentiment, 2),
                 'buzz_score': round(buzz_score, 2),
-                'headlines': data['titles']
+                'headlines': translated_titles
             })
         
         # Buzz skoruna göre sırala
@@ -863,10 +871,36 @@ def get_crypto_events() -> List[Dict]:
     
     return events
 
+def translate_to_turkish(text: str) -> str:
+    """
+    Gemini API ile İngilizce metni Türkçeye çevir
+    """
+    if not text or not GEMINI_API_KEY:
+        return text
+    
+    try:
+        client = genai.Client(api_key=GEMINI_API_KEY)
+        
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=f"""Aşağıdaki kripto/finans haberini Türkçeye çevir. 
+Sadece çeviriyi yaz, başka bir şey ekleme. Kısa ve öz tut.
+Teknik terimleri (Bitcoin, Ethereum, SEC, ETF, FOMC vb.) çevirme, olduğu gibi bırak.
+
+İngilizce: {text}
+
+Türkçe:"""
+        )
+        
+        translated = response.text.strip()
+        return translated if translated else text
+    except Exception as e:
+        return text  # Çeviri başarısız olursa orijinal metni döndür
+
 def get_latest_crypto_news() -> List[Dict]:
     """
     Son dakika kripto haberleri
-    Birden fazla RSS kaynağından
+    Birden fazla RSS kaynağından + Türkçe çeviri
     """
     news = []
     
@@ -906,6 +940,7 @@ def get_latest_crypto_news() -> List[Dict]:
                 
                 news.append({
                     'title': title[:100],
+                    'title_original': title[:100],  # Orijinal başlık
                     'summary': summary,
                     'source': source,
                     'published': published[:20] if published else '',
@@ -919,7 +954,22 @@ def get_latest_crypto_news() -> List[Dict]:
     # Önce yüksek etkili, sonra önemli haberler
     news = sorted(news, key=lambda x: (x['is_high_impact'], x['is_important']), reverse=True)
     
-    return news[:15]
+    # Sadece önemli haberleri Türkçeye çevir (API limitini korumak için)
+    translated_news = []
+    translate_count = 0
+    max_translate = 10  # Maximum çeviri sayısı
+    
+    for item in news[:15]:
+        if translate_count < max_translate and (item['is_high_impact'] or item['is_important']):
+            # Başlığı Türkçeye çevir
+            item['title'] = translate_to_turkish(item['title_original'])
+            translate_count += 1
+            import time
+            time.sleep(0.3)  # Rate limit için kısa bekleme
+        
+        translated_news.append(item)
+    
+    return translated_news
 
 def get_btc_etf_flows() -> Dict:
     """
