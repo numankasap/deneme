@@ -36,17 +36,16 @@ TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
 # Opsiyonel API Anahtarları (ücretsiz tier'lar)
-CRYPTOPANIC_API = os.environ.get("CRYPTOPANIC_API", "")  # Ücretsiz, opsiyonel
-WHALE_ALERT_API = os.environ.get("WHALE_ALERT_API", "")  # Ücretsiz tier: 10 req/min
-REDDIT_CLIENT_ID = os.environ.get("REDDIT_CLIENT_ID", "")
-REDDIT_CLIENT_SECRET = os.environ.get("REDDIT_CLIENT_SECRET", "")
+CRYPTOPANIC_API = os.environ.get("CRYPTOPANIC_API", "")  # Ücretsiz: 1000 req/gün
+# Not: Whale Alert, Reddit, Twitter, LunarCrush artık ücretsiz değil
+# Blockchair ve DeFiLlama API key gerektirmez
 
 # ============================================
 # AYARLAR
 # ============================================
 MAJOR_SYMBOLS = ['BTC/USDT', 'ETH/USDT']
-ALTCOIN_SCAN_LIMIT = 50  # Taranacak altcoin sayısı
-MIN_VOLUME_USD = 500000  # Minimum 24h hacim
+ALTCOIN_SCAN_LIMIT = 500  # İlk 500 coini tara
+MIN_VOLUME_USD = 100000   # Minimum 24h hacim ($100k - daha fazla coin yakalamak için düşürüldü)
 
 # Sinyal Ağırlıkları
 SIGNAL_WEIGHTS = {
@@ -465,106 +464,117 @@ def get_cryptopanic_sentiment() -> float:
     except:
         return 0.0
 
-def get_reddit_sentiment() -> Dict:
+def get_social_sentiment_free() -> Dict:
     """
-    Reddit sentiment analizi - PRAW kullanarak
-    Not: API key olmadan çalışmaz, opsiyonel
+    Ücretsiz sosyal sentiment analizi
+    CoinGecko community data + haber analizi kombinasyonu
     """
-    if not REDDIT_CLIENT_ID or not REDDIT_CLIENT_SECRET:
-        return {'sentiment': 0.0, 'posts_analyzed': 0, 'buzz': 'UNKNOWN'}
-    
     try:
-        import praw
+        # CoinGecko ücretsiz API - community verileri
+        btc_url = "https://api.coingecko.com/api/v3/coins/bitcoin"
+        params = {'localization': 'false', 'tickers': 'false', 'market_data': 'false', 'community_data': 'true'}
         
-        reddit = praw.Reddit(
-            client_id=REDDIT_CLIENT_ID,
-            client_secret=REDDIT_CLIENT_SECRET,
-            user_agent='CryptoBot/2.0'
-        )
+        r = requests.get(btc_url, params=params, timeout=10).json()
+        community = r.get('community_data', {})
         
-        subreddits = ['cryptocurrency', 'bitcoin', 'ethereum']
-        all_sentiments = []
-        total_engagement = 0
+        # Reddit subscribers ve active users
+        reddit_subs = community.get('reddit_subscribers', 0)
+        reddit_active = community.get('reddit_accounts_active_48h', 0)
+        twitter_followers = community.get('twitter_followers', 0)
         
-        positive_words = ['moon', 'bullish', 'buy', 'pump', 'long', 'hodl', 'ath', 'breakout']
-        negative_words = ['crash', 'bearish', 'sell', 'dump', 'short', 'rekt', 'scam', 'dead']
-        
-        for sub_name in subreddits:
-            sub = reddit.subreddit(sub_name)
-            for post in sub.hot(limit=10):
-                text = (post.title + " " + (post.selftext or "")).lower()
-                
-                pos = sum(1 for w in positive_words if w in text)
-                neg = sum(1 for w in negative_words if w in text)
-                
-                if pos + neg > 0:
-                    sentiment = (pos - neg) / (pos + neg)
-                    all_sentiments.append(sentiment)
-                
-                total_engagement += post.score + post.num_comments
-        
-        avg_sentiment = sum(all_sentiments) / len(all_sentiments) if all_sentiments else 0
+        # Aktivite oranı hesapla
+        if reddit_subs > 0:
+            activity_ratio = (reddit_active / reddit_subs) * 100
+        else:
+            activity_ratio = 0
         
         # Buzz seviyesi
-        buzz = 'HIGH' if total_engagement > 50000 else 'NORMAL' if total_engagement > 10000 else 'LOW'
+        if activity_ratio > 1:
+            buzz = 'HIGH 🔥'
+        elif activity_ratio > 0.5:
+            buzz = 'NORMAL'
+        else:
+            buzz = 'LOW'
+        
+        # Basit sentiment skoru (50 = nötr)
+        # Yüksek aktivite = ilgi var, pozitif işaret
+        sentiment_score = 50 + (activity_ratio * 10)
+        sentiment_score = min(80, max(20, sentiment_score))  # 20-80 arası sınırla
         
         return {
-            'sentiment': round(avg_sentiment, 2),
-            'posts_analyzed': len(all_sentiments),
-            'buzz': buzz,
-            'engagement': total_engagement
+            'sentiment_score': round(sentiment_score, 1),
+            'reddit_subscribers': reddit_subs,
+            'reddit_active_48h': reddit_active,
+            'twitter_followers': twitter_followers,
+            'activity_ratio': round(activity_ratio, 2),
+            'buzz': buzz
         }
-    except:
-        return {'sentiment': 0.0, 'posts_analyzed': 0, 'buzz': 'UNKNOWN'}
+    except Exception as e:
+        print(f"Sosyal veri hatası: {e}")
+        return {
+            'sentiment_score': 50,
+            'reddit_subscribers': 0,
+            'reddit_active_48h': 0,
+            'twitter_followers': 0,
+            'activity_ratio': 0,
+            'buzz': 'UNKNOWN'
+        }
 
 # ============================================
 # ON-CHAIN VERİLER
 # ============================================
 
-def get_whale_activity() -> Dict:
+def get_large_transactions() -> Dict:
     """
-    Whale Alert API - Ücretsiz tier
-    Büyük işlemleri takip et
+    Blockchair API - Büyük işlemleri takip et
+    Whale Alert yerine ücretsiz alternatif
+    API key gerekmez, günde ~10,000 istek
     """
-    if not WHALE_ALERT_API:
-        return {'activity': 'UNKNOWN', 'large_txs': 0, 'net_flow': 'NEUTRAL'}
-    
     try:
-        import time
-        start_time = int(time.time() - 3600)  # Son 1 saat
+        # Bitcoin büyük işlemler (100+ BTC)
+        btc_url = "https://api.blockchair.com/bitcoin/transactions"
+        btc_params = {
+            'q': 'output_total(10000000000..)',  # 100 BTC in satoshi
+            'limit': 10,
+            's': 'time(desc)'
+        }
+        btc_r = requests.get(btc_url, params=btc_params, timeout=15).json()
+        btc_txs = btc_r.get('data', [])
         
-        url = f"https://api.whale-alert.io/v1/transactions?api_key={WHALE_ALERT_API}&min_value=1000000&start={start_time}"
-        r = requests.get(url, timeout=10).json()
+        # Ethereum büyük işlemler (1000+ ETH)
+        eth_url = "https://api.blockchair.com/ethereum/transactions"
+        eth_params = {
+            'q': 'value(1000000000000000000000..)',  # 1000 ETH in wei
+            'limit': 10,
+            's': 'time(desc)'
+        }
+        eth_r = requests.get(eth_url, params=eth_params, timeout=15).json()
+        eth_txs = eth_r.get('data', [])
         
-        transactions = r.get('transactions', [])
+        total_large_txs = len(btc_txs) + len(eth_txs)
         
-        exchange_inflow = 0
-        exchange_outflow = 0
-        large_txs = len(transactions)
+        # Son 1 saatteki işlem sayısına göre aktivite
+        activity = 'HIGH 🐋' if total_large_txs > 15 else 'NORMAL' if total_large_txs > 5 else 'LOW'
         
-        for tx in transactions:
-            amount_usd = tx.get('amount_usd', 0)
-            to_type = tx.get('to', {}).get('owner_type', '')
-            from_type = tx.get('from', {}).get('owner_type', '')
-            
-            if to_type == 'exchange':
-                exchange_inflow += amount_usd
-            if from_type == 'exchange':
-                exchange_outflow += amount_usd
-        
-        net_flow = exchange_inflow - exchange_outflow
-        flow_label = 'INFLOW' if net_flow > 1000000 else 'OUTFLOW' if net_flow < -1000000 else 'NEUTRAL'
-        activity = 'HIGH' if large_txs > 20 else 'NORMAL' if large_txs > 5 else 'LOW'
+        # BTC toplam değer
+        btc_total = sum(tx.get('output_total', 0) for tx in btc_txs) / 100_000_000
         
         return {
             'activity': activity,
-            'large_txs': large_txs,
-            'net_flow': flow_label,
-            'inflow_usd': exchange_inflow,
-            'outflow_usd': exchange_outflow
+            'btc_large_txs': len(btc_txs),
+            'eth_large_txs': len(eth_txs),
+            'btc_volume': round(btc_total, 2),
+            'net_flow': 'NEUTRAL'  # Blockchair'de exchange flow yok, nötr varsay
         }
-    except:
-        return {'activity': 'UNKNOWN', 'large_txs': 0, 'net_flow': 'NEUTRAL'}
+    except Exception as e:
+        print(f"Blockchair hatası: {e}")
+        return {
+            'activity': 'UNKNOWN',
+            'btc_large_txs': 0,
+            'eth_large_txs': 0,
+            'btc_volume': 0,
+            'net_flow': 'NEUTRAL'
+        }
 
 def get_defi_tvl() -> Dict:
     """DeFiLlama API - Tamamen ücretsiz"""
@@ -934,19 +944,20 @@ def calculate_technical_score(data: Dict) -> float:
     
     return max(-100, min(100, score))
 
-def calculate_sentiment_score(fng_value: int, news_sentiment: float, reddit_sentiment: float = 0) -> float:
+def calculate_sentiment_score(fng_value: int, news_sentiment: float, social_sentiment: float = 50) -> float:
     """Sentiment skoru (-100 ile 100)"""
-    # Fear & Greed (Ağırlık: 60)
+    # Fear & Greed (Ağırlık: 50)
     # Aşırı korku = alım fırsatı, aşırı açgözlülük = satış sinyali
-    fng_score = (fng_value - 50) * -1.2  # Ters çevir: korku pozitif, açgözlülük negatif
+    fng_score = (fng_value - 50) * -1.0  # Ters çevir: korku pozitif, açgözlülük negatif
     
-    # Haber sentiment (Ağırlık: 30)
-    news_score = news_sentiment * 30
+    # Haber sentiment (Ağırlık: 25)
+    news_score = news_sentiment * 25
     
-    # Reddit sentiment (Ağırlık: 10)
-    reddit_score = reddit_sentiment * 10
+    # LunarCrush Galaxy Score / Sosyal sentiment (Ağırlık: 25)
+    # Galaxy Score 0-100 arası, 50'nin üstü pozitif
+    social_score = (social_sentiment - 50) * 0.5
     
-    total = (fng_score * 0.6) + (news_score) + (reddit_score)
+    total = (fng_score * 0.5) + (news_score) + (social_score * 0.5)
     return max(-100, min(100, total))
 
 def calculate_onchain_score(whale_data: Dict, defi_data: Dict, exchange_flow: str) -> float:
@@ -1051,15 +1062,20 @@ def calculate_aggregate_signal(
     }
 
 # ============================================
-# GEM AVCISI (GELİŞMİŞ ALTCOİN TARAMA)
+# GEM AVCISI (500 COİN TARAMA)
 # ============================================
 
 def scan_gems_advanced() -> List[Dict]:
-    """Gelişmiş altcoin tarama - Çoklu kriterlere göre"""
-    print("💎 Gelişmiş Gem Taraması Başlıyor...")
+    """
+    Gelişmiş altcoin tarama - İlk 500 coini tarar
+    Rate limit'e dikkat ederek batch işlem yapar
+    """
+    print("💎 Gelişmiş Gem Taraması Başlıyor (Top 500)...")
     gems = []
     
     try:
+        # Tüm ticker'ları çek
+        print("   📡 Piyasa verileri çekiliyor...")
         tickers = exchange.fetch_tickers()
         
         # Filtrele: USDT paritesi, minimum hacim
@@ -1068,17 +1084,29 @@ def scan_gems_advanced() -> List[Dict]:
             if s.endswith('/USDT') 
             and tickers[s].get('quoteVolume', 0) > MIN_VOLUME_USD
             and s not in MAJOR_SYMBOLS
+            and not any(x in s for x in ['UP/', 'DOWN/', 'BEAR/', 'BULL/', '3L/', '3S/', '5L/', '5S/'])  # Leveraged token'ları çıkar
         ]
         
-        # Hacme göre sırala
+        # Hacme göre sırala ve ilk 500'ü al
         sorted_symbols = sorted(
             symbols, 
             key=lambda x: tickers[x].get('quoteVolume', 0), 
             reverse=True
         )[:ALTCOIN_SCAN_LIMIT]
         
+        print(f"   📊 {len(sorted_symbols)} coin taranacak...")
+        
+        # Batch işlem için sayaç
+        processed = 0
+        batch_size = 50  # Her 50 coinde bir durum raporu
+        
         for sym in sorted_symbols:
             try:
+                # Rate limit için küçük bekleme (her 10 istekte)
+                if processed > 0 and processed % 10 == 0:
+                    import time
+                    time.sleep(0.5)
+                
                 ohlcv = exchange.fetch_ohlcv(sym, '1h', limit=50)
                 if not ohlcv or len(ohlcv) < 20:
                     continue
@@ -1090,70 +1118,113 @@ def scan_gems_advanced() -> List[Dict]:
                 stoch_rsi = calculate_stochastic_rsi(df['close']).iloc[-1]
                 macd_data = calculate_macd(df['close'])
                 macd_hist = macd_data['histogram'].iloc[-1]
+                macd_hist_prev = macd_data['histogram'].iloc[-2]
                 
                 avg_vol = df['volume'].mean()
                 cur_vol = df['volume'].iloc[-1]
-                vol_ratio = cur_vol / avg_vol
+                vol_ratio = cur_vol / avg_vol if avg_vol > 0 else 1
                 
                 price_change_24h = ((df['close'].iloc[-1] - df['close'].iloc[-24]) / df['close'].iloc[-24]) * 100 if len(df) >= 24 else 0
+                price_change_1h = ((df['close'].iloc[-1] - df['close'].iloc[-2]) / df['close'].iloc[-2]) * 100
+                
+                # Bollinger pozisyonu
+                bb = calculate_bollinger(df['close'])
+                bb_lower = bb['lower'].iloc[-1]
+                bb_upper = bb['upper'].iloc[-1]
+                current_price = df['close'].iloc[-1]
                 
                 # Pattern
                 patterns = detect_candlestick_patterns(df)
                 
-                # GEM KRİTERLERİ
-                is_gem = False
-                gem_reason = []
+                # GEM KRİTERLERİ - Puanlama sistemi
                 gem_score = 0
+                gem_reason = []
                 
-                # Kriter 1: RSI Dip + Hacim Patlaması
-                if rsi < 35 and vol_ratio > 1.5:
-                    is_gem = True
-                    gem_reason.append(f"RSI Dip ({rsi:.0f})")
+                # Kriter 1: RSI Dip (max 30 puan)
+                if rsi < 25:
                     gem_score += 30
-                
-                # Kriter 2: Stochastic RSI Aşırı Satım
-                if stoch_rsi < 20:
-                    gem_reason.append(f"StochRSI Dip ({stoch_rsi:.0f})")
-                    gem_score += 20
-                
-                # Kriter 3: MACD Dönüş
-                if macd_hist > 0 and macd_data['histogram'].iloc[-2] < 0:
-                    is_gem = True
-                    gem_reason.append("MACD Dönüşü")
+                    gem_reason.append(f"🔥 RSI Aşırı Dip ({rsi:.0f})")
+                elif rsi < 30:
                     gem_score += 25
-                
-                # Kriter 4: Hacim Patlaması
-                if vol_ratio > 2:
-                    gem_reason.append(f"Hacim x{vol_ratio:.1f}")
+                    gem_reason.append(f"RSI Dip ({rsi:.0f})")
+                elif rsi < 35:
                     gem_score += 15
+                    gem_reason.append(f"RSI Düşük ({rsi:.0f})")
                 
-                # Kriter 5: Bullish Pattern
+                # Kriter 2: Stochastic RSI Aşırı Satım (max 20 puan)
+                if stoch_rsi < 10:
+                    gem_score += 20
+                    gem_reason.append(f"🔥 StochRSI Dip ({stoch_rsi:.0f})")
+                elif stoch_rsi < 20:
+                    gem_score += 15
+                    gem_reason.append(f"StochRSI Düşük ({stoch_rsi:.0f})")
+                
+                # Kriter 3: MACD Dönüş Sinyali (max 25 puan)
+                if macd_hist > 0 and macd_hist_prev < 0:
+                    gem_score += 25
+                    gem_reason.append("📈 MACD Yukarı Kesiştİ")
+                elif macd_hist > macd_hist_prev and macd_hist_prev < 0:
+                    gem_score += 15
+                    gem_reason.append("MACD Toparlanıyor")
+                
+                # Kriter 4: Hacim Patlaması (max 20 puan)
+                if vol_ratio > 3:
+                    gem_score += 20
+                    gem_reason.append(f"🚀 Hacim x{vol_ratio:.1f}")
+                elif vol_ratio > 2:
+                    gem_score += 15
+                    gem_reason.append(f"📊 Hacim x{vol_ratio:.1f}")
+                elif vol_ratio > 1.5:
+                    gem_score += 10
+                    gem_reason.append(f"Hacim x{vol_ratio:.1f}")
+                
+                # Kriter 5: Bollinger Alt Bandı (max 15 puan)
+                if current_price < bb_lower:
+                    gem_score += 15
+                    gem_reason.append("💎 BB Alt Bandı Altında")
+                
+                # Kriter 6: Bullish Pattern (max 20 puan)
                 bullish_patterns = ['HAMMER', 'BULLISH_ENGULFING', 'MORNING_STAR']
                 if any(bp in str(patterns) for bp in bullish_patterns):
-                    is_gem = True
-                    gem_reason.append(f"Pattern: {patterns[0]}")
                     gem_score += 20
+                    gem_reason.append(f"🕯 {patterns[0]}")
                 
-                if is_gem and gem_score >= 40:
+                # Kriter 7: Fiyat düşüşü sonrası toparlanma (max 10 puan)
+                if price_change_24h < -5 and price_change_1h > 0:
+                    gem_score += 10
+                    gem_reason.append("↩️ Dip sonrası toparlanma")
+                
+                # Minimum 40 puan gerekli
+                if gem_score >= 40:
                     gems.append({
                         'symbol': sym,
-                        'price': df['close'].iloc[-1],
+                        'price': current_price,
                         'change_24h': round(price_change_24h, 2),
+                        'change_1h': round(price_change_1h, 2),
                         'rsi': round(rsi, 1),
                         'stoch_rsi': round(stoch_rsi, 1),
                         'volume_ratio': round(vol_ratio, 1),
+                        'volume_usd': round(tickers[sym].get('quoteVolume', 0), 0),
                         'score': gem_score,
                         'reasons': gem_reason
                     })
+                
+                processed += 1
+                
+                # İlerleme raporu
+                if processed % batch_size == 0:
+                    print(f"   ⏳ {processed}/{len(sorted_symbols)} coin tarandı, {len(gems)} gem bulundu...")
                     
             except Exception as e:
                 continue
         
         # Skora göre sırala
-        gems = sorted(gems, key=lambda x: x['score'], reverse=True)[:10]
+        gems = sorted(gems, key=lambda x: x['score'], reverse=True)
+        
+        print(f"   ✅ Tarama tamamlandı: {processed} coin tarandı, {len(gems)} gem bulundu")
         
     except Exception as e:
-        print(f"Gem tarama hatası: {e}")
+        print(f"❌ Gem tarama hatası: {e}")
     
     return gems
 
@@ -1325,9 +1396,9 @@ if __name__ == "__main__":
     
     fng_value, fng_label, fng_trend = get_fear_and_greed()
     news_data = get_crypto_news_sentiment()
-    reddit_data = get_reddit_sentiment()
+    social_data = get_social_sentiment_free()  # CoinGecko community data
     macro_data = get_macro_data()
-    whale_data = get_whale_activity()
+    whale_data = get_large_transactions()  # Blockchair ile büyük işlemler
     defi_data = get_defi_tvl()
     
     sentiment_data = {
@@ -1335,12 +1406,14 @@ if __name__ == "__main__":
         'fng_label': fng_label,
         'fng_trend': fng_trend,
         'news_sentiment': news_data['sentiment_score'],
-        'reddit_sentiment': reddit_data.get('sentiment', 0)
+        'social_sentiment': social_data.get('sentiment_score', 50),
+        'social_buzz': social_data.get('buzz', 'UNKNOWN')
     }
     
     print(f"   ✓ Fear & Greed: {fng_value} ({fng_label})")
     print(f"   ✓ Makro: {macro_data.get('status', 'N/A')}")
-    print(f"   ✓ Whale: {whale_data.get('activity', 'N/A')}")
+    print(f"   ✓ Büyük İşlemler: {whale_data.get('activity', 'N/A')}")
+    print(f"   ✓ Sosyal Aktivite: {social_data.get('buzz', 'N/A')}")
     
     # 2. Ana rapor başlığı
     report_msg = "🌍 *KAPSAMLI PİYASA RAPORU*\n"
@@ -1348,8 +1421,9 @@ if __name__ == "__main__":
     
     report_msg += f"😊 *DUYGU DURUMU:* {fng_label} (Trend: {fng_trend})\n"
     report_msg += f"💵 *MAKRO:* {macro_data.get('status', 'N/A')}\n"
-    report_msg += f"🐋 *BALİNA:* {whale_data.get('activity', 'N/A')} | {whale_data.get('net_flow', 'N/A')}\n"
-    report_msg += f"📺 *HABER:* {'Pozitif' if news_data['sentiment_score'] > 0 else 'Negatif' if news_data['sentiment_score'] < 0 else 'Nötr'}\n\n"
+    report_msg += f"🐋 *BÜYÜK İŞLEMLER:* {whale_data.get('activity', 'N/A')} (BTC: {whale_data.get('btc_large_txs', 0)}, ETH: {whale_data.get('eth_large_txs', 0)})\n"
+    report_msg += f"📱 *SOSYAL AKTİVİTE:* {social_data.get('buzz', 'N/A')}\n"
+    report_msg += f"📺 *HABER:* {'Pozitif 📈' if news_data['sentiment_score'] > 0 else 'Negatif 📉' if news_data['sentiment_score'] < 0 else 'Nötr'}\n\n"
     
     # 3. Major Coin Analizi
     print("\n2️⃣ Major Coin Analizi Yapılıyor...")
@@ -1365,7 +1439,7 @@ if __name__ == "__main__":
             sent_score = calculate_sentiment_score(
                 fng_value, 
                 news_data['sentiment_score'],
-                reddit_data.get('sentiment', 0)
+                social_data.get('sentiment_score', 50)  # CoinGecko sosyal skor
             )
             onchain_score = calculate_onchain_score(
                 whale_data, 
@@ -1388,23 +1462,50 @@ if __name__ == "__main__":
             print(f"   ✓ {symbol}: {aggregate['action']} (Skor: {aggregate['total_score']})")
     
     # 4. Gem Taraması
-    print("\n3️⃣ Altcoin Gem Taraması Yapılıyor...")
+    print("\n3️⃣ Altcoin Gem Taraması Yapılıyor (Top 500)...")
     
     gems = scan_gems_advanced()
     
     if gems:
-        report_msg += "\n💎 *FIRSAT ALTCOİNLER (GEM)*\n"
-        report_msg += "─"*25 + "\n"
+        # Kategorilere ayır
+        hot_gems = [g for g in gems if g['score'] >= 70]  # 🔥 Çok güçlü sinyaller
+        good_gems = [g for g in gems if 50 <= g['score'] < 70]  # 💎 İyi fırsatlar
+        watch_gems = [g for g in gems if 40 <= g['score'] < 50]  # 👀 Takipte
         
-        for gem in gems[:5]:  # İlk 5 gem
-            report_msg += f"\n*{gem['symbol']}* (Skor: {gem['score']})\n"
-            report_msg += f"💰 ${gem['price']:,.4f} ({gem['change_24h']:+.1f}%)\n"
-            report_msg += f"📊 RSI: {gem['rsi']} | Hacim: x{gem['volume_ratio']}\n"
-            report_msg += f"🔍 {', '.join(gem['reasons'][:3])}\n"
+        report_msg += "\n" + "═"*30 + "\n"
+        report_msg += "💎 *FIRSAT RADARI (Top 500 Tarama)*\n"
+        report_msg += "═"*30 + "\n"
         
-        print(f"   ✓ {len(gems)} potansiyel gem bulundu")
+        # 🔥 Çok Güçlü Sinyaller
+        if hot_gems:
+            report_msg += "\n🔥 *ÇOK GÜÇLÜ SİNYALLER:*\n"
+            for gem in hot_gems[:5]:
+                report_msg += f"\n*{gem['symbol']}* (Skor: {gem['score']})\n"
+                report_msg += f"💰 ${gem['price']:.4f} | 24h: {gem['change_24h']:+.1f}% | 1h: {gem['change_1h']:+.1f}%\n"
+                report_msg += f"📊 RSI: {gem['rsi']} | StochRSI: {gem['stoch_rsi']} | Hacim: x{gem['volume_ratio']}\n"
+                report_msg += f"🔍 {', '.join(gem['reasons'][:3])}\n"
+        
+        # 💎 İyi Fırsatlar
+        if good_gems:
+            report_msg += "\n💎 *İYİ FIRSATLAR:*\n"
+            for gem in good_gems[:5]:
+                report_msg += f"• *{gem['symbol']}* (Skor: {gem['score']}) - RSI: {gem['rsi']} | {gem['change_24h']:+.1f}%\n"
+        
+        # 👀 Takip Listesi
+        if watch_gems:
+            report_msg += "\n👀 *TAKİP LİSTESİ:*\n"
+            watch_list = [f"{g['symbol']}" for g in watch_gems[:10]]
+            report_msg += f"• {', '.join(watch_list)}\n"
+        
+        # Özet istatistik
+        report_msg += f"\n📈 *TARAMA ÖZETİ:*\n"
+        report_msg += f"• Toplam taranan: 500 coin\n"
+        report_msg += f"• Bulunan fırsatlar: {len(gems)}\n"
+        report_msg += f"• 🔥 Çok güçlü: {len(hot_gems)} | 💎 İyi: {len(good_gems)} | 👀 Takip: {len(watch_gems)}\n"
+        
+        print(f"   ✓ {len(gems)} potansiyel gem bulundu (🔥{len(hot_gems)} 💎{len(good_gems)} 👀{len(watch_gems)})")
     else:
-        report_msg += "\n💎 *GEM TARAMASI:* Kriterlere uyan altcoin bulunamadı.\n"
+        report_msg += "\n💎 *GEM TARAMASI:* 500 coin tarandı, kriterlere uyan bulunamadı.\n"
         print("   ℹ️ Uygun gem bulunamadı")
     
     # 5. Son notlar
