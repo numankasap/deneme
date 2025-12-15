@@ -464,6 +464,73 @@ def get_cryptopanic_sentiment() -> float:
     except:
         return 0.0
 
+def get_cryptopanic_hot_coins() -> List[Dict]:
+    """
+    CryptoPanic'te en çok konuşulan coinler
+    Haber sayısı ve olumlu/olumsuz oy oranlarına göre
+    """
+    if not CRYPTOPANIC_API:
+        return []
+    
+    try:
+        url = f"https://cryptopanic.com/api/v1/posts/?auth_token={CRYPTOPANIC_API}&filter=hot&kind=news"
+        r = requests.get(url, timeout=10).json()
+        
+        coin_mentions = {}  # coin -> {count, positive, negative, titles}
+        
+        for post in r.get('results', [])[:50]:
+            currencies = post.get('currencies', [])
+            votes = post.get('votes', {})
+            pos = votes.get('positive', 0)
+            neg = votes.get('negative', 0)
+            title = post.get('title', '')
+            
+            for currency in currencies:
+                code = currency.get('code', '').upper()
+                if code not in coin_mentions:
+                    coin_mentions[code] = {
+                        'count': 0,
+                        'positive': 0,
+                        'negative': 0,
+                        'titles': []
+                    }
+                
+                coin_mentions[code]['count'] += 1
+                coin_mentions[code]['positive'] += pos
+                coin_mentions[code]['negative'] += neg
+                if len(coin_mentions[code]['titles']) < 3:
+                    coin_mentions[code]['titles'].append(title[:60])
+        
+        # Sentiment skoru hesapla ve sırala
+        hot_coins = []
+        for code, data in coin_mentions.items():
+            total_votes = data['positive'] + data['negative']
+            if total_votes > 0:
+                sentiment = (data['positive'] - data['negative']) / total_votes
+            else:
+                sentiment = 0
+            
+            # Buzz skoru = mention sayısı * (1 + sentiment)
+            buzz_score = data['count'] * (1 + sentiment)
+            
+            hot_coins.append({
+                'symbol': code,
+                'mentions': data['count'],
+                'positive_votes': data['positive'],
+                'negative_votes': data['negative'],
+                'sentiment': round(sentiment, 2),
+                'buzz_score': round(buzz_score, 2),
+                'headlines': data['titles']
+            })
+        
+        # Buzz skoruna göre sırala
+        hot_coins = sorted(hot_coins, key=lambda x: x['buzz_score'], reverse=True)
+        
+        return hot_coins[:15]  # Top 15
+    except Exception as e:
+        print(f"CryptoPanic hot coins hatası: {e}")
+        return []
+
 def get_social_sentiment_free() -> Dict:
     """
     Ücretsiz sosyal sentiment analizi
@@ -519,6 +586,177 @@ def get_social_sentiment_free() -> Dict:
             'activity_ratio': 0,
             'buzz': 'UNKNOWN'
         }
+
+def get_trending_coins() -> List[Dict]:
+    """
+    CoinGecko Trending Coins - En çok aranan/konuşulan coinler
+    Son 24 saatte en popüler coinler (ücretsiz, API key gerekmez)
+    """
+    try:
+        url = "https://api.coingecko.com/api/v3/search/trending"
+        r = requests.get(url, timeout=10).json()
+        
+        trending = []
+        for item in r.get('coins', [])[:15]:  # İlk 15 trending coin
+            coin = item.get('item', {})
+            trending.append({
+                'id': coin.get('id', ''),
+                'symbol': coin.get('symbol', '').upper(),
+                'name': coin.get('name', ''),
+                'market_cap_rank': coin.get('market_cap_rank', 0),
+                'price_btc': coin.get('price_btc', 0),
+                'score': coin.get('score', 0)  # Trend sıralaması
+            })
+        
+        return trending
+    except Exception as e:
+        print(f"Trending veri hatası: {e}")
+        return []
+
+def get_coin_social_stats(coin_id: str) -> Dict:
+    """
+    Belirli bir coinin sosyal medya istatistikleri
+    CoinGecko ücretsiz API
+    """
+    try:
+        url = f"https://api.coingecko.com/api/v3/coins/{coin_id}"
+        params = {
+            'localization': 'false',
+            'tickers': 'false',
+            'market_data': 'true',
+            'community_data': 'true',
+            'developer_data': 'true'
+        }
+        r = requests.get(url, params=params, timeout=10).json()
+        
+        community = r.get('community_data', {})
+        developer = r.get('developer_data', {})
+        market = r.get('market_data', {})
+        
+        # Sosyal metrikler
+        twitter_followers = community.get('twitter_followers', 0)
+        reddit_subs = community.get('reddit_subscribers', 0)
+        reddit_active = community.get('reddit_accounts_active_48h', 0)
+        telegram_members = community.get('telegram_channel_user_count', 0)
+        
+        # Developer aktivitesi (proje canlılığı)
+        github_stars = developer.get('stars', 0)
+        github_commits_4w = developer.get('commit_count_4_weeks', 0)
+        
+        # Fiyat değişimleri
+        price_change_24h = market.get('price_change_percentage_24h', 0) or 0
+        price_change_7d = market.get('price_change_percentage_7d', 0) or 0
+        price_change_30d = market.get('price_change_percentage_30d', 0) or 0
+        
+        # Sosyal skor hesapla (0-100)
+        social_score = 0
+        
+        # Twitter takipçi skoru
+        if twitter_followers > 1000000:
+            social_score += 30
+        elif twitter_followers > 100000:
+            social_score += 20
+        elif twitter_followers > 10000:
+            social_score += 10
+        
+        # Reddit aktivite skoru
+        if reddit_active > 5000:
+            social_score += 25
+        elif reddit_active > 1000:
+            social_score += 15
+        elif reddit_active > 100:
+            social_score += 5
+        
+        # Telegram skoru
+        if telegram_members > 100000:
+            social_score += 20
+        elif telegram_members > 10000:
+            social_score += 10
+        
+        # Developer aktivite skoru
+        if github_commits_4w > 100:
+            social_score += 25
+        elif github_commits_4w > 20:
+            social_score += 15
+        elif github_commits_4w > 5:
+            social_score += 5
+        
+        return {
+            'twitter_followers': twitter_followers,
+            'reddit_subscribers': reddit_subs,
+            'reddit_active_48h': reddit_active,
+            'telegram_members': telegram_members,
+            'github_stars': github_stars,
+            'github_commits_4w': github_commits_4w,
+            'price_change_24h': round(price_change_24h, 2),
+            'price_change_7d': round(price_change_7d, 2),
+            'price_change_30d': round(price_change_30d, 2),
+            'social_score': min(100, social_score)
+        }
+    except Exception as e:
+        return {
+            'twitter_followers': 0,
+            'reddit_subscribers': 0,
+            'reddit_active_48h': 0,
+            'telegram_members': 0,
+            'github_stars': 0,
+            'github_commits_4w': 0,
+            'price_change_24h': 0,
+            'price_change_7d': 0,
+            'price_change_30d': 0,
+            'social_score': 0
+        }
+
+def get_top_gainers_losers() -> Dict:
+    """
+    En çok yükselen ve düşen coinler
+    CoinGecko ücretsiz API
+    """
+    try:
+        url = "https://api.coingecko.com/api/v3/coins/markets"
+        params = {
+            'vs_currency': 'usd',
+            'order': 'market_cap_desc',
+            'per_page': 250,
+            'page': 1,
+            'sparkline': 'false',
+            'price_change_percentage': '24h,7d'
+        }
+        r = requests.get(url, params=params, timeout=15).json()
+        
+        # 24h değişime göre sırala
+        sorted_by_change = sorted(r, key=lambda x: x.get('price_change_percentage_24h', 0) or 0, reverse=True)
+        
+        gainers = []
+        losers = []
+        
+        for coin in sorted_by_change[:10]:  # Top 10 gainers
+            gainers.append({
+                'symbol': coin.get('symbol', '').upper(),
+                'name': coin.get('name', ''),
+                'price': coin.get('current_price', 0),
+                'change_24h': round(coin.get('price_change_percentage_24h', 0) or 0, 2),
+                'market_cap_rank': coin.get('market_cap_rank', 0)
+            })
+        
+        for coin in sorted_by_change[-10:]:  # Top 10 losers
+            losers.append({
+                'symbol': coin.get('symbol', '').upper(),
+                'name': coin.get('name', ''),
+                'price': coin.get('current_price', 0),
+                'change_24h': round(coin.get('price_change_percentage_24h', 0) or 0, 2),
+                'market_cap_rank': coin.get('market_cap_rank', 0)
+            })
+        
+        losers.reverse()  # En çok düşenler başta
+        
+        return {
+            'gainers': gainers,
+            'losers': losers
+        }
+    except Exception as e:
+        print(f"Gainers/Losers hatası: {e}")
+        return {'gainers': [], 'losers': []}
 
 # ============================================
 # ON-CHAIN VERİLER
@@ -1461,8 +1699,81 @@ if __name__ == "__main__":
             
             print(f"   ✓ {symbol}: {aggregate['action']} (Skor: {aggregate['total_score']})")
     
-    # 4. Gem Taraması
-    print("\n3️⃣ Altcoin Gem Taraması Yapılıyor (Top 500)...")
+    # 4. Trending & Sosyal Buzz Analizi
+    print("\n3️⃣ Trending & Sosyal Buzz Analizi...")
+    
+    trending_coins = get_trending_coins()
+    gainers_losers = get_top_gainers_losers()
+    cryptopanic_hot = get_cryptopanic_hot_coins()  # Haberlerde çok konuşulanlar
+    
+    # Trending coinlerin sosyal skorlarını al (ilk 5 için detaylı)
+    trending_with_social = []
+    for coin in trending_coins[:5]:
+        import time
+        time.sleep(0.5)  # Rate limit
+        social_stats = get_coin_social_stats(coin['id'])
+        coin['social'] = social_stats
+        trending_with_social.append(coin)
+    
+    print(f"   ✓ {len(trending_coins)} trending coin bulundu")
+    print(f"   ✓ {len(cryptopanic_hot)} coin haberlerde gündemde")
+    print(f"   ✓ Top gainers/losers alındı")
+    
+    # Trending & Buzz Raporu
+    report_msg += "\n" + "═"*30 + "\n"
+    report_msg += "🔥 *TRENDING & SOSYAL BUZZ*\n"
+    report_msg += "═"*30 + "\n"
+    
+    # 📰 Haberlerde Gündem (CryptoPanic)
+    if cryptopanic_hot:
+        report_msg += "\n📰 *HABERLERDE GÜNDEM:*\n"
+        for coin in cryptopanic_hot[:7]:
+            sentiment_emoji = "🟢" if coin['sentiment'] > 0.2 else "🔴" if coin['sentiment'] < -0.2 else "⚪"
+            report_msg += f"• *{coin['symbol']}* {sentiment_emoji} ({coin['mentions']} haber, "
+            report_msg += f"👍{coin['positive_votes']} 👎{coin['negative_votes']})\n"
+            if coin['headlines']:
+                report_msg += f"  _{coin['headlines'][0][:50]}..._\n"
+    
+    # 🚀 En Çok Aranan (Trending)
+    if trending_coins:
+        report_msg += "\n🔍 *EN ÇOK ARANAN (24s):*\n"
+        for i, coin in enumerate(trending_coins[:10], 1):
+            social = coin.get('social', {})
+            social_score = social.get('social_score', 0)
+            twitter = social.get('twitter_followers', 0)
+            
+            # Sosyal skor emojisi
+            if social_score >= 70:
+                social_emoji = "🔥"
+            elif social_score >= 40:
+                social_emoji = "📈"
+            else:
+                social_emoji = "📊"
+            
+            twitter_str = f"{twitter/1000:.0f}K" if twitter > 1000 else str(twitter)
+            
+            report_msg += f"{i}. *{coin['symbol']}* ({coin['name'][:15]})"
+            if social_score > 0:
+                report_msg += f" {social_emoji} Sosyal: {social_score}"
+            if twitter > 0:
+                report_msg += f" | 🐦 {twitter_str}"
+            report_msg += "\n"
+    
+    # 📈 En Çok Yükselenler
+    if gainers_losers.get('gainers'):
+        report_msg += "\n📈 *GÜNÜN YÜKSELENLERİ:*\n"
+        for coin in gainers_losers['gainers'][:5]:
+            report_msg += f"• *{coin['symbol']}* +{coin['change_24h']:.1f}% (#{coin['market_cap_rank']})\n"
+    
+    # 📉 En Çok Düşenler (Dip fırsatı?)
+    if gainers_losers.get('losers'):
+        report_msg += "\n📉 *DİP FIRSATI? (En çok düşenler):*\n"
+        for coin in gainers_losers['losers'][:5]:
+            report_msg += f"• *{coin['symbol']}* {coin['change_24h']:.1f}% (#{coin['market_cap_rank']})\n"
+    
+    # 5. Gem Taraması (Teknik)
+    # 5. Gem Taraması (Teknik)
+    print("\n4️⃣ Teknik Gem Taraması (Top 500)...")
     
     gems = scan_gems_advanced()
     
