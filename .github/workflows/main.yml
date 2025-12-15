@@ -15,7 +15,7 @@ on:
 jobs:
   analyze:
     runs-on: ubuntu-latest
-    timeout-minutes: 15  # Maximum çalışma süresi
+    timeout-minutes: 30  # 500 coin taraması için artırıldı
 
     steps:
       - name: 📥 Depoyu Çek
@@ -41,11 +41,9 @@ jobs:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           
-          # Opsiyonel API Anahtarları (Ücretsiz tier'lar)
+          # Opsiyonel API Anahtarı (Ücretsiz)
           CRYPTOPANIC_API: ${{ secrets.CRYPTOPANIC_API }}
-          WHALE_ALERT_API: ${{ secrets.WHALE_ALERT_API }}
-          REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
-          REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
+          # Not: Blockchair, CoinGecko, DeFiLlama API key gerektirmez
         run: python bot.py
 
       - name: 📊 Çalışma Özeti
