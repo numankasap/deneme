@@ -1,13 +1,35 @@
+# Core AI & Data
 google-genai
 google-generativeai
 instructor
-supabase
 pydantic
-requests
+
+# Database
+supabase
+
+# Data Processing
 pandas
 numpy
-jsonref
-yfinance
+scipy
+
+# API & Web
+requests
 feedparser
-ccxt
 beautifulsoup4
+
+# Finance & Crypto
+yfinance
+ccxt
+
+# Sentiment Analysis (Opsiyonel - Reddit için)
+# praw  # Reddit API - API key gerektirir
+
+# Technical Analysis (TA-Lib alternatifi olarak pandas-ta önerilir)
+# pandas-ta  # Opsiyonel: Daha fazla gösterge için
+# ta-lib  # Opsiyonel: C-based, sistem bağımlılıkları gerektirir
+
+# JSON Processing
+jsonref
+
+# Utilities
+python-dateutil
