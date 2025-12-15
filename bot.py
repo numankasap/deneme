@@ -875,11 +875,11 @@ def translate_to_turkish(text: str) -> str:
     """
     Gemini API ile İngilizce metni Türkçeye çevir
     """
-    if not text or not GEMINI_API_KEY:
+    if not text or not GEMINI_KEY:
         return text
     
     try:
-        client = genai.Client(api_key=GEMINI_API_KEY)
+        client = genai.Client(api_key=GEMINI_KEY)
         
         response = client.models.generate_content(
             model="gemini-2.0-flash",
@@ -1095,8 +1095,12 @@ def get_large_transactions() -> Dict:
             'limit': 10,
             's': 'time(desc)'
         }
-        btc_r = requests.get(btc_url, params=btc_params, timeout=15).json()
-        btc_txs = btc_r.get('data', [])
+        btc_r = requests.get(btc_url, params=btc_params, timeout=15)
+        
+        btc_txs = []
+        if btc_r.status_code == 200:
+            btc_data = btc_r.json()
+            btc_txs = btc_data.get('data', []) if btc_data else []
         
         # Ethereum büyük işlemler (1000+ ETH)
         eth_url = "https://api.blockchair.com/ethereum/transactions"
@@ -1105,8 +1109,18 @@ def get_large_transactions() -> Dict:
             'limit': 10,
             's': 'time(desc)'
         }
-        eth_r = requests.get(eth_url, params=eth_params, timeout=15).json()
-        eth_txs = eth_r.get('data', [])
+        eth_r = requests.get(eth_url, params=eth_params, timeout=15)
+        
+        eth_txs = []
+        if eth_r.status_code == 200:
+            eth_data = eth_r.json()
+            eth_txs = eth_data.get('data', []) if eth_data else []
+        
+        # None kontrolü
+        if btc_txs is None:
+            btc_txs = []
+        if eth_txs is None:
+            eth_txs = []
         
         total_large_txs = len(btc_txs) + len(eth_txs)
         
@@ -1114,7 +1128,11 @@ def get_large_transactions() -> Dict:
         activity = 'HIGH 🐋' if total_large_txs > 15 else 'NORMAL' if total_large_txs > 5 else 'LOW'
         
         # BTC toplam değer
-        btc_total = sum(tx.get('output_total', 0) for tx in btc_txs) / 100_000_000
+        btc_total = 0
+        for tx in btc_txs:
+            if isinstance(tx, dict):
+                btc_total += tx.get('output_total', 0)
+        btc_total = btc_total / 100_000_000 if btc_total else 0
         
         return {
             'activity': activity,
