@@ -222,7 +222,7 @@ def hash_kaydet(soru):
 def gemini_soru_uret(params):
     """Gemini API ile PISA tarzı soru üretir"""
     try:
-        model = genai.GenerativeModel('gemini-2.0-flash-lite')
+        model = genai.GenerativeModel('gemini-2.5-pro')
         
         if params['soru_tipi'] == 'coktan_secmeli':
             json_format = '''{"senaryo": "Detaylı senaryo (min 80 kelime)", "soru_metni": "Soru", "secenekler": ["A) ...", "B) ...", "C) ...", "D) ...", "E) ..."], "dogru_cevap": "A", "celdirici_aciklamalar": {"A": "...", "B": "...", "C": "...", "D": "...", "E": "..."}, "cozum_adimlari": ["Adım 1", "Adım 2", "Adım 3", "Adım 4"], "aha_moment": "Kilit fikir", "beceri_alani": "problem çözme", "tahmini_sure": "5-8 dk", "pedagojik_notlar": "Ölçülen beceriler"}'''
