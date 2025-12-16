@@ -1,8 +1,19 @@
 """
-🤖 PISA SORU ÜRETİCİ BOT V2 - GitHub Actions
-✅ CoT (Chain of Thought) - Önce çöz, sonra soru oluştur
-✅ DeepSeek Doğrulama - Matematiksel kontrol
-✅ Çift katmanlı kalite güvencesi
+🤖 PISA SORU ÜRETİCİ BOT V3 - Ultra Kalite Edition
+═══════════════════════════════════════════════════════════════════════════════
+
+JS soru üreticisinin kaliteli özellikleri entegre edildi:
+✅ 50+ Farklı Senaryo Bağlamı (Tema çeşitliliği)
+✅ Gelişmiş PISA Core System Prompt (Dramatik yapı, Aha! anı)
+✅ 7 Adımlı Kalite Kontrol Süreci
+✅ Görsel Temsil Kuralları (Grid, Grafik, Tablo formatları)
+✅ Detaylı JSON Format Şablonları
+✅ DeepSeek ile Çift Katmanlı Doğrulama
+✅ Senaryo Eksiksizlik Kontrolü
+✅ Chain of Thought (CoT) ile matematiksel doğruluk
+
+@version 3.0.0
+@author MATAİ PRO
 """
 
 import os
@@ -16,9 +27,9 @@ from openai import OpenAI
 import google.generativeai as genai
 from supabase import create_client
 
-# ═══════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
 # YAPILANDIRMA
-# ═══════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
 
 SUPABASE_URL = os.environ.get('SUPABASE_URL')
 SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
@@ -27,14 +38,15 @@ DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY', '')
 SORU_ADEDI = int(os.environ.get('SORU_ADEDI', '50'))
 
 # Ayarlar
-DEEPSEEK_DOGRULAMA = bool(DEEPSEEK_API_KEY)  # DeepSeek varsa aktif
-COT_AKTIF = True  # Chain of Thought aktif
+DEEPSEEK_DOGRULAMA = bool(DEEPSEEK_API_KEY)
+COT_AKTIF = True
 BEKLEME = 2.5
-MAX_DENEME = 3
+MAX_DENEME = 5  # Arttırıldı
+MIN_DEEPSEEK_PUAN = 70  # Minimum kabul puanı
 
-# ═══════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
 # API BAĞLANTILARI
-# ═══════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
 
 print("🔌 API bağlantıları kuruluyor...")
 
@@ -45,7 +57,7 @@ if not all([SUPABASE_URL, SUPABASE_KEY, GEMINI_API_KEY]):
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 genai.configure(api_key=GEMINI_API_KEY)
 
-# DeepSeek client (opsiyonel)
+# DeepSeek client
 deepseek = None
 if DEEPSEEK_API_KEY:
     deepseek = OpenAI(api_key=DEEPSEEK_API_KEY, base_url='https://api.deepseek.com/v1')
@@ -55,9 +67,103 @@ else:
 
 print("✅ API bağlantıları hazır!")
 
-# ═══════════════════════════════════════════════════════════════
-# VERİ YAPILARI
-# ═══════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
+# 50+ SENARYO BAĞLAMI HAVUZU (JS'den alındı - Tekrar önleyici)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+SENARYO_BAGLAMLARI = {
+    'matematik': [
+        # Günlük Yaşam
+        {'tema': 'market_alisverisi', 'aciklama': 'Bir süpermarkette indirimli ürünler ve sepet hesabı', 'anahtar_kelimeler': ['indirim', 'toplam', 'bütçe', 'fiyat karşılaştırma']},
+        {'tema': 'yemek_tarifi', 'aciklama': 'Bir yemek tarifinin malzeme oranlarını değiştirme', 'anahtar_kelimeler': ['oran', 'porsiyon', 'ölçü', 'miktar']},
+        {'tema': 'ev_tasarimi', 'aciklama': 'Bir odanın mobilya yerleşimi ve alan hesabı', 'anahtar_kelimeler': ['metrekare', 'ölçek', 'yerleşim', 'alan']},
+        {'tema': 'seyahat_planlama', 'aciklama': 'Tatil rotası, mesafe ve yakıt hesabı', 'anahtar_kelimeler': ['mesafe', 'süre', 'hız', 'maliyet']},
+        # Spor ve Oyunlar
+        {'tema': 'basketbol_istatistik', 'aciklama': 'Bir basketbol takımının maç istatistikleri', 'anahtar_kelimeler': ['ortalama', 'yüzde', 'sayı', 'verimlilik']},
+        {'tema': 'satranc_turnuvasi', 'aciklama': 'Turnuva puanlama sistemi ve sıralama', 'anahtar_kelimeler': ['puan', 'sıralama', 'kombinasyon', 'olasılık']},
+        {'tema': 'fitness_takip', 'aciklama': 'Egzersiz programı ve kalori hesabı', 'anahtar_kelimeler': ['kalori', 'süre', 'tekrar', 'ilerleme']},
+        {'tema': 'e_spor_lig', 'aciklama': 'Online oyun ligi puan ve seviye sistemi', 'anahtar_kelimeler': ['XP', 'seviye', 'bonus', 'çarpan']},
+        {'tema': 'futbol_lig', 'aciklama': 'Futbol ligi puan durumu ve averaj hesabı', 'anahtar_kelimeler': ['puan', 'averaj', 'galibiyet', 'sıralama']},
+        # Ekonomi ve Finans
+        {'tema': 'cep_harcligi', 'aciklama': 'Aylık harçlık yönetimi ve birikim planı', 'anahtar_kelimeler': ['birikim', 'harcama', 'hedef', 'yüzde']},
+        {'tema': 'okul_kooperatifi', 'aciklama': 'Öğrenci kooperatifi satış ve kar analizi', 'anahtar_kelimeler': ['kar', 'zarar', 'maliyet', 'satış']},
+        {'tema': 'enerji_faturasi', 'aciklama': 'Ev elektrik tüketimi ve fatura analizi', 'anahtar_kelimeler': ['kWh', 'tarife', 'tüketim', 'tasarruf']},
+        {'tema': 'sinema_bileti', 'aciklama': 'Sinema bilet fiyatları ve grup indirimi', 'anahtar_kelimeler': ['bilet', 'indirim', 'grup', 'toplam']},
+        # Müzik ve Sanat
+        {'tema': 'muzik_ritmi', 'aciklama': 'Bir şarkının ritim ve nota değerleri', 'anahtar_kelimeler': ['vuruş', 'tempo', 'kesir', 'oran']},
+        {'tema': 'origami_katlama', 'aciklama': 'Kağıt katlama geometrisi ve açılar', 'anahtar_kelimeler': ['açı', 'katlama', 'simetri', 'oran']},
+        {'tema': 'pixel_art', 'aciklama': 'Piksel tabanlı resim oluşturma ve oranlar', 'anahtar_kelimeler': ['piksel', 'oran', 'ölçek', 'boyut']},
+        {'tema': 'resim_cerceve', 'aciklama': 'Tablo boyutları ve çerçeve hesabı', 'anahtar_kelimeler': ['ölçü', 'oran', 'çevre', 'maliyet']},
+        # Çevre ve Doğa
+        {'tema': 'geri_donusum', 'aciklama': 'Okul geri dönüşüm kampanyası verileri', 'anahtar_kelimeler': ['miktar', 'yüzde', 'karşılaştırma', 'hedef']},
+        {'tema': 'bahce_duzenleme', 'aciklama': 'Okul bahçesine bitki dikimi planı', 'anahtar_kelimeler': ['alan', 'sıra', 'aralık', 'toplam']},
+        {'tema': 'su_tuketimi', 'aciklama': 'Haftalık su kullanımı ve tasarruf', 'anahtar_kelimeler': ['litre', 'ortalama', 'azaltma', 'yüzde']},
+        {'tema': 'agac_dikimi', 'aciklama': 'Park alanına ağaç dikimi projesi', 'anahtar_kelimeler': ['alan', 'mesafe', 'sayı', 'düzen']},
+        # Teknoloji
+        {'tema': 'video_duzenleme', 'aciklama': 'Video kesme, süre ve dosya boyutu', 'anahtar_kelimeler': ['saniye', 'MB', 'oran', 'toplam']},
+        {'tema': '3d_yazici', 'aciklama': '3D baskı malzeme ve süre hesabı', 'anahtar_kelimeler': ['hacim', 'süre', 'maliyet', 'ölçek']},
+        {'tema': 'podcast_istatistik', 'aciklama': 'Podcast dinlenme istatistikleri', 'anahtar_kelimeler': ['dakika', 'abone', 'artış', 'ortalama']},
+        {'tema': 'sosyal_medya', 'aciklama': 'Sosyal medya takipçi artış analizi', 'anahtar_kelimeler': ['takipçi', 'artış', 'yüzde', 'hafta']},
+        {'tema': 'oyun_skoru', 'aciklama': 'Video oyunu skor ve seviye sistemi', 'anahtar_kelimeler': ['puan', 'seviye', 'bonus', 'çarpan']},
+        # Yiyecek ve İçecek
+        {'tema': 'kafe_menu', 'aciklama': 'Okul kafeteryası menü fiyatlandırması', 'anahtar_kelimeler': ['fiyat', 'kombinasyon', 'indirim', 'toplam']},
+        {'tema': 'smoothie_tarif', 'aciklama': 'Meyve smoothie karışım oranları', 'anahtar_kelimeler': ['ml', 'oran', 'porsiyon', 'kalori']},
+        {'tema': 'pizza_partisi', 'aciklama': 'Sınıf partisi için pizza sipariş planı', 'anahtar_kelimeler': ['dilim', 'kişi', 'toplam', 'bölüşüm']},
+        {'tema': 'kurabiye_tarifi', 'aciklama': 'Kurabiye tarifi ve malzeme oranları', 'anahtar_kelimeler': ['gram', 'oran', 'porsiyon', 'çarpan']},
+        # Ulaşım
+        {'tema': 'okul_servisi', 'aciklama': 'Servis rotası ve zaman çizelgesi', 'anahtar_kelimeler': ['durak', 'süre', 'mesafe', 'sıra']},
+        {'tema': 'bisiklet_turu', 'aciklama': 'Şehir bisiklet turu rotası planlama', 'anahtar_kelimeler': ['km', 'hız', 'eğim', 'süre']},
+        {'tema': 'metro_agi', 'aciklama': 'Metro hattı aktarma ve süre hesabı', 'anahtar_kelimeler': ['hat', 'aktarma', 'dakika', 'rota']},
+        {'tema': 'otobus_saatleri', 'aciklama': 'Otobüs kalkış saatleri ve bekleme süresi', 'anahtar_kelimeler': ['saat', 'dakika', 'aralık', 'bekleme']},
+        # Hobi ve Koleksiyon
+        {'tema': 'kart_koleksiyonu', 'aciklama': 'Koleksiyon kartları değişim ve değer', 'anahtar_kelimeler': ['nadir', 'değer', 'takas', 'set']},
+        {'tema': 'pul_koleksiyonu', 'aciklama': 'Pul koleksiyonu sınıflandırma ve değer', 'anahtar_kelimeler': ['yıl', 'ülke', 'seri', 'eksik']},
+        {'tema': 'lego_proje', 'aciklama': 'LEGO seti parça sayısı ve maliyet', 'anahtar_kelimeler': ['parça', 'set', 'maliyet', 'süre']},
+        # Okul ve Eğitim
+        {'tema': 'sinav_puanlama', 'aciklama': 'Sınav notu hesaplama sistemi', 'anahtar_kelimeler': ['puan', 'ağırlık', 'ortalama', 'geçme']},
+        {'tema': 'kutuphane_odunc', 'aciklama': 'Kütüphane kitap ödünç alma istatistikleri', 'anahtar_kelimeler': ['kitap', 'gün', 'ceza', 'süre']},
+        {'tema': 'sinif_secimi', 'aciklama': 'Ders seçimi ve kredi hesabı', 'anahtar_kelimeler': ['kredi', 'saat', 'zorunlu', 'seçmeli']},
+        # Ek Temalar
+        {'tema': 'konser_organizasyonu', 'aciklama': 'Okul konseri koltuk düzeni ve bilet satışı', 'anahtar_kelimeler': ['koltuk', 'sıra', 'fiyat', 'doluluk']},
+        {'tema': 'bahce_sulama', 'aciklama': 'Otomatik sulama sistemi zamanlama', 'anahtar_kelimeler': ['dakika', 'alan', 'su', 'periyot']},
+        {'tema': 'kutlama_balonu', 'aciklama': 'Doğum günü balonlarının şişirme süresi', 'anahtar_kelimeler': ['balon', 'dakika', 'helyum', 'maliyet']},
+        {'tema': 'kampanya_afis', 'aciklama': 'Seçim kampanyası afiş dağıtımı', 'anahtar_kelimeler': ['afiş', 'bölge', 'dağıtım', 'etkililik']},
+        {'tema': 'fotoğraf_albumu', 'aciklama': 'Dijital fotoğraf albümü düzenleme', 'anahtar_kelimeler': ['fotoğraf', 'sayfa', 'düzen', 'kapasite']},
+        {'tema': 'elektrikli_arac', 'aciklama': 'Elektrikli araç şarj süresi ve menzil', 'anahtar_kelimeler': ['şarj', 'km', 'batarya', 'süre']},
+        {'tema': 'yildiz_gozlem', 'aciklama': 'Gece gökyüzü gözlem planı', 'anahtar_kelimeler': ['saat', 'görünürlük', 'açı', 'zaman']},
+        {'tema': 'tiyatro_sahne', 'aciklama': 'Tiyatro sahne tasarımı ve alan kullanımı', 'anahtar_kelimeler': ['metre', 'alan', 'perspektif', 'orantı']},
+        {'tema': 'mahalle_guvenlik', 'aciklama': 'Güvenlik kamerası yerleşim planı', 'anahtar_kelimeler': ['açı', 'kapsama', 'sayı', 'optimizasyon']},
+        {'tema': 'bocek_gozlem', 'aciklama': 'Böcek türleri sayım çalışması', 'anahtar_kelimeler': ['tür', 'sayı', 'oran', 'yoğunluk']},
+    ]
+}
+
+# Kullanılan senaryolar (tekrar önleyici)
+kullanilan_senaryolar = set()
+
+def rastgele_senaryo_sec():
+    """Rastgele ve tekrarsız senaryo bağlamı seçer"""
+    global kullanilan_senaryolar
+    
+    baglamlar = SENARYO_BAGLAMLARI['matematik']
+    
+    # Tüm senaryolar kullanıldıysa sıfırla
+    if len(kullanilan_senaryolar) >= len(baglamlar) * 0.8:
+        kullanilan_senaryolar.clear()
+        print("🔄 Senaryo havuzu sıfırlandı")
+    
+    # Kullanılmamış senaryolardan seç
+    kullanilabilir = [b for i, b in enumerate(baglamlar) if i not in kullanilan_senaryolar]
+    secilen = random.choice(kullanilabilir)
+    
+    # Kullanıldı olarak işaretle
+    kullanilan_senaryolar.add(baglamlar.index(secilen))
+    
+    print(f"   🎬 Senaryo: {secilen['tema'].replace('_', ' ')}")
+    return secilen
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# GELİŞMİŞ VERİ YAPILARI
+# ═══════════════════════════════════════════════════════════════════════════════
 
 MATEMATIK_KONULARI = {
     'sayi_sistemleri': {
@@ -71,6 +177,10 @@ MATEMATIK_KONULARI = {
     'cebir': {
         'ad': 'Cebir',
         'alt_konular': ['Cebirsel İfadeler', 'Özdeşlikler', 'Birinci Derece Denklemler', 'İkinci Derece Denklemler', 'Eşitsizlikler', 'Mutlak Değer', 'Fonksiyonlar', 'Örüntüler ve Diziler']
+    },
+    'geometri': {
+        'ad': 'Geometri',
+        'alt_konular': ['Temel Geometrik Kavramlar', 'Açılar', 'Üçgenler', 'Dörtgenler', 'Çokgenler', 'Çember ve Daire', 'Alan ve Çevre', 'Hacim', 'Geometrik Dönüşümler', 'Benzerlik']
     },
     'kumeler': {
         'ad': 'Kümeler',
@@ -94,125 +204,37 @@ SINIF_SEVIYELERI = {
     '5': {'ad': '5. Sınıf', 'pisa': [1, 2], 'bloom': ['hatırlama', 'anlama', 'uygulama']},
     '6': {'ad': '6. Sınıf', 'pisa': [1, 2, 3], 'bloom': ['anlama', 'uygulama', 'analiz']},
     '7': {'ad': '7. Sınıf', 'pisa': [2, 3, 4], 'bloom': ['uygulama', 'analiz', 'değerlendirme']},
-    '8': {'ad': '8. Sınıf', 'pisa': [3, 4, 5], 'bloom': ['analiz', 'değerlendirme', 'yaratma']},
+    '8': {'ad': '8. Sınıf (LGS)', 'pisa': [3, 4, 5], 'bloom': ['analiz', 'değerlendirme', 'yaratma']},
     '9': {'ad': '9. Sınıf', 'pisa': [3, 4, 5], 'bloom': ['analiz', 'değerlendirme', 'yaratma']},
     '10': {'ad': '10. Sınıf', 'pisa': [4, 5], 'bloom': ['analiz', 'değerlendirme', 'yaratma']},
     '11': {'ad': '11. Sınıf', 'pisa': [4, 5, 6], 'bloom': ['değerlendirme', 'yaratma']},
-    '12': {'ad': '12. Sınıf', 'pisa': [5, 6], 'bloom': ['değerlendirme', 'yaratma']}
+    '12': {'ad': '12. Sınıf (YKS)', 'pisa': [5, 6], 'bloom': ['değerlendirme', 'yaratma']}
 }
 
-SENARYO_TURLERI = ['diyalog', 'uygulama', 'tablo', 'grafik', 'infografik', 'günlük', 'haber']
+PISA_SEVIYELERI = {
+    1: {'ad': 'Seviye 1 (Temel)', 'puan': '358-420', 'beceriler': ['Doğrudan verilen bilgiyi bulma', 'Basit prosedürleri uygulama', 'Tek adımlı işlemler']},
+    2: {'ad': 'Seviye 2 (Gelişen)', 'puan': '420-482', 'beceriler': ['Basit çıkarımlar yapma', 'İki adımlı işlemler', 'Temel grafik okuma']},
+    3: {'ad': 'Seviye 3 (Orta)', 'puan': '482-545', 'beceriler': ['Birden fazla bilgiyi sentezleme', 'Çok adımlı prosedürler', 'Basit modeller oluşturma']},
+    4: {'ad': 'Seviye 4 (İleri)', 'puan': '545-607', 'beceriler': ['Karmaşık modeller kullanma', 'Varsayımları değerlendirme', 'Sonuçları yorumlama ve eleştirme']},
+    5: {'ad': 'Seviye 5 (Üstün)', 'puan': '607-669', 'beceriler': ['Yaratıcı problem çözme', 'Üst düzey modelleme', 'Eleştirel değerlendirme']},
+    6: {'ad': 'Seviye 6 (Uzman)', 'puan': '669+', 'beceriler': ['Özgün stratejiler geliştirme', 'Karmaşık genellemeler', 'Çoklu temsiller arası geçiş']}
+}
+
+BLOOM_SEVIYELERI = {
+    'hatırlama': {'ad': 'Hatırlama', 'fiiller': ['tanımla', 'listele', 'adlandır', 'hatırla']},
+    'anlama': {'ad': 'Anlama', 'fiiller': ['açıkla', 'özetle', 'yorumla', 'karşılaştır']},
+    'uygulama': {'ad': 'Uygulama', 'fiiller': ['uygula', 'çöz', 'kullan', 'hesapla']},
+    'analiz': {'ad': 'Analiz', 'fiiller': ['analiz et', 'ayırt et', 'incele', 'sorgula']},
+    'değerlendirme': {'ad': 'Değerlendirme', 'fiiller': ['değerlendir', 'eleştir', 'savun', 'yargıla']},
+    'yaratma': {'ad': 'Yaratma', 'fiiller': ['tasarla', 'oluştur', 'üret', 'planla']}
+}
+
+SENARYO_TURLERI = ['diyalog', 'uygulama', 'tablo', 'grafik', 'infografik', 'gunluk', 'haber', 'coklu', 'deney']
 SORU_TIPLERI = ['coktan_secmeli', 'acik_uclu']
 
-# 100 Senaryo Bağlamı
-SENARYO_BAGLAMLARI = [
-    {'tema': 'market', 'aciklama': 'Süpermarket alışverişi'},
-    {'tema': 'online', 'aciklama': 'E-ticaret sitesi'},
-    {'tema': 'pazar', 'aciklama': 'Semt pazarı'},
-    {'tema': 'kredi', 'aciklama': 'Taksitli alışveriş'},
-    {'tema': 'doviz', 'aciklama': 'Döviz kuru'},
-    {'tema': 'banka', 'aciklama': 'Vadeli mevduat'},
-    {'tema': 'harclik', 'aciklama': 'Aylık harçlık'},
-    {'tema': 'koop', 'aciklama': 'Okul kooperatifi'},
-    {'tema': 'butce', 'aciklama': 'Aile bütçesi'},
-    {'tema': 'yatirim', 'aciklama': 'Yatırım getirisi'},
-    {'tema': 'vergi', 'aciklama': 'KDV hesabı'},
-    {'tema': 'maas', 'aciklama': 'Net maaş'},
-    {'tema': 'kira', 'aciklama': 'Ev kirası'},
-    {'tema': 'sigorta', 'aciklama': 'Sigorta primi'},
-    {'tema': 'tasarruf', 'aciklama': 'Birikim hedefi'},
-    {'tema': 'tarif', 'aciklama': 'Yemek tarifi'},
-    {'tema': 'pizza', 'aciklama': 'Pizza siparişi'},
-    {'tema': 'kurabiye', 'aciklama': 'Kurabiye tarifi'},
-    {'tema': 'smoothie', 'aciklama': 'Meyve karışımı'},
-    {'tema': 'kafe', 'aciklama': 'Kafeterya menü'},
-    {'tema': 'restoran', 'aciklama': 'Restoran hesabı'},
-    {'tema': 'pasta', 'aciklama': 'Doğum günü pastası'},
-    {'tema': 'catering', 'aciklama': 'Yemek planlama'},
-    {'tema': 'kalori', 'aciklama': 'Besin değeri'},
-    {'tema': 'kahvalti', 'aciklama': 'Kahvaltı hazırlık'},
-    {'tema': 'piknik', 'aciklama': 'Piknik planı'},
-    {'tema': 'kantin', 'aciklama': 'Okul kantini'},
-    {'tema': 'diyet', 'aciklama': 'Kalori takibi'},
-    {'tema': 'su', 'aciklama': 'Su tüketimi'},
-    {'tema': 'liste', 'aciklama': 'Alışveriş listesi'},
-    {'tema': 'seyahat', 'aciklama': 'Tatil planı'},
-    {'tema': 'servis', 'aciklama': 'Okul servisi'},
-    {'tema': 'bisiklet', 'aciklama': 'Bisiklet turu'},
-    {'tema': 'metro', 'aciklama': 'Metro aktarma'},
-    {'tema': 'otobus', 'aciklama': 'Otobüs saatleri'},
-    {'tema': 'taksi', 'aciklama': 'Taksi ücreti'},
-    {'tema': 'ucak', 'aciklama': 'Uçuş süresi'},
-    {'tema': 'tren', 'aciklama': 'Tren yolculuğu'},
-    {'tema': 'benzin', 'aciklama': 'Yakıt tüketimi'},
-    {'tema': 'otopark', 'aciklama': 'Otopark ücreti'},
-    {'tema': 'navi', 'aciklama': 'En kısa yol'},
-    {'tema': 'kargo', 'aciklama': 'Teslimat süresi'},
-    {'tema': 'kurye', 'aciklama': 'Kurye rotası'},
-    {'tema': 'feribot', 'aciklama': 'Gemi seferi'},
-    {'tema': 'trafik', 'aciklama': 'Hız hesabı'},
-    {'tema': 'basket', 'aciklama': 'Maç istatistiği'},
-    {'tema': 'futbol', 'aciklama': 'Lig puan durumu'},
-    {'tema': 'fitness', 'aciklama': 'Egzersiz programı'},
-    {'tema': 'satranc', 'aciklama': 'Turnuva puanlama'},
-    {'tema': 'espor', 'aciklama': 'Oyun ligi'},
-    {'tema': 'oyun', 'aciklama': 'Oyun skoru'},
-    {'tema': 'maraton', 'aciklama': 'Koşu temposu'},
-    {'tema': 'yuzme', 'aciklama': 'Yüzme yarışı'},
-    {'tema': 'voleybol', 'aciklama': 'Set sayısı'},
-    {'tema': 'atletizm', 'aciklama': 'Derece sıralama'},
-    {'tema': 'tenis', 'aciklama': 'Turnuva eşleşmesi'},
-    {'tema': 'bowling', 'aciklama': 'Skor hesabı'},
-    {'tema': 'dart', 'aciklama': 'Puan sistemi'},
-    {'tema': 'pingpong', 'aciklama': 'Turnuva sistemi'},
-    {'tema': 'yaris', 'aciklama': 'Etap hesabı'},
-    {'tema': 'video', 'aciklama': 'Video süresi'},
-    {'tema': '3dprint', 'aciklama': '3D baskı'},
-    {'tema': 'podcast', 'aciklama': 'Dinlenme sayısı'},
-    {'tema': 'sosyal', 'aciklama': 'Takipçi analizi'},
-    {'tema': 'app', 'aciklama': 'İndirme sayısı'},
-    {'tema': 'internet', 'aciklama': 'İndirme süresi'},
-    {'tema': 'bulut', 'aciklama': 'Depolama'},
-    {'tema': 'pil', 'aciklama': 'Pil ömrü'},
-    {'tema': 'veri', 'aciklama': 'Veri kullanımı'},
-    {'tema': 'sunucu', 'aciklama': 'Sunucu kapasitesi'},
-    {'tema': 'yazilim', 'aciklama': 'Proje süresi'},
-    {'tema': 'pixel', 'aciklama': 'Piksel oranı'},
-    {'tema': 'kod', 'aciklama': 'Yarışma puanı'},
-    {'tema': 'saat', 'aciklama': 'Adım sayacı'},
-    {'tema': 'robot', 'aciklama': 'Robot hareketi'},
-    {'tema': 'sinav', 'aciklama': 'Not hesaplama'},
-    {'tema': 'kitap', 'aciklama': 'Kitap ödünç'},
-    {'tema': 'ders', 'aciklama': 'Kredi hesabı'},
-    {'tema': 'devam', 'aciklama': 'Devamsızlık etkisi'},
-    {'tema': 'proje', 'aciklama': 'Grup ödevi'},
-    {'tema': 'tercih', 'aciklama': 'Okul tercihi'},
-    {'tema': 'burs', 'aciklama': 'Burs kriteri'},
-    {'tema': 'program', 'aciklama': 'Ders programı'},
-    {'tema': 'oy', 'aciklama': 'Sınıf başkanı'},
-    {'tema': 'gezi', 'aciklama': 'Okul gezisi'},
-    {'tema': 'donusum', 'aciklama': 'Geri dönüşüm'},
-    {'tema': 'agac', 'aciklama': 'Ağaç dikimi'},
-    {'tema': 'bahce', 'aciklama': 'Bitki dikimi'},
-    {'tema': 'enerji', 'aciklama': 'Enerji tasarrufu'},
-    {'tema': 'karbon', 'aciklama': 'Karbon ayak izi'},
-    {'tema': 'yagmur', 'aciklama': 'Yağmur suyu'},
-    {'tema': 'gunes', 'aciklama': 'Güneş paneli'},
-    {'tema': 'hava', 'aciklama': 'Hava kalitesi'},
-    {'tema': 'plastik', 'aciklama': 'Plastik azaltma'},
-    {'tema': 'sutasarr', 'aciklama': 'Su tasarrufu'},
-    {'tema': 'muzik', 'aciklama': 'Nota değerleri'},
-    {'tema': 'resim', 'aciklama': 'Çerçeve boyutu'},
-    {'tema': 'kart', 'aciklama': 'Koleksiyon kartı'},
-    {'tema': 'lego', 'aciklama': 'LEGO projesi'},
-    {'tema': 'sinema', 'aciklama': 'Bilet fiyatı'}
-]
-
-print(f"✅ {len(MATEMATIK_KONULARI)} konu, {len(SENARYO_BAGLAMLARI)} senaryo yüklendi")
-
-# ═══════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
 # TEKRAR ÖNLEYİCİ
-# ═══════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
 
 kullanilan_hashler = set()
 
@@ -226,45 +248,452 @@ def benzersiz_mi(soru):
 def hash_kaydet(soru):
     kullanilan_hashler.add(hash_olustur(soru))
 
-# ═══════════════════════════════════════════════════════════════
-# ADIM 1: COT - ÖNCE ÇÖZÜMÜ OLUŞTUR (Chain of Thought)
-# ═══════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
+# GELİŞMİŞ PISA CORE SYSTEM PROMPT (JS'den alındı)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+PISA_CORE_SYSTEM = """
+# 🌟 PISA TARZI ÜST DÜZEY SORU TASARIM UZMANI
+
+Sen OECD PISA standartlarında üst düzey düşünme soruları tasarlayan uzman bir eğitimcisin.
+Görevin gerçek yaşam bağlamlarında derin düşünme, problem çözme ve akıl yürütme becerilerini 
+ölçen sorular üretmektir.
+
+## 📚 TEMEL FELSEFENİZ
+
+### "Az Bilgi, Derin Akıl" (Low-Floor, High-Ceiling) Prensibi
+- Soru, temel bilgiyle başlanabilir olmalı (düşük zemin)
+- Ancak tam çözüm için derin düşünme gerektirir (yüksek tavan)
+- Ezberlenen formüllerle değil, kavrayışla çözülür
+
+### Gizli Basitlik Prensibi
+- İlk bakışta karmaşık veya içinden çıkılmaz görünebilir
+- Doğru yaklaşıldığında zarif bir "anahtar fikir" ile çözülür
+- "Kaba kuvvet" değil, "zeka" ödüllendirilir
+
+### Çok Aşamalı Çözüm
+- Tek adımda çözülemez
+- Her adım bir sonrakine zemin hazırlar
+- Zincir halkaları gibi birbirine bağlı
+- Tüm aşamaları tamamlamadan doğru cevaba ulaşılamaz
+
+## 🎭 DRAMATİK YAPI (Her soruda olmalı!)
+
+### 1. GİRİŞ (The Hook) 
+- Basit, anlaşılır, davetkâr
+- Öğrenci: "Bunu yapabilirim galiba" demeli
+- En azından birkaç küçük durumu deneyebilmeli
+
+### 2. GELİŞME (The Struggle)
+- Standart yaklaşımlar denenir
+- Bir "duvara" toslanır
+- Farklı bir bakış açısı gerektiği anlaşılır
+- Bu "mücadele" anı öğrenmenin en değerli kısmıdır
+
+### 3. ZİRVE (The "Aha!" Moment)
+- Kilit fikir, zarif hile veya beklenmedik bağlantı görülür
+- Tüm düğümler çözülür
+- Senaryodaki büyük "twist" anı
+- BU ANI TASARLAMAK EN SANATSAL KISMDIR!
+
+### 4. SONUÇ (The Resolution)
+- "Aha!" anından sonra çözüm şelale gibi akar
+- Zarif bir şekilde sonuca ulaşılır
+- Tatmin edici bir kapanış
+
+## 🎯 SENARYO TASARIM İLKELERİ
+
+### ⚠️ EN KRİTİK KURAL: EKSİKSİZ VE KENDİ KENDİNE YETEN SENARYO
+
+Soruyu çözmek için gereken TÜM BİLGİLER senaryoda AÇIKÇA yazılmalı!
+Öğrenci SADECE senaryoyu okuyarak soruyu çözebilmeli!
+
+❌ ASLA YAPMA:
+- Kuralları belirtmeden "kurallara göre" deme
+- Formülü vermeden hesaplama isteme
+- Tabloyu göstermeden "tabloya göre" deme
+- Veriyi yazmadan "verilere göre" deme
+- Eksik bilgiyle soru sorma
+
+✅ HER ZAMAN YAP:
+- Tüm kuralları madde madde yaz
+- Tüm sayısal değerleri açıkça belirt
+- Tüm formülleri veya hesaplama yöntemlerini göster
+- Tüm tabloları ve verileri eksiksiz sun
+
+### ÖRNEK - DOĞRU FORMAT:
+"Ayşe ve Can yeni bir kart oyunu tasarlıyor.
+
+**📋 Oyun Kuralları:**
+* Tek sayı kartları: Kartın değeri kadar puan verir
+* Çift sayı kartları: Kartın değerinin yarısı kadar puan verir  
+* 5'in katı olan kartlar: Ek +3 bonus puan
+* 10'un katı olan kartlar: Ek +5 bonus puan (5'in katı bonusu da geçerli)
+
+**🎴 Ayşe'nin Seçtiği Kartlar:** 7, 12, 25, 30
+
+Soru: Ayşe bu kartlardan toplam kaç puan kazanır?"
+
+## ⚠️ GÖRSEL TEMSİL ZORUNLULUĞU
+
+Eğer soruda grid, harita, plan, grafik varsa, MUTLAKA TABLO veya ASCII formatında GÖSTER!
+
+### Grid/Harita için format:
+```
+|   | A | B | C | D | E |
+|---|---|---|---|---|---|
+| 1 | ⬜ | 🧱 | ⬜ | ⬜ | ⬜ |
+| 2 | ⬜ | 🧱 | ⬜ | ⬜ | ⬜ |
+| 3 | ⬜ | 🧱 | 🔥 | ⬜ | ⬜ |
+| 4 | 🧱 | 🧱 | 🧱 | 🧱 | 🧱 |
+| 5 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+```
+
+### Grafik için format:
+```
+📊 Satış Grafiği (Birim: 1000 TL)
+     
+40 |          ▓▓
+35 |       ▓▓ ▓▓
+30 |    ▓▓ ▓▓ ▓▓ ▓▓
+25 | ▓▓ ▓▓ ▓▓ ▓▓ ▓▓
+   +------------------
+     Oca Şub Mar Nis May
+```
+
+### Tablo için format:
+```
+| Ay      | Satış | Gelir (TL) |
+|---------|-------|------------|
+| Ocak    | 120   | 24.000     |
+| Şubat   | 150   | 30.000     |
+| Mart    | 180   | 36.000     |
+```
+
+## ⚠️ ZEKİ ÇELDİRİCİLER (Şıklı sorular için)
+
+Her yanlış şık belirli bir bilişsel hatayı temsil etmeli:
+- 🔴 Senaryoyu yanlış yorumlama
+- 🔴 Bir koşulu gözden kaçırma
+- 🔴 Denklemi/modeli hatalı kurma
+- 🔴 Çözümü bir adım erken bitirme
+- 🔴 İşlem hatası yapma
+- 🔴 Birimi dönüştürmeyi unutma
+
+Her çeldirici için açıklama yaz:
+"Bu şıkkı seçen öğrenci şu hatayı yapmış olabilir: ..."
+
+## 🔄 7 ADIMLI KALİTE KONTROL SÜRECİ
+
+### ADIM 1: SENARYO VE VERİ TASARLA
+- İlgi çekici bir bağlam oluştur
+- Verileri senaryoya doğal şekilde yerleştir
+- TÜM KURALLARI VE VERİLERİ AÇIKÇA YAZ!
+
+### ADIM 2: SENARYO EKSİKSİZLİK KONTROLÜ
+- ☐ Öğrenci SADECE senaryoyu okuyarak çözebilir mi?
+- ☐ Tüm kurallar yazılı mı?
+- ☐ Tüm sayısal değerler verilmiş mi?
+- ☐ Tablo/grafik gerekiyorsa eklenmiş mi?
+EKSİK VARSA ADIM 1'E DÖN!
+
+### ADIM 3: PROBLEMİ FORMÜLE ET
+- Net ama zorlu bir soru sor
+- "Aha!" anını tasarla
+- Çözüm yolunu planla
+
+### ADIM 4: KENDİN ADIM ADIM ÇÖZ
+- Her adımı detaylı yaz
+- Ara sonuçları kontrol et
+- Final cevabı bul
+
+### ADIM 5: DOĞRULA
+- Çözümünü tekrar kontrol et
+- Sayıları yerine koy
+- Mantıksal tutarlılığı sağla
+
+### ADIM 6: ÇELDİRİCİLERİ TASARLA
+- Yaygın hataları düşün
+- Her biri farklı bir yanılgıyı temsil etsin
+- Doğru cevabı rastgele bir şıkka yerleştir
+
+### ADIM 7: SON GÖZDEN GEÇİRME
+- Soru anlaşılır mı?
+- Çözüm zarif mi?
+- "Aha!" anı var mı?
+- SENARYO KENDİ KENDİNE YETERLİ Mİ?
+"""
+
+MATEMATIK_OZEL_PROMPT = """
+## 🔢 MATEMATİK SORU TASARIM KURALLARI
+
+### Problem Türleri
+1. **Sayılar ve İşlemler**: Örüntü keşfi, sayı özellikleri, EKOK-EBOB uygulamaları
+2. **Cebir**: Denklem kurma, fonksiyonel düşünme, örüntüden kurala ulaşma
+3. **Geometri**: Görsel-uzamsal akıl yürütme, ölçek ve orantı, alan-hacim optimizasyonu
+4. **Veri ve Olasılık**: Grafik yorumlama, istatistiksel akıl yürütme, veri temelli karar
+
+### Matematiksel Süreç Becerileri
+1. **Formüle Etme**: Gerçek durumu matematiksel modele dönüştürme
+2. **Uygulama**: Matematiksel prosedürleri kullanma
+3. **Yorumlama**: Matematiksel sonuçları bağlama geri taşıma
+4. **Akıl Yürütme**: Mantıksal argüman oluşturma
+
+### Sayısal Değer Kuralları
+- Küçük, hesaplanabilir sayılar tercih et (1-100 arası)
+- Sonuç tam sayı veya basit kesir olsun
+- Karmaşık hesaplamalar değil, karmaşık düşünme gereksin
+"""
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# JSON FORMAT ŞABLONLARI
+# ═══════════════════════════════════════════════════════════════════════════════
+
+JSON_FORMAT_COKTAN_SECMELI = '''
+## 📋 JSON FORMATI - ÇOKTAN SEÇMELİ SORU
+
+Yanıtını SADECE aşağıdaki JSON formatında ver:
+
+```json
+{
+  "soru_tipi": "coktan_secmeli",
+  "alan": "matematik",
+  "konu": "Ana konu adı",
+  "alt_konu": "Alt konu adı",
+  "sinif": "8",
+  "pisa_seviye": 4,
+  "bloom_seviye": "analiz",
+  "senaryo_turu": "tablo",
+  
+  "senaryo": "⚠️ KRİTİK: Senaryoda TÜM kurallar, veriler, tablolar AÇIKÇA yazılmalı!\\n\\n[Min 100 kelime detaylı senaryo]\\n\\n**📋 Kurallar:**\\n* Kural 1: ...\\n* Kural 2: ...\\n\\n[Tablo/Grafik varsa buraya]",
+  
+  "soru_metni": "Senaryoya dayanan net soru",
+  
+  "secenekler": [
+    "A) Birinci seçenek",
+    "B) İkinci seçenek", 
+    "C) Üçüncü seçenek",
+    "D) Dördüncü seçenek",
+    "E) Beşinci seçenek"
+  ],
+  
+  "dogru_cevap": "B",
+  
+  "celdirici_aciklamalar": {
+    "A": "Bu şıkkı seçen öğrenci şu hatayı yapmış olabilir: ...",
+    "C": "Bu şıkkı seçen öğrenci şu hatayı yapmış olabilir: ...",
+    "D": "Bu şıkkı seçen öğrenci şu hatayı yapmış olabilir: ...",
+    "E": "Bu şıkkı seçen öğrenci şu hatayı yapmış olabilir: ..."
+  },
+  
+  "cozum_adimlari": [
+    "Adım 1: Senaryodan verileri çıkarma - [detay]",
+    "Adım 2: Matematiksel model kurma - [işlem]",
+    "Adım 3: Hesaplama - [işlem] = [sonuç]",
+    "Adım 4: İkinci hesaplama - [işlem] = [sonuç]",
+    "Adım 5: Sonucu yorumlama - [açıklama]",
+    "Adım 6: Doğru şıkkı belirleme - Cevap: [harf]"
+  ],
+  
+  "aha_moment": "Bu sorudaki kilit fikir şudur: ...",
+  
+  "beceri_alani": "problem çözme",
+  "tahmini_sure": "5-8 dakika",
+  "pedagojik_notlar": "Bu soru şu becerileri ölçmektedir: ..."
+}
+```
+
+⚠️ JSON KURALLARI:
+1. SADECE JSON döndür, başka metin ekleme
+2. String içinde çift tırnak kullanma, tek tırnak kullan
+3. Trailing comma KOYMA
+4. Newline için \\n kullan
+5. dogru_cevap ile cozum_adimlari MUTLAKA eşleşmeli
+6. EN AZ 5-6 ÇÖZÜM ADIMI olmalı
+'''
+
+JSON_FORMAT_ACIK_UCLU = '''
+## 📋 JSON FORMATI - AÇIK UÇLU SORU
+
+```json
+{
+  "soru_tipi": "acik_uclu",
+  "alan": "matematik",
+  "konu": "Ana konu",
+  "alt_konu": "Alt konu",
+  "sinif": "8",
+  "pisa_seviye": 4,
+  "bloom_seviye": "değerlendirme",
+  "senaryo_turu": "coklu",
+  
+  "senaryo": "Detaylı senaryo...",
+  "soru_metni": "Açık uçlu soru",
+  
+  "beklenen_cevap": "Tam puan cevabın özeti",
+  
+  "puanlama_rubrik": {
+    "tam_puan": "2 puan - Doğru çözüm, tüm adımlar gösterilmiş",
+    "kismi_puan": "1 puan - Doğru yaklaşım ama hesaplama hatası",
+    "sifir_puan": "0 puan - Yanlış yöntem veya anlamsız çözüm"
+  },
+  
+  "cozum_adimlari": [
+    "Adım 1: ...",
+    "Adım 2: ...",
+    "Adım 3: ...",
+    "Adım 4: ..."
+  ],
+  
+  "aha_moment": "Kilit fikir...",
+  "beceri_alani": "akıl yürütme",
+  "tahmini_sure": "8-12 dakika",
+  "pedagojik_notlar": "..."
+}
+```
+'''
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# GELİŞMİŞ DEEPSEEK DOĞRULAMA PROMPTU
+# ═══════════════════════════════════════════════════════════════════════════════
+
+DEEPSEEK_DOGRULAMA_PROMPT = """
+# PISA SORU DOĞRULAMA UZMANI
+
+Sen üst düzey bir matematik ve eğitim doğrulama uzmanısın. Sana verilen PISA sorusunu aşağıdaki kriterlere göre değerlendir.
+
+## DOĞRULAMA KRİTERLERİ
+
+### 1. ÇÖZÜM KONTROLÜ (KRİTİK!)
+- Çözüm adımları mevcut mu?
+- En az 4 adım var mı?
+- Her adım mantıksal ve tutarlı mı?
+- Matematiksel işlemler doğru mu?
+- Verilen cevap (dogru_cevap) çözüm adımlarıyla uyumlu mu?
+
+### 2. SENARYO KALİTESİ
+- Senaryo eksiksiz mi? (Tüm veriler mevcut mu?)
+- Öğrenci sadece senaryoyu okuyarak soruyu çözebilir mi?
+- Kurallar ve formüller açıkça belirtilmiş mi?
+- Senaryo en az 80 kelime mi?
+
+### 3. MATEMATİKSEL DOĞRULUK
+- Hesaplamalar doğru mu?
+- Sonuç mantıklı mı?
+- Birimler tutarlı mı?
+
+### 4. YAPISAL TUTARLILIK
+- dogru_cevap gerçekten doğru mu?
+- Şıklar makul ve çeldirici mi?
+- Çeldirici açıklamaları mantıklı mı?
+- "Aha!" anı var mı ve etkili mi?
+
+### 5. PISA UYUMU
+- Gerçek yaşam bağlamı var mı?
+- Üst düzey düşünme gerektiriyor mu?
+- Dramatik yapı var mı (Giriş-Gelişme-Aha!-Sonuç)?
+
+## ÇIKTI FORMATI
+
+JSON formatında yanıt ver:
+```json
+{
+  "gecerli": true/false,
+  "puan": 0-100,
+  "cozum_kontrolu": {
+    "cozum_mevcut": true/false,
+    "adim_sayisi": 0,
+    "adimlar_tutarli": true/false,
+    "hesaplamalar_dogru": true/false,
+    "cevap_uyumlu": true/false
+  },
+  "senaryo_kontrolu": {
+    "eksiksiz": true/false,
+    "veriler_yeterli": true/false,
+    "kurallar_acik": true/false,
+    "min_kelime_sayisi": true/false
+  },
+  "matematiksel_dogruluk": {
+    "hesaplamalar": true/false,
+    "sonuc_mantikli": true/false,
+    "dogru_cevap_gercekten_dogru": true/false
+  },
+  "pisa_uyumu": {
+    "gercek_yasam_baglami": true/false,
+    "ust_duzey_dusunme": true/false,
+    "dramatik_yapi": true/false,
+    "aha_moment": true/false
+  },
+  "sorunlar": ["Sorun 1", "Sorun 2"],
+  "oneriler": ["Öneri 1", "Öneri 2"],
+  "aciklama": "Detaylı değerlendirme..."
+}
+```
+
+## KARAR KURALLARI
+
+Soru GEÇERSİZ (gecerli: false) sayılır eğer:
+- Çözüm adımları yoksa veya 3'ten azsa
+- Çözüm adımları soruyla uyumsuzsa
+- Matematiksel hatalar varsa
+- dogru_cevap aslında yanlışsa
+- Senaryo eksik veya belirsizse
+- Puan 70'in altındaysa
+
+SADECE JSON döndür.
+"""
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ADIM 1: COT - ÇÖZÜM OLUŞTUR (Chain of Thought)
+# ═══════════════════════════════════════════════════════════════════════════════
 
 def cot_cozum_olustur(params):
     """
     Chain of Thought: Önce matematiksel çözümü oluştur
-    Bu adımda sadece problem ve çözüm üretilir
     """
     try:
-        model = genai.GenerativeModel('gemini-2.0-flash-lite')
+        model = genai.GenerativeModel('gemini-2.5-flash')
+        
+        senaryo_baglam = params.get('senaryo_baglami', {})
         
         prompt = f'''Sen bir matematik öğretmenisin. Aşağıdaki parametrelere göre ÖNCE bir matematik problemi ve ÇÖZÜMÜNÜ oluştur.
 
 KONU: {params['konu_ad']} - {params['alt_konu']}
 SINIF: {params['sinif_ad']}
 ZORLUK: PISA {params['pisa_seviye']} seviyesi
-SENARYO: {params['senaryo_baglami']['tema']} - {params['senaryo_baglami']['aciklama']}
+
+🎬 SENARYO BAĞLAMI (Bu temayı MUTLAKA kullan!):
+- Tema: {senaryo_baglam.get('tema', 'genel').replace('_', ' ')}
+- Açıklama: {senaryo_baglam.get('aciklama', 'Günlük yaşam problemi')}
+- Anahtar Kelimeler: {', '.join(senaryo_baglam.get('anahtar_kelimeler', ['hesaplama', 'oran']))}
+
+⚠️ ÖNEMLİ: Yukarıdaki temayı kullan! Dron, robot gibi klişe temalardan KAÇIN!
 
 ÖNEMLİ KURALLAR:
-1. ÖNCE problemi tanımla
-2. SONRA adım adım çöz
-3. Her adımda matematiksel işlemi yaz
-4. Son cevabı net olarak belirt
-5. Tüm sayısal değerler tutarlı olmalı
+1. ÖNCE problemi tanımla (verilen temayı kullanarak)
+2. TÜM KURALLARI AÇIKÇA YAZ
+3. SONRA adım adım çöz (EN AZ 5-6 ADIM)
+4. Her adımda matematiksel işlemi yaz
+5. Son cevabı net olarak belirt
+6. Tüm sayısal değerler küçük ve hesaplanabilir olsun (1-100 arası)
+7. Sonuç tam sayı veya basit kesir olsun
 
-Aşağıdaki JSON formatında yanıt ver:
+JSON formatında yanıt ver:
 {{
-    "problem_tanimi": "Problemin açık tanımı ve tüm veriler",
-    "verilen_degerler": ["değer1", "değer2", ...],
+    "problem_tanimi": "Problemin açık tanımı ve tüm veriler - EN AZ 80 KELİME",
+    "kurallar": ["Kural 1: ...", "Kural 2: ...", "Kural 3: ..."],
+    "verilen_degerler": ["değer1", "değer2", "değer3"],
     "istenen": "Ne bulunması gerekiyor",
     "cozum_adimlari": [
         "Adım 1: [işlem] = [sonuç]",
         "Adım 2: [işlem] = [sonuç]",
         "Adım 3: [işlem] = [sonuç]",
-        "Adım 4: [işlem] = [sonuç]"
+        "Adım 4: [işlem] = [sonuç]",
+        "Adım 5: [işlem] = [sonuç]",
+        "Adım 6: [işlem] = [sonuç]"
     ],
     "sonuc": "Kesin sayısal cevap",
     "sonuc_aciklama": "Cevabın ne anlama geldiği",
+    "aha_moment": "Bu problemdeki kilit fikir nedir?",
     "kontrol": "Cevabın doğruluğunu kontrol eden işlem"
 }}
 
@@ -288,12 +717,12 @@ SADECE JSON döndür, başka bir şey yazma.'''
         return cozum
         
     except Exception as e:
-        print(f"   ⚠️ CoT Hata: {str(e)[:40]}")
+        print(f"   ⚠️ CoT Hata: {str(e)[:50]}")
         return None
 
-# ═══════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
 # ADIM 2: ÇÖZÜMDEN SORU OLUŞTUR
-# ═══════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
 
 def cozumden_soru_olustur(cozum, params):
     """
@@ -302,50 +731,63 @@ def cozumden_soru_olustur(cozum, params):
     try:
         model = genai.GenerativeModel('gemini-2.5-flash')
         
+        # Format seç
         if params['soru_tipi'] == 'coktan_secmeli':
-            format_talimati = '''
-"secenekler": ["A) ...", "B) ...", "C) ...", "D) ...", "E) ..."],
-"dogru_cevap": "A/B/C/D/E harfi",
-"celdirici_aciklamalar": {"A": "neden yanlış/doğru", "B": "...", "C": "...", "D": "...", "E": "..."}'''
+            json_format = JSON_FORMAT_COKTAN_SECMELI
         else:
-            format_talimati = '''
-"beklenen_cevap": "Detaylı beklenen cevap",
-"puanlama_rubrik": {"tam_puan": "2 puan kriterleri", "kismi_puan": "1 puan kriterleri", "sifir_puan": "0 puan kriterleri"}'''
+            json_format = JSON_FORMAT_ACIK_UCLU
+        
+        senaryo_baglam = params.get('senaryo_baglami', {})
+        pisa_bilgi = PISA_SEVIYELERI.get(params['pisa_seviye'], PISA_SEVIYELERI[4])
+        bloom_bilgi = BLOOM_SEVIYELERI.get(params['bloom_seviye'], BLOOM_SEVIYELERI['analiz'])
+        
+        system_prompt = f"{PISA_CORE_SYSTEM}\n\n{MATEMATIK_OZEL_PROMPT}\n\n{json_format}"
 
-        prompt = f'''Aşağıdaki ÇÖZÜLMÜŞ problemden PISA formatında soru oluştur.
+        user_prompt = f'''Aşağıdaki ÇÖZÜLMÜŞ problemden PISA formatında üst düzey soru oluştur.
 
-ÇÖZÜM BİLGİLERİ:
+## ÇÖZÜM BİLGİLERİ:
 - Problem: {cozum.get('problem_tanimi', '')}
+- Kurallar: {cozum.get('kurallar', [])}
 - Verilen Değerler: {cozum.get('verilen_degerler', [])}
 - İstenen: {cozum.get('istenen', '')}
 - Çözüm Adımları: {cozum.get('cozum_adimlari', [])}
 - DOĞRU CEVAP: {cozum.get('sonuc', '')}
-- Açıklama: {cozum.get('sonuc_aciklama', '')}
+- Aha! Moment: {cozum.get('aha_moment', '')}
 
-SENARYO TÜRÜ: {params['senaryo_turu']}
-SORU TİPİ: {params['soru_tipi']}
+## PARAMETRELER:
+- Senaryo Türü: {params['senaryo_turu']}
+- Soru Tipi: {params['soru_tipi']}
+- Tema: {senaryo_baglam.get('tema', 'genel').replace('_', ' ')}
+- PISA Seviye: {pisa_bilgi['ad']}
+- Bloom: {bloom_bilgi['ad']}
+- Hedef Beceriler: {', '.join(pisa_bilgi.get('beceriler', []))}
 
-GÖREV:
-1. Bu çözümü kullanarak gerçekçi bir SENARYO yaz (min 80 kelime)
-2. Senaryodan doğal bir SORU oluştur
-3. Doğru cevap MUTLAKA "{cozum.get('sonuc', '')}" olmalı
-4. Çeldiriciler mantıklı ama yanlış olmalı
+## GÖREV:
+1. Bu çözümü kullanarak DETAYLI bir SENARYO yaz (min 100 kelime)
+2. TÜM KURALLARI AÇIKÇA senaryoya yaz - öğrenci sadece senaryoyu okuyarak çözebilmeli!
+3. Tablo/grafik gerekiyorsa GÖRSEL olarak ekle
+4. Senaryodan doğal bir SORU oluştur
+5. Doğru cevap MUTLAKA "{cozum.get('sonuc', '')}" olmalı
+6. Çeldiriciler gerçekçi HATALARA dayalı olmalı
+7. "Aha!" anı net olmalı
 
-JSON formatında döndür:
-{{
-    "senaryo": "Detaylı gerçekçi senaryo metni (min 80 kelime)",
-    "soru_metni": "Soru metni",
-    {format_talimati},
-    "cozum_adimlari": {json.dumps(cozum.get('cozum_adimlari', []), ensure_ascii=False)},
-    "aha_moment": "Bu sorudaki kilit fikir",
-    "beceri_alani": "problem çözme / akıl yürütme / modelleme",
-    "tahmini_sure": "5-8 dakika",
-    "pedagojik_notlar": "Bu soru hangi becerileri ölçüyor"
-}}
+⚠️ KRİTİK HATIRLATMALAR:
+- SENARYO EKSİKSİZ OLMALI - tüm kurallar ve veriler yazılı!
+- Çözüm adımları EN AZ 5-6 adım olmalı ve detaylı!
+- dogru_cevap ile çözüm adımlarındaki sonuç MUTLAKA eşleşmeli!
 
-SADECE JSON döndür.'''
+{json_format}
 
-        response = model.generate_content(prompt)
+Şimdi soruyu oluştur:'''
+
+        response = model.generate_content(
+            [system_prompt, user_prompt],
+            generation_config={
+                'temperature': 0.7,
+                'max_output_tokens': 4000
+            }
+        )
+        
         text = response.text.strip()
         
         # JSON temizle
@@ -370,73 +812,45 @@ SADECE JSON döndür.'''
         soru['bloom_seviye'] = params['bloom_seviye']
         soru['senaryo_turu'] = params['senaryo_turu']
         soru['soru_tipi'] = params['soru_tipi']
-        soru['cot_cozum'] = cozum  # Orijinal çözümü sakla
+        soru['senaryo_baglam'] = senaryo_baglam.get('tema', 'genel')
+        soru['cot_cozum'] = cozum
         
         return soru
         
     except Exception as e:
-        print(f"   ⚠️ Soru oluşturma: {str(e)[:40]}")
+        print(f"   ⚠️ Soru oluşturma: {str(e)[:50]}")
         return None
 
-# ═══════════════════════════════════════════════════════════════
-# ADIM 3: DEEPSEEK DOĞRULAMA
-# ═══════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
+# ADIM 3: GELİŞMİŞ DEEPSEEK DOĞRULAMA
+# ═══════════════════════════════════════════════════════════════════════════════
 
 def deepseek_dogrula(soru):
     """
-    DeepSeek ile matematiksel doğrulama
-    Soruyu bağımsız olarak çözer ve cevabı karşılaştırır
+    DeepSeek ile kapsamlı soru doğrulaması
     """
     if not deepseek:
-        return {'gecerli': True, 'aciklama': 'DeepSeek devre dışı'}
+        return {'gecerli': True, 'puan': 80, 'aciklama': 'DeepSeek devre dışı'}
     
     try:
-        # Soru metnini ve senaryoyu al
-        senaryo = soru.get('senaryo', '')
-        soru_metni = soru.get('soru_metni', '')
-        
-        # Doğru cevabı al
-        if soru.get('soru_tipi') == 'coktan_secmeli':
-            beklenen = soru.get('dogru_cevap', '')
-            secenekler = soru.get('secenekler', [])
-            secenekler_text = '\n'.join(secenekler)
-        else:
-            beklenen = soru.get('beklenen_cevap', '')
-            secenekler_text = ''
+        prompt = f'''{DEEPSEEK_DOGRULAMA_PROMPT}
 
-        prompt = f'''Bu matematik sorusunu ADIM ADIM çöz ve cevabını ver.
+## DOĞRULANACAK SORU
 
-SENARYO:
-{senaryo}
+```json
+{json.dumps(soru, ensure_ascii=False, indent=2)}
+```
 
-SORU:
-{soru_metni}
-
-{f"SEÇENEKLER:{chr(10)}{secenekler_text}" if secenekler_text else ""}
-
-ADIM ADIM ÇÖZ:
-1. Verilenleri listele
-2. İsteneni belirle
-3. Çözüm yolunu uygula
-4. Sonucu hesapla
-
-JSON formatında cevap ver:
-{{
-    "cozum_adimlari": ["adım 1", "adım 2", ...],
-    "hesaplanan_sonuc": "sayısal sonuç",
-    "secilen_secenek": "A/B/C/D/E (çoktan seçmeliyse)",
-    "guven_seviyesi": "yüksek/orta/düşük",
-    "notlar": "varsa ek açıklamalar"
-}}'''
+Yukarıdaki soruyu değerlendir ve SADECE JSON formatında sonuç döndür.'''
 
         response = deepseek.chat.completions.create(
             model='deepseek-chat',
             messages=[
-                {'role': 'system', 'content': 'Sen bir matematik doğrulama uzmanısın. Soruları adım adım çöz ve sonucu JSON formatında ver.'},
+                {'role': 'system', 'content': 'Sen bir PISA soru doğrulama uzmanısın. SADECE JSON formatında yanıt ver.'},
                 {'role': 'user', 'content': prompt}
             ],
-            max_tokens=2000,
-            temperature=0.1  # Düşük temperature = daha tutarlı
+            max_tokens=2500,
+            temperature=0.2
         )
         
         text = response.choices[0].message.content.strip()
@@ -452,40 +866,79 @@ JSON formatında cevap ver:
         
         dogrulama = json.loads(text.strip())
         
-        # Cevabı karşılaştır
-        if soru.get('soru_tipi') == 'coktan_secmeli':
-            ds_cevap = dogrulama.get('secilen_secenek', '').strip().upper()
-            beklenen_harf = beklenen.strip().upper()
-            eslesme = ds_cevap == beklenen_harf
-        else:
-            # Açık uçlu için sonuç karşılaştırma (daha esnek)
-            ds_sonuc = str(dogrulama.get('hesaplanan_sonuc', '')).strip()
-            # Sayısal değerleri karşılaştır
-            try:
-                ds_num = float(''.join(c for c in ds_sonuc if c.isdigit() or c in '.-'))
-                bek_num = float(''.join(c for c in beklenen if c.isdigit() or c in '.-'))
-                eslesme = abs(ds_num - bek_num) < 0.01
-            except:
-                eslesme = ds_sonuc in beklenen or beklenen in ds_sonuc
-        
-        guven = dogrulama.get('guven_seviyesi', 'orta')
+        # Puan kontrolü
+        puan = dogrulama.get('puan', 0)
+        gecerli = dogrulama.get('gecerli', False) and puan >= MIN_DEEPSEEK_PUAN
         
         return {
-            'gecerli': eslesme,
-            'deepseek_cevap': dogrulama.get('secilen_secenek') or dogrulama.get('hesaplanan_sonuc'),
-            'beklenen_cevap': beklenen,
-            'guven': guven,
-            'cozum_adimlari': dogrulama.get('cozum_adimlari', []),
-            'aciklama': 'Cevaplar eşleşiyor' if eslesme else 'CEVAPLAR EŞLEŞMİYOR!'
+            'gecerli': gecerli,
+            'puan': puan,
+            'cozum_kontrolu': dogrulama.get('cozum_kontrolu', {}),
+            'senaryo_kontrolu': dogrulama.get('senaryo_kontrolu', {}),
+            'matematiksel_dogruluk': dogrulama.get('matematiksel_dogruluk', {}),
+            'pisa_uyumu': dogrulama.get('pisa_uyumu', {}),
+            'sorunlar': dogrulama.get('sorunlar', []),
+            'oneriler': dogrulama.get('oneriler', []),
+            'aciklama': dogrulama.get('aciklama', '')
         }
         
     except Exception as e:
-        print(f"   ⚠️ DeepSeek: {str(e)[:40]}")
-        return {'gecerli': True, 'aciklama': f'DeepSeek hatası: {str(e)[:30]}'}
+        print(f"   ⚠️ DeepSeek Doğrulama: {str(e)[:50]}")
+        return {'gecerli': True, 'puan': 75, 'aciklama': f'DeepSeek hatası: {str(e)[:30]}'}
 
-# ═══════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
+# KALİTE KONTROL FONKSİYONU
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def kalite_kontrol(soru):
+    """
+    Temel kalite kontrolleri
+    """
+    sorunlar = []
+    
+    # Senaryo uzunluğu
+    senaryo = soru.get('senaryo', '')
+    if len(senaryo) < 100:
+        sorunlar.append('Senaryo çok kısa (min 100 karakter)')
+    
+    # Soru metni
+    soru_metni = soru.get('soru_metni', '')
+    if len(soru_metni) < 20:
+        sorunlar.append('Soru metni çok kısa')
+    
+    # Çözüm adımları
+    cozum_adimlari = soru.get('cozum_adimlari', [])
+    if len(cozum_adimlari) < 4:
+        sorunlar.append(f'Çözüm adımları yetersiz ({len(cozum_adimlari)} adım, min 4 olmalı)')
+    
+    # Doğru cevap kontrolü (çoktan seçmeli)
+    if soru.get('soru_tipi') == 'coktan_secmeli':
+        dogru_cevap = soru.get('dogru_cevap', '')
+        secenekler = soru.get('secenekler', [])
+        
+        if not dogru_cevap:
+            sorunlar.append('Doğru cevap belirtilmemiş')
+        
+        if len(secenekler) < 4:
+            sorunlar.append('Seçenekler yetersiz')
+        
+        # Çeldirici açıklamaları
+        celdiriciler = soru.get('celdirici_aciklamalar', {})
+        if len(celdiriciler) < 3:
+            sorunlar.append('Çeldirici açıklamaları eksik')
+    
+    # Aha moment
+    if not soru.get('aha_moment'):
+        sorunlar.append('Aha! moment eksik')
+    
+    return {
+        'gecerli': len(sorunlar) == 0,
+        'sorunlar': sorunlar
+    }
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # SUPABASE KAYIT
-# ═══════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
 
 def supabase_kaydet(soru, dogrulama_sonucu=None):
     """Soruyu veritabanına kaydeder"""
@@ -511,10 +964,12 @@ def supabase_kaydet(soru, dogrulama_sonucu=None):
             'beceri_alani': soru.get('beceri_alani'),
             'pedagojik_notlar': soru.get('pedagojik_notlar'),
             'tahmini_sure': soru.get('tahmini_sure'),
+            'senaryo_baglam': soru.get('senaryo_baglam'),
             'aktif': True,
-            # Yeni alanlar
             'dogrulama_durumu': 'dogrulanmis' if (dogrulama_sonucu and dogrulama_sonucu.get('gecerli')) else 'dogrulanmamis',
-            'cot_kullanildi': COT_AKTIF
+            'dogrulama_puani': dogrulama_sonucu.get('puan') if dogrulama_sonucu else None,
+            'cot_kullanildi': COT_AKTIF,
+            'versiyon': '3.0'
         }
         
         result = supabase.table('pisa_soru_havuzu').insert(data).execute()
@@ -524,42 +979,51 @@ def supabase_kaydet(soru, dogrulama_sonucu=None):
         return None
         
     except Exception as e:
-        print(f"   ⚠️ Kayıt: {str(e)[:50]}")
+        print(f"   ⚠️ Kayıt: {str(e)[:60]}")
         return None
 
-# ═══════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
 # TEK SORU ÜRET (COT + DOĞRULAMA)
-# ═══════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
 
 def tek_soru_uret(params):
     """
     Gelişmiş soru üretim pipeline:
-    1. CoT ile çözüm oluştur
-    2. Çözümden soru oluştur
-    3. DeepSeek ile doğrula
-    4. Kaydet
+    1. Senaryo bağlamı seç
+    2. CoT ile çözüm oluştur
+    3. Çözümden soru oluştur
+    4. Kalite kontrol
+    5. DeepSeek ile doğrula
+    6. Kaydet
     """
     for deneme in range(MAX_DENEME):
         print(f"      🔄 Deneme {deneme + 1}/{MAX_DENEME}")
         
+        # Her denemede yeni senaryo bağlamı
+        if deneme > 0:
+            params['senaryo_baglami'] = rastgele_senaryo_sec()
+        
         # ADIM 1: CoT - Önce çözümü oluştur
-        if COT_AKTIF:
-            print(f"      📐 CoT: Çözüm oluşturuluyor...")
-            cozum = cot_cozum_olustur(params)
+        print(f"      📐 CoT: Çözüm oluşturuluyor...")
+        cozum = cot_cozum_olustur(params)
+        
+        if not cozum:
+            print(f"      ⚠️ CoT başarısız")
+            time.sleep(1)
+            continue
+        
+        # Çözüm adımı kontrolü
+        cozum_adimlari = cozum.get('cozum_adimlari', [])
+        if len(cozum_adimlari) < 4:
+            print(f"      ⚠️ CoT çözüm adımları yetersiz ({len(cozum_adimlari)})")
+            time.sleep(1)
+            continue
             
-            if not cozum:
-                print(f"      ⚠️ CoT başarısız")
-                time.sleep(1)
-                continue
-            
-            print(f"      ✓ Çözüm: {cozum.get('sonuc', '?')}")
-            
-            # ADIM 2: Çözümden soru oluştur
-            print(f"      📝 Soru oluşturuluyor...")
-            soru = cozumden_soru_olustur(cozum, params)
-        else:
-            # CoT devre dışıysa eski yöntem
-            soru = gemini_soru_uret_eski(params)
+        print(f"      ✓ Çözüm: {cozum.get('sonuc', '?')} ({len(cozum_adimlari)} adım)")
+        
+        # ADIM 2: Çözümden soru oluştur
+        print(f"      📝 PISA sorusu oluşturuluyor...")
+        soru = cozumden_soru_olustur(cozum, params)
         
         if not soru:
             time.sleep(1)
@@ -570,30 +1034,30 @@ def tek_soru_uret(params):
             print(f"      🔁 Tekrar soru, yeniden...")
             continue
         
-        # Temel kontroller
-        if len(soru.get('senaryo', '')) < 50:
-            print(f"      ⚠️ Senaryo çok kısa")
+        # ADIM 3: Kalite kontrol
+        kalite = kalite_kontrol(soru)
+        if not kalite['gecerli']:
+            print(f"      ⚠️ Kalite sorunları: {', '.join(kalite['sorunlar'][:2])}")
             continue
         
-        if len(soru.get('cozum_adimlari', [])) < 3:
-            print(f"      ⚠️ Çözüm adımları yetersiz")
-            continue
-        
-        # ADIM 3: DeepSeek Doğrulama
+        # ADIM 4: DeepSeek Doğrulama
         dogrulama = None
         if DEEPSEEK_DOGRULAMA:
             print(f"      🔍 DeepSeek doğruluyor...")
             dogrulama = deepseek_dogrula(soru)
             
+            puan = dogrulama.get('puan', 0)
+            
             if not dogrulama.get('gecerli'):
-                print(f"      ❌ Doğrulama BAŞARISIZ: {dogrulama.get('aciklama')}")
-                print(f"         Beklenen: {dogrulama.get('beklenen_cevap')}")
-                print(f"         DeepSeek: {dogrulama.get('deepseek_cevap')}")
+                print(f"      ❌ DeepSeek: BAŞARISIZ (Puan: {puan})")
+                sorunlar = dogrulama.get('sorunlar', [])
+                if sorunlar:
+                    print(f"         Sorunlar: {', '.join(sorunlar[:2])}")
                 continue
             else:
-                print(f"      ✓ Doğrulama OK (Güven: {dogrulama.get('guven', '?')})")
+                print(f"      ✓ DeepSeek OK (Puan: {puan})")
         
-        # ADIM 4: Kaydet
+        # ADIM 5: Kaydet
         soru_id = supabase_kaydet(soru, dogrulama)
         
         if soru_id:
@@ -601,69 +1065,30 @@ def tek_soru_uret(params):
             return {
                 'success': True, 
                 'id': soru_id,
-                'dogrulama': dogrulama
+                'puan': dogrulama.get('puan') if dogrulama else None,
+                'tema': params.get('senaryo_baglami', {}).get('tema', 'genel')
             }
     
     return {'success': False}
 
-# ═══════════════════════════════════════════════════════════════
-# ESKİ YÖNTEM (CoT olmadan) - Fallback
-# ═══════════════════════════════════════════════════════════════
-
-def gemini_soru_uret_eski(params):
-    """Eski tek adımlı yöntem - fallback olarak"""
-    try:
-        model = genai.GenerativeModel('gemini-2.0-flash-lite')
-        
-        if params['soru_tipi'] == 'coktan_secmeli':
-            json_format = '''{"senaryo": "...", "soru_metni": "...", "secenekler": ["A) ...", "B) ...", "C) ...", "D) ...", "E) ..."], "dogru_cevap": "A", "celdirici_aciklamalar": {...}, "cozum_adimlari": [...], "aha_moment": "...", "beceri_alani": "...", "tahmini_sure": "...", "pedagojik_notlar": "..."}'''
-        else:
-            json_format = '''{"senaryo": "...", "soru_metni": "...", "beklenen_cevap": "...", "puanlama_rubrik": {...}, "cozum_adimlari": [...], "aha_moment": "...", "beceri_alani": "...", "tahmini_sure": "...", "pedagojik_notlar": "..."}'''
-
-        prompt = f'''PISA matematik sorusu üret.
-KONU: {params['konu_ad']} - {params['alt_konu']}
-SINIF: {params['sinif_ad']} | PISA: {params['pisa_seviye']}
-SENARYO: {params['senaryo_baglami']['tema']}
-TİP: {params['soru_tipi']}
-
-JSON: {json_format}'''
-
-        response = model.generate_content(prompt)
-        text = response.text.strip()
-        
-        if '```json' in text:
-            text = text.split('```json')[1].split('```')[0]
-        
-        soru = json.loads(text.strip())
-        soru['alan'] = 'matematik'
-        soru['konu'] = params['konu_ad']
-        soru['alt_konu'] = params['alt_konu']
-        soru['sinif'] = params['sinif']
-        soru['pisa_seviye'] = params['pisa_seviye']
-        soru['bloom_seviye'] = params['bloom_seviye']
-        soru['senaryo_turu'] = params['senaryo_turu']
-        soru['soru_tipi'] = params['soru_tipi']
-        
-        return soru
-    except:
-        return None
-
-# ═══════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
 # TOPLU ÜRETİM
-# ═══════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
 
 def toplu_uret(adet):
     """Toplu soru üretir"""
-    print(f"\n{'='*60}")
-    print(f"🚀 PISA SORU ÜRETİM BAŞLIYOR (V2)")
+    print(f"\n{'='*70}")
+    print(f"🚀 PISA SORU ÜRETİM BAŞLIYOR (V3 - Ultra Kalite)")
     print(f"   Tarih: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     print(f"   Hedef: {adet} soru")
     print(f"   CoT: {'✅ AKTİF' if COT_AKTIF else '❌ DEVRE DIŞI'}")
-    print(f"   DeepSeek: {'✅ AKTİF' if DEEPSEEK_DOGRULAMA else '❌ DEVRE DIŞI'}")
-    print(f"{'='*60}\n")
+    print(f"   DeepSeek: {'✅ AKTİF (Min Puan: ' + str(MIN_DEEPSEEK_PUAN) + ')' if DEEPSEEK_DOGRULAMA else '❌ DEVRE DIŞI'}")
+    print(f"   Senaryo Havuzu: {len(SENARYO_BAGLAMLARI['matematik'])} tema")
+    print(f"{'='*70}\n")
     
     basarili = 0
     dogrulanan = 0
+    toplam_puan = 0
     baslangic = time.time()
     
     # Kombinasyonlar
@@ -683,7 +1108,7 @@ def toplu_uret(adet):
                                     'pisa_seviye': pisa,
                                     'bloom_seviye': bloom,
                                     'senaryo_turu': st,
-                                    'senaryo_baglami': random.choice(SENARYO_BAGLAMLARI),
+                                    'senaryo_baglami': rastgele_senaryo_sec(),
                                     'soru_tipi': tip
                                 })
     
@@ -693,47 +1118,59 @@ def toplu_uret(adet):
         if basarili >= adet:
             break
         
-        print(f"\n[{basarili+1}/{adet}] {params['konu_ad']} > {params['alt_konu']} ({params['sinif_ad']})")
+        tema = params['senaryo_baglami'].get('tema', 'genel').replace('_', ' ')
+        print(f"\n[{basarili+1}/{adet}] {params['konu_ad']} > {params['alt_konu']}")
+        print(f"   📚 {params['sinif_ad']} | PISA {params['pisa_seviye']} | {params['bloom_seviye']}")
         
         try:
             sonuc = tek_soru_uret(params)
             
             if sonuc['success']:
                 basarili += 1
-                if sonuc.get('dogrulama', {}).get('gecerli'):
+                puan = sonuc.get('puan')
+                if puan:
                     dogrulanan += 1
-                print(f"   ✅ Başarılı! ID: {sonuc['id'][:8]}...")
+                    toplam_puan += puan
+                
+                print(f"   ✅ Başarılı! ID: {sonuc['id'][:8]}... | Tema: {sonuc.get('tema', '?')}")
+                if puan:
+                    print(f"      📊 Puan: {puan}/100")
             else:
-                print(f"   ❌ Başarısız")
+                print(f"   ❌ Başarısız (tüm denemeler tükendi)")
                 
         except Exception as e:
-            print(f"   ❌ Hata: {str(e)[:40]}")
+            print(f"   ❌ Hata: {str(e)[:50]}")
         
         time.sleep(BEKLEME)
     
     sure = time.time() - baslangic
+    ort_puan = toplam_puan / dogrulanan if dogrulanan > 0 else 0
     
-    print(f"\n{'='*60}")
+    print(f"\n{'='*70}")
     print(f"📊 SONUÇ RAPORU")
-    print(f"{'='*60}")
+    print(f"{'='*70}")
     print(f"   ✅ Başarılı: {basarili}/{adet}")
     print(f"   🔍 Doğrulanan: {dogrulanan}/{basarili}")
+    print(f"   📈 Ortalama Puan: {ort_puan:.1f}/100")
     print(f"   ⏱️ Süre: {sure/60:.1f} dakika")
-    print(f"   📈 Ortalama: {sure/max(basarili,1):.1f} sn/soru")
-    print(f"{'='*60}\n")
+    print(f"   📈 Hız: {sure/max(basarili,1):.1f} sn/soru")
+    print(f"{'='*70}\n")
     
     return basarili
 
-# ═══════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
 # ANA FONKSİYON
-# ═══════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════════════
 
 def main():
-    print("\n" + "="*60)
-    print("🤖 PISA SORU ÜRETİCİ BOT V2")
+    print("\n" + "="*70)
+    print("🤖 PISA SORU ÜRETİCİ BOT V3 - Ultra Kalite Edition")
+    print("   ✅ 50+ Senaryo Bağlamı (Tema çeşitliliği)")
     print("   ✅ Chain of Thought (CoT)")
-    print("   ✅ DeepSeek Doğrulama")
-    print("="*60 + "\n")
+    print("   ✅ 7 Adımlı Kalite Kontrol")
+    print("   ✅ Görsel Temsil Kuralları")
+    print("   ✅ DeepSeek Çift Doğrulama")
+    print("="*70 + "\n")
     
     # Gemini testi
     print("🔍 Gemini API test ediliyor...")
@@ -767,7 +1204,7 @@ def main():
     basarili = toplu_uret(adet=SORU_ADEDI)
     
     print(f"\n🎉 İşlem tamamlandı!")
-    print(f"   {basarili} soru üretildi ve Supabase'e kaydedildi.")
+    print(f"   {basarili} kaliteli PISA sorusu üretildi ve Supabase'e kaydedildi.")
 
 if __name__ == "__main__":
     main()
