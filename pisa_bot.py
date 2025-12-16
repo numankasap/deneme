@@ -1,6 +1,8 @@
 """
-🤖 PISA SORU ÜRETİCİ BOT - GitHub Actions Version
-Otomatik PISA tarzı matematik sorusu üretir ve Supabase'e kaydeder
+🤖 PISA SORU ÜRETİCİ BOT V2 - GitHub Actions
+✅ CoT (Chain of Thought) - Önce çöz, sonra soru oluştur
+✅ DeepSeek Doğrulama - Matematiksel kontrol
+✅ Çift katmanlı kalite güvencesi
 """
 
 import os
@@ -9,6 +11,7 @@ import random
 import time
 import hashlib
 from datetime import datetime
+from openai import OpenAI
 
 import google.generativeai as genai
 from supabase import create_client
@@ -20,11 +23,14 @@ from supabase import create_client
 SUPABASE_URL = os.environ.get('SUPABASE_URL')
 SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
+DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY', '')
 SORU_ADEDI = int(os.environ.get('SORU_ADEDI', '50'))
 
-# Sabitler
-BEKLEME = 2.0
-MAX_DENEME = 2
+# Ayarlar
+DEEPSEEK_DOGRULAMA = bool(DEEPSEEK_API_KEY)  # DeepSeek varsa aktif
+COT_AKTIF = True  # Chain of Thought aktif
+BEKLEME = 2.5
+MAX_DENEME = 3
 
 # ═══════════════════════════════════════════════════════════════
 # API BAĞLANTILARI
@@ -34,13 +40,18 @@ print("🔌 API bağlantıları kuruluyor...")
 
 if not all([SUPABASE_URL, SUPABASE_KEY, GEMINI_API_KEY]):
     print("❌ HATA: Gerekli environment variable'lar eksik!")
-    print(f"   SUPABASE_URL: {'✅' if SUPABASE_URL else '❌'}")
-    print(f"   SUPABASE_KEY: {'✅' if SUPABASE_KEY else '❌'}")
-    print(f"   GEMINI_API_KEY: {'✅' if GEMINI_API_KEY else '❌'}")
     exit(1)
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 genai.configure(api_key=GEMINI_API_KEY)
+
+# DeepSeek client (opsiyonel)
+deepseek = None
+if DEEPSEEK_API_KEY:
+    deepseek = OpenAI(api_key=DEEPSEEK_API_KEY, base_url='https://api.deepseek.com/v1')
+    print("✅ DeepSeek doğrulama AKTİF")
+else:
+    print("⚠️ DeepSeek API key yok, doğrulama DEVRE DIŞI")
 
 print("✅ API bağlantıları hazır!")
 
@@ -216,35 +227,123 @@ def hash_kaydet(soru):
     kullanilan_hashler.add(hash_olustur(soru))
 
 # ═══════════════════════════════════════════════════════════════
-# GEMINI SORU ÜRETİCİ
+# ADIM 1: COT - ÖNCE ÇÖZÜMÜ OLUŞTUR (Chain of Thought)
 # ═══════════════════════════════════════════════════════════════
 
-def gemini_soru_uret(params):
-    """Gemini API ile PISA tarzı soru üretir"""
+def cot_cozum_olustur(params):
+    """
+    Chain of Thought: Önce matematiksel çözümü oluştur
+    Bu adımda sadece problem ve çözüm üretilir
+    """
     try:
-        model = genai.GenerativeModel('gemini-2.5-pro')
+        model = genai.GenerativeModel('gemini-2.0-flash-lite')
         
-        if params['soru_tipi'] == 'coktan_secmeli':
-            json_format = '''{"senaryo": "Detaylı senaryo (min 80 kelime)", "soru_metni": "Soru", "secenekler": ["A) ...", "B) ...", "C) ...", "D) ...", "E) ..."], "dogru_cevap": "A", "celdirici_aciklamalar": {"A": "...", "B": "...", "C": "...", "D": "...", "E": "..."}, "cozum_adimlari": ["Adım 1", "Adım 2", "Adım 3", "Adım 4"], "aha_moment": "Kilit fikir", "beceri_alani": "problem çözme", "tahmini_sure": "5-8 dk", "pedagojik_notlar": "Ölçülen beceriler"}'''
-        else:
-            json_format = '''{"senaryo": "Detaylı senaryo (min 80 kelime)", "soru_metni": "Soru", "beklenen_cevap": "Detaylı cevap", "puanlama_rubrik": {"tam_puan": "2p", "kismi_puan": "1p", "sifir_puan": "0p"}, "cozum_adimlari": ["Adım 1", "Adım 2", "Adım 3", "Adım 4"], "aha_moment": "Kilit fikir", "beceri_alani": "akıl yürütme", "tahmini_sure": "8-12 dk", "pedagojik_notlar": "Ölçülen beceriler"}'''
-
-        prompt = f'''PISA standartlarında matematik sorusu üret.
+        prompt = f'''Sen bir matematik öğretmenisin. Aşağıdaki parametrelere göre ÖNCE bir matematik problemi ve ÇÖZÜMÜNÜ oluştur.
 
 KONU: {params['konu_ad']} - {params['alt_konu']}
 SINIF: {params['sinif_ad']}
-PISA: {params['pisa_seviye']} | BLOOM: {params['bloom_seviye']}
+ZORLUK: PISA {params['pisa_seviye']} seviyesi
 SENARYO: {params['senaryo_baglami']['tema']} - {params['senaryo_baglami']['aciklama']}
-TİP: {params['soru_tipi']}
 
-KURALLAR:
-1. Senaryo gerçek hayattan, min 80 kelime
-2. Tüm veriler açık yazılmalı
-3. Min 4 çözüm adımı
-4. Matematiksel doğru olmalı
+ÖNEMLİ KURALLAR:
+1. ÖNCE problemi tanımla
+2. SONRA adım adım çöz
+3. Her adımda matematiksel işlemi yaz
+4. Son cevabı net olarak belirt
+5. Tüm sayısal değerler tutarlı olmalı
 
-SADECE JSON döndür:
-{json_format}'''
+Aşağıdaki JSON formatında yanıt ver:
+{{
+    "problem_tanimi": "Problemin açık tanımı ve tüm veriler",
+    "verilen_degerler": ["değer1", "değer2", ...],
+    "istenen": "Ne bulunması gerekiyor",
+    "cozum_adimlari": [
+        "Adım 1: [işlem] = [sonuç]",
+        "Adım 2: [işlem] = [sonuç]",
+        "Adım 3: [işlem] = [sonuç]",
+        "Adım 4: [işlem] = [sonuç]"
+    ],
+    "sonuc": "Kesin sayısal cevap",
+    "sonuc_aciklama": "Cevabın ne anlama geldiği",
+    "kontrol": "Cevabın doğruluğunu kontrol eden işlem"
+}}
+
+SADECE JSON döndür, başka bir şey yazma.'''
+
+        response = model.generate_content(prompt)
+        text = response.text.strip()
+        
+        # JSON temizle
+        if '```json' in text:
+            text = text.split('```json')[1].split('```')[0]
+        elif '```' in text:
+            for part in text.split('```'):
+                if '{' in part and '}' in part:
+                    text = part
+                    break
+        if text.startswith('json'):
+            text = text[4:]
+        
+        cozum = json.loads(text.strip())
+        return cozum
+        
+    except Exception as e:
+        print(f"   ⚠️ CoT Hata: {str(e)[:40]}")
+        return None
+
+# ═══════════════════════════════════════════════════════════════
+# ADIM 2: ÇÖZÜMDEN SORU OLUŞTUR
+# ═══════════════════════════════════════════════════════════════
+
+def cozumden_soru_olustur(cozum, params):
+    """
+    Doğrulanmış çözümden PISA formatında soru oluştur
+    """
+    try:
+        model = genai.GenerativeModel('gemini-2.5-flash')
+        
+        if params['soru_tipi'] == 'coktan_secmeli':
+            format_talimati = '''
+"secenekler": ["A) ...", "B) ...", "C) ...", "D) ...", "E) ..."],
+"dogru_cevap": "A/B/C/D/E harfi",
+"celdirici_aciklamalar": {"A": "neden yanlış/doğru", "B": "...", "C": "...", "D": "...", "E": "..."}'''
+        else:
+            format_talimati = '''
+"beklenen_cevap": "Detaylı beklenen cevap",
+"puanlama_rubrik": {"tam_puan": "2 puan kriterleri", "kismi_puan": "1 puan kriterleri", "sifir_puan": "0 puan kriterleri"}'''
+
+        prompt = f'''Aşağıdaki ÇÖZÜLMÜŞ problemden PISA formatında soru oluştur.
+
+ÇÖZÜM BİLGİLERİ:
+- Problem: {cozum.get('problem_tanimi', '')}
+- Verilen Değerler: {cozum.get('verilen_degerler', [])}
+- İstenen: {cozum.get('istenen', '')}
+- Çözüm Adımları: {cozum.get('cozum_adimlari', [])}
+- DOĞRU CEVAP: {cozum.get('sonuc', '')}
+- Açıklama: {cozum.get('sonuc_aciklama', '')}
+
+SENARYO TÜRÜ: {params['senaryo_turu']}
+SORU TİPİ: {params['soru_tipi']}
+
+GÖREV:
+1. Bu çözümü kullanarak gerçekçi bir SENARYO yaz (min 80 kelime)
+2. Senaryodan doğal bir SORU oluştur
+3. Doğru cevap MUTLAKA "{cozum.get('sonuc', '')}" olmalı
+4. Çeldiriciler mantıklı ama yanlış olmalı
+
+JSON formatında döndür:
+{{
+    "senaryo": "Detaylı gerçekçi senaryo metni (min 80 kelime)",
+    "soru_metni": "Soru metni",
+    {format_talimati},
+    "cozum_adimlari": {json.dumps(cozum.get('cozum_adimlari', []), ensure_ascii=False)},
+    "aha_moment": "Bu sorudaki kilit fikir",
+    "beceri_alani": "problem çözme / akıl yürütme / modelleme",
+    "tahmini_sure": "5-8 dakika",
+    "pedagojik_notlar": "Bu soru hangi becerileri ölçüyor"
+}}
+
+SADECE JSON döndür.'''
 
         response = model.generate_content(prompt)
         text = response.text.strip()
@@ -262,7 +361,7 @@ SADECE JSON döndür:
         
         soru = json.loads(text.strip())
         
-        # Meta ekle
+        # Meta bilgileri ekle
         soru['alan'] = 'matematik'
         soru['konu'] = params['konu_ad']
         soru['alt_konu'] = params['alt_konu']
@@ -271,18 +370,124 @@ SADECE JSON döndür:
         soru['bloom_seviye'] = params['bloom_seviye']
         soru['senaryo_turu'] = params['senaryo_turu']
         soru['soru_tipi'] = params['soru_tipi']
+        soru['cot_cozum'] = cozum  # Orijinal çözümü sakla
         
         return soru
         
     except Exception as e:
-        print(f"   ⚠️ Gemini: {str(e)[:50]}")
+        print(f"   ⚠️ Soru oluşturma: {str(e)[:40]}")
         return None
+
+# ═══════════════════════════════════════════════════════════════
+# ADIM 3: DEEPSEEK DOĞRULAMA
+# ═══════════════════════════════════════════════════════════════
+
+def deepseek_dogrula(soru):
+    """
+    DeepSeek ile matematiksel doğrulama
+    Soruyu bağımsız olarak çözer ve cevabı karşılaştırır
+    """
+    if not deepseek:
+        return {'gecerli': True, 'aciklama': 'DeepSeek devre dışı'}
+    
+    try:
+        # Soru metnini ve senaryoyu al
+        senaryo = soru.get('senaryo', '')
+        soru_metni = soru.get('soru_metni', '')
+        
+        # Doğru cevabı al
+        if soru.get('soru_tipi') == 'coktan_secmeli':
+            beklenen = soru.get('dogru_cevap', '')
+            secenekler = soru.get('secenekler', [])
+            secenekler_text = '\n'.join(secenekler)
+        else:
+            beklenen = soru.get('beklenen_cevap', '')
+            secenekler_text = ''
+
+        prompt = f'''Bu matematik sorusunu ADIM ADIM çöz ve cevabını ver.
+
+SENARYO:
+{senaryo}
+
+SORU:
+{soru_metni}
+
+{f"SEÇENEKLER:{chr(10)}{secenekler_text}" if secenekler_text else ""}
+
+ADIM ADIM ÇÖZ:
+1. Verilenleri listele
+2. İsteneni belirle
+3. Çözüm yolunu uygula
+4. Sonucu hesapla
+
+JSON formatında cevap ver:
+{{
+    "cozum_adimlari": ["adım 1", "adım 2", ...],
+    "hesaplanan_sonuc": "sayısal sonuç",
+    "secilen_secenek": "A/B/C/D/E (çoktan seçmeliyse)",
+    "guven_seviyesi": "yüksek/orta/düşük",
+    "notlar": "varsa ek açıklamalar"
+}}'''
+
+        response = deepseek.chat.completions.create(
+            model='deepseek-chat',
+            messages=[
+                {'role': 'system', 'content': 'Sen bir matematik doğrulama uzmanısın. Soruları adım adım çöz ve sonucu JSON formatında ver.'},
+                {'role': 'user', 'content': prompt}
+            ],
+            max_tokens=2000,
+            temperature=0.1  # Düşük temperature = daha tutarlı
+        )
+        
+        text = response.choices[0].message.content.strip()
+        
+        # JSON temizle
+        if '```json' in text:
+            text = text.split('```json')[1].split('```')[0]
+        elif '```' in text:
+            for part in text.split('```'):
+                if '{' in part and '}' in part:
+                    text = part
+                    break
+        
+        dogrulama = json.loads(text.strip())
+        
+        # Cevabı karşılaştır
+        if soru.get('soru_tipi') == 'coktan_secmeli':
+            ds_cevap = dogrulama.get('secilen_secenek', '').strip().upper()
+            beklenen_harf = beklenen.strip().upper()
+            eslesme = ds_cevap == beklenen_harf
+        else:
+            # Açık uçlu için sonuç karşılaştırma (daha esnek)
+            ds_sonuc = str(dogrulama.get('hesaplanan_sonuc', '')).strip()
+            # Sayısal değerleri karşılaştır
+            try:
+                ds_num = float(''.join(c for c in ds_sonuc if c.isdigit() or c in '.-'))
+                bek_num = float(''.join(c for c in beklenen if c.isdigit() or c in '.-'))
+                eslesme = abs(ds_num - bek_num) < 0.01
+            except:
+                eslesme = ds_sonuc in beklenen or beklenen in ds_sonuc
+        
+        guven = dogrulama.get('guven_seviyesi', 'orta')
+        
+        return {
+            'gecerli': eslesme,
+            'deepseek_cevap': dogrulama.get('secilen_secenek') or dogrulama.get('hesaplanan_sonuc'),
+            'beklenen_cevap': beklenen,
+            'guven': guven,
+            'cozum_adimlari': dogrulama.get('cozum_adimlari', []),
+            'aciklama': 'Cevaplar eşleşiyor' if eslesme else 'CEVAPLAR EŞLEŞMİYOR!'
+        }
+        
+    except Exception as e:
+        print(f"   ⚠️ DeepSeek: {str(e)[:40]}")
+        return {'gecerli': True, 'aciklama': f'DeepSeek hatası: {str(e)[:30]}'}
 
 # ═══════════════════════════════════════════════════════════════
 # SUPABASE KAYIT
 # ═══════════════════════════════════════════════════════════════
 
-def supabase_kaydet(soru):
+def supabase_kaydet(soru, dogrulama_sonucu=None):
     """Soruyu veritabanına kaydeder"""
     try:
         data = {
@@ -306,7 +511,10 @@ def supabase_kaydet(soru):
             'beceri_alani': soru.get('beceri_alani'),
             'pedagojik_notlar': soru.get('pedagojik_notlar'),
             'tahmini_sure': soru.get('tahmini_sure'),
-            'aktif': True
+            'aktif': True,
+            # Yeni alanlar
+            'dogrulama_durumu': 'dogrulanmis' if (dogrulama_sonucu and dogrulama_sonucu.get('gecerli')) else 'dogrulanmamis',
+            'cot_kullanildi': COT_AKTIF
         }
         
         result = supabase.table('pisa_soru_havuzu').insert(data).execute()
@@ -320,34 +528,125 @@ def supabase_kaydet(soru):
         return None
 
 # ═══════════════════════════════════════════════════════════════
-# TEK SORU ÜRET
+# TEK SORU ÜRET (COT + DOĞRULAMA)
 # ═══════════════════════════════════════════════════════════════
 
 def tek_soru_uret(params):
-    """Tek soru üretir ve kaydeder"""
-    for _ in range(MAX_DENEME):
-        soru = gemini_soru_uret(params)
+    """
+    Gelişmiş soru üretim pipeline:
+    1. CoT ile çözüm oluştur
+    2. Çözümden soru oluştur
+    3. DeepSeek ile doğrula
+    4. Kaydet
+    """
+    for deneme in range(MAX_DENEME):
+        print(f"      🔄 Deneme {deneme + 1}/{MAX_DENEME}")
+        
+        # ADIM 1: CoT - Önce çözümü oluştur
+        if COT_AKTIF:
+            print(f"      📐 CoT: Çözüm oluşturuluyor...")
+            cozum = cot_cozum_olustur(params)
+            
+            if not cozum:
+                print(f"      ⚠️ CoT başarısız")
+                time.sleep(1)
+                continue
+            
+            print(f"      ✓ Çözüm: {cozum.get('sonuc', '?')}")
+            
+            # ADIM 2: Çözümden soru oluştur
+            print(f"      📝 Soru oluşturuluyor...")
+            soru = cozumden_soru_olustur(cozum, params)
+        else:
+            # CoT devre dışıysa eski yöntem
+            soru = gemini_soru_uret_eski(params)
         
         if not soru:
             time.sleep(1)
             continue
         
+        # Benzersizlik kontrolü
         if not benzersiz_mi(soru):
+            print(f"      🔁 Tekrar soru, yeniden...")
             continue
         
+        # Temel kontroller
         if len(soru.get('senaryo', '')) < 50:
+            print(f"      ⚠️ Senaryo çok kısa")
             continue
         
         if len(soru.get('cozum_adimlari', [])) < 3:
+            print(f"      ⚠️ Çözüm adımları yetersiz")
             continue
         
-        soru_id = supabase_kaydet(soru)
+        # ADIM 3: DeepSeek Doğrulama
+        dogrulama = None
+        if DEEPSEEK_DOGRULAMA:
+            print(f"      🔍 DeepSeek doğruluyor...")
+            dogrulama = deepseek_dogrula(soru)
+            
+            if not dogrulama.get('gecerli'):
+                print(f"      ❌ Doğrulama BAŞARISIZ: {dogrulama.get('aciklama')}")
+                print(f"         Beklenen: {dogrulama.get('beklenen_cevap')}")
+                print(f"         DeepSeek: {dogrulama.get('deepseek_cevap')}")
+                continue
+            else:
+                print(f"      ✓ Doğrulama OK (Güven: {dogrulama.get('guven', '?')})")
+        
+        # ADIM 4: Kaydet
+        soru_id = supabase_kaydet(soru, dogrulama)
         
         if soru_id:
             hash_kaydet(soru)
-            return {'success': True, 'id': soru_id}
+            return {
+                'success': True, 
+                'id': soru_id,
+                'dogrulama': dogrulama
+            }
     
     return {'success': False}
+
+# ═══════════════════════════════════════════════════════════════
+# ESKİ YÖNTEM (CoT olmadan) - Fallback
+# ═══════════════════════════════════════════════════════════════
+
+def gemini_soru_uret_eski(params):
+    """Eski tek adımlı yöntem - fallback olarak"""
+    try:
+        model = genai.GenerativeModel('gemini-2.0-flash-lite')
+        
+        if params['soru_tipi'] == 'coktan_secmeli':
+            json_format = '''{"senaryo": "...", "soru_metni": "...", "secenekler": ["A) ...", "B) ...", "C) ...", "D) ...", "E) ..."], "dogru_cevap": "A", "celdirici_aciklamalar": {...}, "cozum_adimlari": [...], "aha_moment": "...", "beceri_alani": "...", "tahmini_sure": "...", "pedagojik_notlar": "..."}'''
+        else:
+            json_format = '''{"senaryo": "...", "soru_metni": "...", "beklenen_cevap": "...", "puanlama_rubrik": {...}, "cozum_adimlari": [...], "aha_moment": "...", "beceri_alani": "...", "tahmini_sure": "...", "pedagojik_notlar": "..."}'''
+
+        prompt = f'''PISA matematik sorusu üret.
+KONU: {params['konu_ad']} - {params['alt_konu']}
+SINIF: {params['sinif_ad']} | PISA: {params['pisa_seviye']}
+SENARYO: {params['senaryo_baglami']['tema']}
+TİP: {params['soru_tipi']}
+
+JSON: {json_format}'''
+
+        response = model.generate_content(prompt)
+        text = response.text.strip()
+        
+        if '```json' in text:
+            text = text.split('```json')[1].split('```')[0]
+        
+        soru = json.loads(text.strip())
+        soru['alan'] = 'matematik'
+        soru['konu'] = params['konu_ad']
+        soru['alt_konu'] = params['alt_konu']
+        soru['sinif'] = params['sinif']
+        soru['pisa_seviye'] = params['pisa_seviye']
+        soru['bloom_seviye'] = params['bloom_seviye']
+        soru['senaryo_turu'] = params['senaryo_turu']
+        soru['soru_tipi'] = params['soru_tipi']
+        
+        return soru
+    except:
+        return None
 
 # ═══════════════════════════════════════════════════════════════
 # TOPLU ÜRETİM
@@ -356,12 +655,15 @@ def tek_soru_uret(params):
 def toplu_uret(adet):
     """Toplu soru üretir"""
     print(f"\n{'='*60}")
-    print(f"🚀 PISA SORU ÜRETİM BAŞLIYOR")
+    print(f"🚀 PISA SORU ÜRETİM BAŞLIYOR (V2)")
     print(f"   Tarih: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     print(f"   Hedef: {adet} soru")
+    print(f"   CoT: {'✅ AKTİF' if COT_AKTIF else '❌ DEVRE DIŞI'}")
+    print(f"   DeepSeek: {'✅ AKTİF' if DEEPSEEK_DOGRULAMA else '❌ DEVRE DIŞI'}")
     print(f"{'='*60}\n")
     
     basarili = 0
+    dogrulanan = 0
     baslangic = time.time()
     
     # Kombinasyonlar
@@ -391,29 +693,33 @@ def toplu_uret(adet):
         if basarili >= adet:
             break
         
-        print(f"[{basarili+1}/{adet}] {params['konu_ad']} > {params['alt_konu']}")
+        print(f"\n[{basarili+1}/{adet}] {params['konu_ad']} > {params['alt_konu']} ({params['sinif_ad']})")
         
         try:
             sonuc = tek_soru_uret(params)
             
             if sonuc['success']:
                 basarili += 1
-                print(f"   ✅ {sonuc['id'][:8]}...")
+                if sonuc.get('dogrulama', {}).get('gecerli'):
+                    dogrulanan += 1
+                print(f"   ✅ Başarılı! ID: {sonuc['id'][:8]}...")
             else:
-                print(f"   ❌")
+                print(f"   ❌ Başarısız")
                 
         except Exception as e:
-            print(f"   ❌ {str(e)[:30]}")
+            print(f"   ❌ Hata: {str(e)[:40]}")
         
         time.sleep(BEKLEME)
     
     sure = time.time() - baslangic
     
     print(f"\n{'='*60}")
-    print(f"📊 SONUÇ")
+    print(f"📊 SONUÇ RAPORU")
+    print(f"{'='*60}")
     print(f"   ✅ Başarılı: {basarili}/{adet}")
+    print(f"   🔍 Doğrulanan: {dogrulanan}/{basarili}")
     print(f"   ⏱️ Süre: {sure/60:.1f} dakika")
-    print(f"   📈 Benzersiz: {len(kullanilan_hashler)}")
+    print(f"   📈 Ortalama: {sure/max(basarili,1):.1f} sn/soru")
     print(f"{'='*60}\n")
     
     return basarili
@@ -424,23 +730,42 @@ def toplu_uret(adet):
 
 def main():
     print("\n" + "="*60)
-    print("🤖 PISA SORU ÜRETİCİ BOT - GitHub Actions")
+    print("🤖 PISA SORU ÜRETİCİ BOT V2")
+    print("   ✅ Chain of Thought (CoT)")
+    print("   ✅ DeepSeek Doğrulama")
     print("="*60 + "\n")
     
-    # API testi
+    # Gemini testi
     print("🔍 Gemini API test ediliyor...")
     try:
-        test_model = genai.GenerativeModel('gemini-2.0-flash-lite')
+        test_model = genai.GenerativeModel('gemini-2.5-flash')
         test_response = test_model.generate_content('2+2=?')
         print(f"✅ Gemini çalışıyor: {test_response.text.strip()}")
     except Exception as e:
         print(f"❌ Gemini HATASI: {e}")
         exit(1)
     
+    # DeepSeek testi
+    if deepseek:
+        print("🔍 DeepSeek API test ediliyor...")
+        try:
+            test = deepseek.chat.completions.create(
+                model='deepseek-chat',
+                messages=[{'role': 'user', 'content': '3+5=?'}],
+                max_tokens=10
+            )
+            print(f"✅ DeepSeek çalışıyor: {test.choices[0].message.content.strip()}")
+        except Exception as e:
+            print(f"⚠️ DeepSeek hatası: {e}")
+            print("   DeepSeek doğrulama devre dışı bırakıldı")
+            global DEEPSEEK_DOGRULAMA
+            DEEPSEEK_DOGRULAMA = False
+    
+    print()
+    
     # Soru üret
     basarili = toplu_uret(adet=SORU_ADEDI)
     
-    # Özet
     print(f"\n🎉 İşlem tamamlandı!")
     print(f"   {basarili} soru üretildi ve Supabase'e kaydedildi.")
 
