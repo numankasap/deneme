@@ -944,42 +944,229 @@ def comprehensive_stock_analysis(symbol: str) -> Optional[Dict]:
     # Finansal tablolar
     financials = get_financial_statements(symbol)
     
-    # TEKNİK ANALİZ
+    # ══════════════════════════════════════════════════════════════════
+    # TEKNİK ANALİZ - 12 GÖSTERGE
+    # ══════════════════════════════════════════════════════════════════
+    
+    # 1. RSI (14)
     rsi = calculate_rsi(close)
+    rsi_val = rsi.iloc[-1]
+    
+    # 2. MACD
     macd_line, signal_line, macd_hist = calculate_macd(close)
+    
+    # 3. Bollinger Bands
     bb_upper, bb_middle, bb_lower = calculate_bollinger_bands(close)
+    
+    # 4. Stokastik
     stoch_k, stoch_d = calculate_stochastic(high, low, close)
     
+    # 5. ATR (Volatilite)
+    atr = calculate_atr(high, low, close)
+    atr_val = atr.iloc[-1] if not pd.isna(atr.iloc[-1]) else 0
+    atr_percent = (atr_val / current_price) * 100
+    
+    # 6. EMA 20
     ema_20 = close.ewm(span=20, adjust=False).mean()
+    
+    # 7. EMA 50
     ema_50 = close.ewm(span=50, adjust=False).mean()
     
-    # Teknik sinyal skoru
+    # 8. SMA 200
+    sma_200 = close.rolling(window=200).mean() if len(close) >= 200 else close.rolling(window=100).mean()
+    sma_200_val = sma_200.iloc[-1] if not pd.isna(sma_200.iloc[-1]) else ema_50.iloc[-1]
+    
+    # 9. ADX (Trend Gücü)
+    try:
+        plus_dm = high.diff()
+        minus_dm = -low.diff()
+        plus_dm[plus_dm < 0] = 0
+        minus_dm[minus_dm < 0] = 0
+        tr = pd.concat([high - low, abs(high - close.shift()), abs(low - close.shift())], axis=1).max(axis=1)
+        atr_14 = tr.rolling(14).mean()
+        plus_di = 100 * (plus_dm.rolling(14).mean() / atr_14)
+        minus_di = 100 * (minus_dm.rolling(14).mean() / atr_14)
+        dx = 100 * abs(plus_di - minus_di) / (plus_di + minus_di)
+        adx = dx.rolling(14).mean()
+        adx_val = adx.iloc[-1] if not pd.isna(adx.iloc[-1]) else 0
+    except:
+        adx_val = 0
+    
+    # 10. CCI
+    try:
+        typical_price = (high + low + close) / 3
+        sma_tp = typical_price.rolling(20).mean()
+        mean_dev = typical_price.rolling(20).apply(lambda x: np.abs(x - x.mean()).mean())
+        cci = (typical_price - sma_tp) / (0.015 * mean_dev)
+        cci_val = cci.iloc[-1] if not pd.isna(cci.iloc[-1]) else 0
+    except:
+        cci_val = 0
+    
+    # 11. SuperTrend (Basitleştirilmiş)
+    try:
+        atr_st = atr.iloc[-1] if not pd.isna(atr.iloc[-1]) else 0
+        hl2 = (high + low) / 2
+        upper_band = hl2 + (3 * atr)
+        lower_band = hl2 - (3 * atr)
+        supertrend_direction = 1 if current_price > lower_band.iloc[-1] else -1
+    except:
+        supertrend_direction = 0
+    
+    # 12. Destek / Direnç (Pivot)
+    pivot = (high.iloc[-1] + low.iloc[-1] + close.iloc[-1]) / 3
+    r1 = 2 * pivot - low.iloc[-1]
+    s1 = 2 * pivot - high.iloc[-1]
+    r2 = pivot + (high.iloc[-1] - low.iloc[-1])
+    s2 = pivot - (high.iloc[-1] - low.iloc[-1])
+    
+    # Hacim analizi
+    avg_volume = volume.tail(20).mean()
+    current_volume = volume.iloc[-1]
+    volume_ratio = current_volume / avg_volume if avg_volume > 0 else 1
+    
+    # ══════════════════════════════════════════════════════════════════
+    # TEKNİK SİNYAL HESAPLAMA
+    # ══════════════════════════════════════════════════════════════════
+    
     tech_score = 0
     tech_signals = []
     
-    rsi_val = rsi.iloc[-1]
+    # RSI Sinyalleri
     if rsi_val < 30:
         tech_score += 2
-        tech_signals.append("🟢 RSI aşırı satım")
+        tech_signals.append("🟢 RSI aşırı satım (<30)")
+    elif rsi_val < 40:
+        tech_score += 1
+        tech_signals.append("🟢 RSI düşük bölgede")
     elif rsi_val > 70:
         tech_score -= 2
-        tech_signals.append("🔴 RSI aşırı alım")
+        tech_signals.append("🔴 RSI aşırı alım (>70)")
+    elif rsi_val > 60:
+        tech_score -= 1
+        tech_signals.append("🟡 RSI yüksek bölgede")
     
+    # MACD Sinyalleri
     if macd_line.iloc[-1] > signal_line.iloc[-1] and macd_line.iloc[-2] <= signal_line.iloc[-2]:
         tech_score += 2
-        tech_signals.append("🟢 MACD al sinyali")
+        tech_signals.append("🟢 MACD yukarı kesişim (AL)")
     elif macd_line.iloc[-1] < signal_line.iloc[-1] and macd_line.iloc[-2] >= signal_line.iloc[-2]:
         tech_score -= 2
-        tech_signals.append("🔴 MACD sat sinyali")
+        tech_signals.append("🔴 MACD aşağı kesişim (SAT)")
+    elif macd_line.iloc[-1] > signal_line.iloc[-1]:
+        tech_score += 0.5
+        tech_signals.append("🟢 MACD pozitif")
+    else:
+        tech_score -= 0.5
+        tech_signals.append("🔴 MACD negatif")
     
+    # Bollinger Band Sinyalleri
+    if current_price <= bb_lower.iloc[-1]:
+        tech_score += 1.5
+        tech_signals.append("🟢 Fiyat alt BB'de (potansiyel AL)")
+    elif current_price >= bb_upper.iloc[-1]:
+        tech_score -= 1.5
+        tech_signals.append("🔴 Fiyat üst BB'de (potansiyel SAT)")
+    
+    # Stokastik Sinyalleri
+    stoch_k_val = stoch_k.iloc[-1]
+    stoch_d_val = stoch_d.iloc[-1]
+    if stoch_k_val < 20:
+        tech_score += 1
+        tech_signals.append("🟢 Stokastik aşırı satım")
+    elif stoch_k_val > 80:
+        tech_score -= 1
+        tech_signals.append("🔴 Stokastik aşırı alım")
+    
+    # Stokastik kesişim
+    if stoch_k_val > stoch_d_val and stoch_k.iloc[-2] <= stoch_d.iloc[-2]:
+        tech_score += 1
+        tech_signals.append("🟢 Stokastik yukarı kesişim")
+    elif stoch_k_val < stoch_d_val and stoch_k.iloc[-2] >= stoch_d.iloc[-2]:
+        tech_score -= 1
+        tech_signals.append("🔴 Stokastik aşağı kesişim")
+    
+    # EMA Trend Sinyalleri
     if current_price > ema_20.iloc[-1] > ema_50.iloc[-1]:
         tech_score += 1
-        tech_signals.append("🟢 Yükseliş trendi")
+        tech_signals.append("🟢 Güçlü yükseliş trendi (Fiyat>EMA20>EMA50)")
     elif current_price < ema_20.iloc[-1] < ema_50.iloc[-1]:
         tech_score -= 1
-        tech_signals.append("🔴 Düşüş trendi")
+        tech_signals.append("🔴 Güçlü düşüş trendi (Fiyat<EMA20<EMA50)")
     
+    # EMA Kesişimleri
+    if ema_20.iloc[-1] > ema_50.iloc[-1] and ema_20.iloc[-2] <= ema_50.iloc[-2]:
+        tech_score += 2
+        tech_signals.append("🟢 Altın Kesişim (EMA20 > EMA50)")
+    elif ema_20.iloc[-1] < ema_50.iloc[-1] and ema_20.iloc[-2] >= ema_50.iloc[-2]:
+        tech_score -= 2
+        tech_signals.append("🔴 Ölüm Kesişimi (EMA20 < EMA50)")
+    
+    # SMA 200 (Uzun vade trend)
+    if current_price > sma_200_val:
+        tech_score += 0.5
+        tech_signals.append("🟢 Fiyat SMA200 üzerinde (uzun vade yükseliş)")
+    else:
+        tech_score -= 0.5
+        tech_signals.append("🔴 Fiyat SMA200 altında (uzun vade düşüş)")
+    
+    # ADX (Trend Gücü)
+    if adx_val > 25:
+        if current_price > ema_20.iloc[-1]:
+            tech_signals.append(f"📊 Güçlü YÜKSELİŞ trendi (ADX: {adx_val:.0f})")
+        else:
+            tech_signals.append(f"📊 Güçlü DÜŞÜŞ trendi (ADX: {adx_val:.0f})")
+    elif adx_val > 0:
+        tech_signals.append(f"📊 Zayıf trend (ADX: {adx_val:.0f})")
+    
+    # CCI Sinyalleri
+    if cci_val < -100:
+        tech_score += 1
+        tech_signals.append("🟢 CCI aşırı satım")
+    elif cci_val > 100:
+        tech_score -= 1
+        tech_signals.append("🔴 CCI aşırı alım")
+    
+    # SuperTrend
+    if supertrend_direction == 1:
+        tech_score += 0.5
+        tech_signals.append("🟢 SuperTrend yükseliş")
+    elif supertrend_direction == -1:
+        tech_score -= 0.5
+        tech_signals.append("🔴 SuperTrend düşüş")
+    
+    # Hacim Sinyali
+    if volume_ratio > 2:
+        tech_signals.append(f"📈 Çok yüksek hacim ({volume_ratio:.1f}x)")
+    elif volume_ratio > 1.5:
+        tech_signals.append(f"📈 Yüksek hacim ({volume_ratio:.1f}x)")
+    elif volume_ratio < 0.5:
+        tech_signals.append(f"📉 Düşük hacim ({volume_ratio:.1f}x)")
+    
+    # Destek/Direnç Mesafesi
+    dist_to_support = ((current_price - s1) / current_price) * 100
+    dist_to_resistance = ((r1 - current_price) / current_price) * 100
+    
+    if dist_to_support < 2:
+        tech_signals.append(f"📍 Desteğe yakın (S1: {s1:.2f})")
+    if dist_to_resistance < 2:
+        tech_signals.append(f"📍 Dirence yakın (R1: {r1:.2f})")
+    
+    # Genel teknik sinyal
+    if tech_score >= 4:
+        overall_tech = "🟢 GÜÇLÜ AL"
+    elif tech_score >= 2:
+        overall_tech = "🟢 AL"
+    elif tech_score <= -4:
+        overall_tech = "🔴 GÜÇLÜ SAT"
+    elif tech_score <= -2:
+        overall_tech = "🔴 SAT"
+    else:
+        overall_tech = "🟡 TUT"
+    
+    # ══════════════════════════════════════════════════════════════════
     # TEMEL ANALİZ
+    # ══════════════════════════════════════════════════════════════════
+    
     sector = get_stock_sector(symbol)
     
     profitability = calculate_profitability_ratios(financials)
@@ -1006,17 +1193,33 @@ def comprehensive_stock_analysis(symbol: str) -> Optional[Dict]:
         'current_price': round(current_price, 2),
         'daily_change': round(daily_change, 2),
         
-        # Teknik
+        # Teknik (12 Gösterge)
         'technical': {
             'rsi': round(rsi_val, 1),
             'macd': round(macd_line.iloc[-1], 4),
             'macd_signal': round(signal_line.iloc[-1], 4),
-            'stoch_k': round(stoch_k.iloc[-1], 1),
+            'macd_hist': round(macd_hist.iloc[-1], 4),
+            'stoch_k': round(stoch_k_val, 1),
+            'stoch_d': round(stoch_d_val, 1),
             'ema_20': round(ema_20.iloc[-1], 2),
             'ema_50': round(ema_50.iloc[-1], 2),
+            'sma_200': round(sma_200_val, 2),
             'bb_upper': round(bb_upper.iloc[-1], 2),
+            'bb_middle': round(bb_middle.iloc[-1], 2),
             'bb_lower': round(bb_lower.iloc[-1], 2),
-            'score': tech_score,
+            'atr': round(atr_val, 2),
+            'atr_percent': round(atr_percent, 2),
+            'adx': round(adx_val, 1),
+            'cci': round(cci_val, 1),
+            'supertrend': supertrend_direction,
+            'pivot': round(pivot, 2),
+            'r1': round(r1, 2),
+            'r2': round(r2, 2),
+            's1': round(s1, 2),
+            's2': round(s2, 2),
+            'volume_ratio': round(volume_ratio, 2),
+            'score': round(tech_score, 1),
+            'overall_signal': overall_tech,
             'signals': tech_signals
         },
         
@@ -1138,7 +1341,7 @@ def generate_comprehensive_report(stock_count: int = 20) -> str:
     
     today = datetime.now()
     report.append("═" * 55)
-    report.append("📈 BIST 100 KAPSAMLI ANALİZ RAPORU v2.0")
+    report.append("📈 BIST 100 KAPSAMLI ANALİZ RAPORU v2.1")
     report.append(f"📅 {today.strftime('%d %B %Y, %A')}")
     report.append("═" * 55)
     report.append("")
@@ -1155,6 +1358,86 @@ def generate_comprehensive_report(stock_count: int = 20) -> str:
         report.append("❌ Veri alınamadı")
         return '\n'.join(report)
     
+    # ══════════════════════════════════════════════════════════════════
+    # TEKNİK ANALİZ BÖLÜMÜ
+    # ══════════════════════════════════════════════════════════════════
+    
+    # Teknik skora göre sırala
+    tech_sorted = sorted(all_analyses, key=lambda x: x['technical']['score'], reverse=True)
+    
+    # GÜÇLÜ AL SİNYALLERİ (Teknik)
+    strong_buy_tech = [a for a in tech_sorted if a['technical']['score'] >= 3]
+    buy_tech = [a for a in tech_sorted if 1 <= a['technical']['score'] < 3]
+    sell_tech = [a for a in tech_sorted if a['technical']['score'] <= -2]
+    
+    if strong_buy_tech:
+        report.append("━" * 55)
+        report.append("📊 TEKNİK ANALİZ - GÜÇLÜ AL SİNYALLERİ")
+        report.append("━" * 55)
+        
+        for stock in strong_buy_tech[:5]:
+            t = stock['technical']
+            report.append(f"\n🟢 {stock['symbol']} - {stock['current_price']:.2f} TL (%{stock['daily_change']:.1f})")
+            report.append(f"   📊 RSI: {t['rsi']:.0f} | Stok: {t['stoch_k']:.0f}")
+            report.append(f"   📈 MACD: {'↑ Yukarı' if t['macd'] > t['macd_signal'] else '↓ Aşağı'}")
+            report.append(f"   📍 EMA20: {t['ema_20']:.2f} | EMA50: {t['ema_50']:.2f}")
+            report.append(f"   🎯 BB: {t['bb_lower']:.2f} - {t['bb_upper']:.2f}")
+            for sig in t['signals'][:3]:
+                report.append(f"   {sig}")
+        report.append("")
+    
+    if buy_tech:
+        report.append("━" * 55)
+        report.append("📊 TEKNİK ANALİZ - AL SİNYALLERİ")
+        report.append("━" * 55)
+        
+        for stock in buy_tech[:5]:
+            t = stock['technical']
+            report.append(f"\n🟢 {stock['symbol']} - {stock['current_price']:.2f} TL")
+            report.append(f"   📊 RSI: {t['rsi']:.0f} | MACD: {'↑' if t['macd'] > t['macd_signal'] else '↓'} | Skor: {t['score']}")
+            for sig in t['signals'][:2]:
+                report.append(f"   {sig}")
+        report.append("")
+    
+    if sell_tech:
+        report.append("━" * 55)
+        report.append("📊 TEKNİK ANALİZ - SAT SİNYALLERİ")
+        report.append("━" * 55)
+        
+        for stock in sell_tech[:5]:
+            t = stock['technical']
+            report.append(f"\n🔴 {stock['symbol']} - {stock['current_price']:.2f} TL")
+            report.append(f"   📊 RSI: {t['rsi']:.0f} | MACD: {'↑' if t['macd'] > t['macd_signal'] else '↓'} | Skor: {t['score']}")
+            for sig in t['signals'][:2]:
+                report.append(f"   {sig}")
+        report.append("")
+    
+    # AŞIRI ALIM/SATIM
+    oversold = [a for a in all_analyses if a['technical']['rsi'] < 30]
+    overbought = [a for a in all_analyses if a['technical']['rsi'] > 70]
+    
+    if oversold:
+        report.append("━" * 55)
+        report.append("📉 AŞIRI SATIM BÖLGESİ (RSI < 30)")
+        report.append("━" * 55)
+        for stock in oversold[:5]:
+            t = stock['technical']
+            report.append(f"• {stock['symbol']}: RSI {t['rsi']:.0f} | Stok {t['stoch_k']:.0f} - Potansiyel dip!")
+        report.append("")
+    
+    if overbought:
+        report.append("━" * 55)
+        report.append("📈 AŞIRI ALIM BÖLGESİ (RSI > 70)")
+        report.append("━" * 55)
+        for stock in overbought[:5]:
+            t = stock['technical']
+            report.append(f"• {stock['symbol']}: RSI {t['rsi']:.0f} | Stok {t['stoch_k']:.0f} - Dikkat!")
+        report.append("")
+    
+    # ══════════════════════════════════════════════════════════════════
+    # TEMEL ANALİZ BÖLÜMÜ
+    # ══════════════════════════════════════════════════════════════════
+    
     # Sağlık skoruna göre sırala
     all_analyses.sort(key=lambda x: x['health']['percentage'], reverse=True)
     
@@ -1162,13 +1445,14 @@ def generate_comprehensive_report(stock_count: int = 20) -> str:
     healthy = [a for a in all_analyses if a['health']['grade'] in ['A', 'B']]
     if healthy:
         report.append("━" * 55)
-        report.append("🏆 EN SAĞLIKLI ŞİRKETLER (A-B Notu)")
+        report.append("🏆 TEMEL ANALİZ - EN SAĞLIKLI ŞİRKETLER (A-B)")
         report.append("━" * 55)
         
         for stock in healthy[:5]:
             h = stock['health']
             v = stock['valuation_eval']
             f = stock['fundamental']
+            t = stock['technical']
             
             report.append(f"\n💎 {stock['symbol']} - {stock['current_price']:.2f} TL")
             report.append(f"   📊 Sağlık: {h['grade']} ({h['percentage']:.0f}/100) {h['health_status']}")
@@ -1181,6 +1465,10 @@ def generate_comprehensive_report(stock_count: int = 20) -> str:
                 report.append(f"   📈 ROE: %{prof['roe']:.1f} | Kar Marjı: %{prof.get('net_profit_margin', 0):.1f}")
             if lev.get('debt_to_equity'):
                 report.append(f"   📉 Borç/Özkaynak: {lev['debt_to_equity']:.2f}")
+            
+            # Teknik durum
+            tech_status = "🟢 AL" if t['score'] >= 1 else ("🔴 SAT" if t['score'] <= -1 else "🟡 TUT")
+            report.append(f"   🔧 Teknik: {tech_status} | RSI: {t['rsi']:.0f}")
             
             # Trend
             trends = f['income_trend'].get('analysis', [])
@@ -1270,6 +1558,96 @@ def generate_comprehensive_report(stock_count: int = 20) -> str:
                 report.append(f"   {t}")
         report.append("")
     
+    # ══════════════════════════════════════════════════════════════════
+    # KOMBİNASYON ANALİZİ (Teknik + Temel birlikte güçlü)
+    # ══════════════════════════════════════════════════════════════════
+    
+    # Hem teknik hem temel olarak güçlü hisseler
+    combo_strong = [a for a in all_analyses 
+                   if a['technical']['score'] >= 2 
+                   and a['health']['grade'] in ['A', 'B', 'C']
+                   and a['valuation_eval']['score'] >= 0]
+    
+    if combo_strong:
+        report.append("━" * 55)
+        report.append("⭐ KOMBİNASYON ANALİZİ - EN İYİ FIRSATLAR")
+        report.append("(Teknik AL + Sağlıklı Bilanço + Makul Fiyat)")
+        report.append("━" * 55)
+        
+        # Kombine skora göre sırala
+        combo_strong.sort(key=lambda x: x['technical']['score'] + (x['health']['percentage']/20) + x['valuation_eval']['score'], reverse=True)
+        
+        for stock in combo_strong[:5]:
+            t = stock['technical']
+            h = stock['health']
+            v = stock['valuation_eval']
+            f = stock['fundamental']
+            
+            report.append(f"\n⭐ {stock['symbol']} - {stock['current_price']:.2f} TL")
+            report.append(f"   🔧 Teknik: {t['overall_signal']} (Skor: {t['score']:.1f})")
+            report.append(f"   📊 Temel: {h['grade']} ({h['percentage']:.0f}/100)")
+            report.append(f"   💰 Değerleme: {v['verdict']}")
+            
+            # En önemli sinyaller
+            report.append(f"   📈 RSI: {t['rsi']:.0f} | ADX: {t['adx']:.0f} | ROE: %{f['profitability'].get('roe', 0):.1f}")
+            
+            # Destek/Direnç
+            report.append(f"   📍 Destek: {t['s1']:.2f} | Direnç: {t['r1']:.2f}")
+        report.append("")
+    
+    # Teknik + Temel uyumsuz (dikkat edilmesi gereken)
+    divergence = [a for a in all_analyses 
+                  if (a['technical']['score'] >= 2 and a['health']['grade'] in ['D', 'F'])
+                  or (a['technical']['score'] <= -2 and a['health']['grade'] in ['A', 'B'])]
+    
+    if divergence:
+        report.append("━" * 55)
+        report.append("⚠️ TEKNİK-TEMEL UYUMSUZLUĞU")
+        report.append("━" * 55)
+        
+        for stock in divergence[:3]:
+            t = stock['technical']
+            h = stock['health']
+            
+            if t['score'] >= 2 and h['grade'] in ['D', 'F']:
+                report.append(f"• {stock['symbol']}: Teknik AL ama bilanço zayıf ({h['grade']}) - DİKKAT!")
+            else:
+                report.append(f"• {stock['symbol']}: Teknik SAT ama bilanço güçlü ({h['grade']}) - Fırsat olabilir?")
+        report.append("")
+    
+    # ══════════════════════════════════════════════════════════════════
+    # TEKNİK ÖZET TABLOSU
+    # ══════════════════════════════════════════════════════════════════
+    
+    report.append("━" * 55)
+    report.append("📊 TEKNİK GÖSTERGE ÖZETİ")
+    report.append("━" * 55)
+    
+    # İstatistikler
+    rsi_oversold = len([a for a in all_analyses if a['technical']['rsi'] < 30])
+    rsi_overbought = len([a for a in all_analyses if a['technical']['rsi'] > 70])
+    macd_bullish = len([a for a in all_analyses if a['technical']['macd'] > a['technical']['macd_signal']])
+    macd_bearish = len(all_analyses) - macd_bullish
+    above_ema20 = len([a for a in all_analyses if a['current_price'] > a['technical']['ema_20']])
+    strong_trend = len([a for a in all_analyses if a['technical']['adx'] > 25])
+    
+    report.append(f"• RSI: {rsi_oversold} aşırı satım | {rsi_overbought} aşırı alım")
+    report.append(f"• MACD: {macd_bullish} yükseliş | {macd_bearish} düşüş")
+    report.append(f"• EMA20 Üzeri: {above_ema20}/{len(all_analyses)} hisse")
+    report.append(f"• Güçlü Trend (ADX>25): {strong_trend} hisse")
+    
+    # Genel piyasa sentiment
+    avg_tech_score = sum([a['technical']['score'] for a in all_analyses]) / len(all_analyses)
+    if avg_tech_score > 1:
+        market_sentiment = "🟢 YÜKSELIŞ EĞİLİMİ"
+    elif avg_tech_score < -1:
+        market_sentiment = "🔴 DÜŞÜŞ EĞİLİMİ"
+    else:
+        market_sentiment = "🟡 YATAY/KARARSIZ"
+    
+    report.append(f"• Genel Piyasa: {market_sentiment} (Ort. Skor: {avg_tech_score:.1f})")
+    report.append("")
+    
     # AI ANALİZİ (En sağlıklı için)
     if healthy and GEMINI_KEY:
         print("🤖 AI analizi oluşturuluyor...")
@@ -1290,15 +1668,17 @@ def generate_comprehensive_report(stock_count: int = 20) -> str:
     for a in all_analyses:
         sector = a['sector']
         if sector not in sector_summary:
-            sector_summary[sector] = {'count': 0, 'avg_health': 0, 'cheap': 0}
+            sector_summary[sector] = {'count': 0, 'avg_health': 0, 'cheap': 0, 'tech_buy': 0}
         sector_summary[sector]['count'] += 1
         sector_summary[sector]['avg_health'] += a['health']['percentage']
         if a['valuation_eval']['score'] >= 1:
             sector_summary[sector]['cheap'] += 1
+        if a['technical']['score'] >= 1:
+            sector_summary[sector]['tech_buy'] += 1
     
     for sector, data in sector_summary.items():
         avg = data['avg_health'] / data['count']
-        report.append(f"• {sector}: Ort. Sağlık %{avg:.0f} | Ucuz: {data['cheap']}/{data['count']}")
+        report.append(f"• {sector}: Sağlık %{avg:.0f} | Ucuz: {data['cheap']}/{data['count']} | Teknik AL: {data['tech_buy']}/{data['count']}")
     report.append("")
     
     # UYARI
@@ -1348,7 +1728,8 @@ def send_telegram_message(message: str) -> bool:
 
 def main():
     print("=" * 55)
-    print("📈 BIST 100 KAPSAMLI ANALİZ BOTU v2.0")
+    print("📈 BIST 100 KAPSAMLI ANALİZ BOTU v2.1")
+    print("   Teknik (12 Gösterge) + Temel Analiz")
     print("=" * 55)
     print()
     
