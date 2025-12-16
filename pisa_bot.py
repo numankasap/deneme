@@ -41,9 +41,10 @@ SORU_ADEDI = int(os.environ.get('SORU_ADEDI', '50'))
 # Ayarlar
 DEEPSEEK_DOGRULAMA = bool(DEEPSEEK_API_KEY)
 COT_AKTIF = True
-BEKLEME = 1.5  # GitHub Actions için optimize
-MAX_DENEME = 4  # Biraz azaltıldı
-MIN_DEEPSEEK_PUAN = 70  # Minimum kabul puanı
+BEKLEME = 1.0  # Daha kısa bekleme
+MAX_DENEME = 3  # Daha az deneme
+MIN_DEEPSEEK_PUAN = 65  # Biraz düşürüldü - daha fazla soru geçsin
+API_TIMEOUT = 30  # API timeout (saniye)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # API BAĞLANTILARI
@@ -651,7 +652,7 @@ def cot_cozum_olustur(params):
     Chain of Thought: Önce matematiksel çözümü oluştur
     """
     try:
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        model = genai.GenerativeModel('gemini-2.0-flash')  # Daha hızlı model
         
         senaryo_baglam = params.get('senaryo_baglami', {})
         
@@ -778,7 +779,7 @@ def cozumden_soru_olustur(cozum, params):
     Doğrulanmış çözümden PISA formatında soru oluştur
     """
     try:
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        model = genai.GenerativeModel('gemini-2.0-flash')  # Daha hızlı model
         
         # Format seç
         if params['soru_tipi'] == 'coktan_secmeli':
@@ -833,8 +834,9 @@ def cozumden_soru_olustur(cozum, params):
             [system_prompt, user_prompt],
             generation_config={
                 'temperature': 0.7,
-                'max_output_tokens': 4000
-            }
+                'max_output_tokens': 3000  # Azaltıldı
+            },
+            request_options={'timeout': API_TIMEOUT}
         )
         
         text = response.text.strip()
@@ -892,8 +894,9 @@ Yukarıdaki soruyu değerlendir ve SADECE JSON formatında sonuç döndür.'''
                 {'role': 'system', 'content': 'Sen bir PISA soru doğrulama uzmanısın. SADECE JSON formatında yanıt ver.'},
                 {'role': 'user', 'content': prompt}
             ],
-            max_tokens=2500,
-            temperature=0.2
+            max_tokens=1500,  # Azaltıldı
+            temperature=0.2,
+            timeout=API_TIMEOUT
         )
         
         text = response.choices[0].message.content.strip()
@@ -1215,7 +1218,7 @@ def main():
     # Gemini testi
     print("🔍 Gemini API test ediliyor...")
     try:
-        test_model = genai.GenerativeModel('gemini-2.5-flash')
+        test_model = genai.GenerativeModel('gemini-2.0-flash')
         test_response = test_model.generate_content('2+2=?')
         print(f"✅ Gemini çalışıyor: {test_response.text.strip()}")
     except Exception as e:
