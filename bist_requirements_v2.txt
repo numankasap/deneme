@@ -1,0 +1,16 @@
+# BIST 100 Kapsamlı Analiz Botu v2.0 Gereksinimleri
+
+# Veri çekme ve analiz
+yfinance>=0.2.28
+pandas>=2.0.0
+numpy>=1.24.0
+
+# AI
+google-genai>=1.0.0
+
+# HTTP & Web
+requests>=2.31.0
+feedparser>=6.0.10
+
+# Telegram
+python-telegram-bot>=20.0
