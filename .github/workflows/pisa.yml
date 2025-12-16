@@ -3,7 +3,10 @@ name: PISA Soru Uretici Bot V2
 on:
   schedule:
     - cron: '0 3 * * *'   # 06:00 TR
+     - cron: '0 9 * * *'   # 12:00 TR
     - cron: '0 15 * * *'  # 18:00 TR
+     - cron: '0 21 * * *'   # 00:00 TR
+      - cron: '0 1 * * *'   # 04:00 TR
   workflow_dispatch:
     inputs:
       soru_adedi:
