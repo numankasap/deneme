@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-📚 EĞİTİM GÜNDEM TAKİP BOTU v1.0
-================================
+📚 EĞİTİM GÜNDEM TAKİP BOTU v2.0 - GLOBAL EDİTION
+=================================================
 LGS/YKS Öğrenci ve Öğretmenler için Günlük Haber & Gündem Botu
 
 Özellikler:
@@ -9,8 +9,22 @@ LGS/YKS Öğrenci ve Öğretmenler için Günlük Haber & Gündem Botu
 - LGS/YKS sınav takvimi ve geri sayım
 - Eğitim gündemi (Türkiye)
 - Matematik alanındaki gelişmeler
-- Yapay zeka ve eğitim haberleri (Dünya)
-- Öğrenci gündemi (trending konular)
+
+🌍 GLOBAL HABERLER (v2.0):
+- 🇨🇳 Çin: AI eğitim devrimi, DeepSeek, dijital sınıflar
+- 🇯🇵 Japonya: Robotik eğitim, STEM inovasyonu
+- 🇰🇷 Güney Kore: AI müfredat, EdTech yatırımları
+- 🇫🇮 Finlandiya: Eğitim reformları, öğretmen eğitimi
+- 🇸🇬 Singapur: Smart Nation, kişiselleştirilmiş öğrenme
+- 🇷🇺 Rusya: Matematik olimpiyatları, bilim eğitimi
+- 🇮🇱 İsrail: Startup eğitimi, teknoloji entegrasyonu
+- 🇮🇳 Hindistan: EdTech unicorn'ları, dijital dönüşüm
+- 🇪🇪 Estonya: Dijital vatandaşlık, kodlama eğitimi
+
+📄 BİLİMSEL MAKALELER:
+- arXiv: AI, Makine Öğrenmesi, Eğitim Teknolojisi
+- ERIC: Eğitim araştırmaları
+- Google Scholar: Güncel akademik çalışmalar
 
 Geliştirici: Numan Hoca için Claude tarafından oluşturuldu
 Tarih: Aralık 2024
@@ -433,7 +447,360 @@ def get_ai_education_news() -> List[Dict]:
     return news[:12]
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ÖĞRENCİ GÜNDEMİ (TRENDING KONULAR)
+# 🌍 GLOBAL EĞİTİM HABERLERİ - ÜLKE BAZLI
+# ══════════════════════════════════════════════════════════════════════════════
+
+def get_global_education_news() -> Dict[str, List[Dict]]:
+    """
+    Dünya genelinde eğitim, AI ve matematik alanında öncü ülkelerden haberler
+    Her ülke için özel kaynaklar ve anahtar kelimeler
+    """
+    
+    # Ülke bazlı haber kaynakları
+    country_sources = {
+        # 🇨🇳 ÇİN - AI ve EdTech Devrimi
+        'china': {
+            'flag': '🇨🇳',
+            'name': 'Çin',
+            'focus': 'AI Eğitim Devrimi',
+            'sources': [
+                ('https://news.cgtn.com/rss/education.xml', 'CGTN Education'),
+                ('https://www.globaltimes.cn/rss/outbrain.xml', 'Global Times'),
+                ('https://www.sixthtone.com/rss/news', 'Sixth Tone'),
+            ],
+            'keywords': ['china education', 'chinese school', 'gaokao', 'deepseek', 
+                        'chinese ai', 'beijing education', 'shanghai school',
+                        'smart classroom china', 'ai pilot school', 'chinese student',
+                        'ministry of education china', 'tsinghua', 'peking university'],
+            'priority_keywords': ['deepseek', 'chinese ai education', 'gaokao reform',
+                                 'ai classroom china', 'smart education china']
+        },
+        
+        # 🇯🇵 JAPONYA - Robotik ve STEM
+        'japan': {
+            'flag': '🇯🇵',
+            'name': 'Japonya',
+            'focus': 'Robotik & STEM İnovasyonu',
+            'sources': [
+                ('https://www.japantimes.co.jp/feed/', 'Japan Times'),
+                ('https://japantoday.com/feed', 'Japan Today'),
+                ('https://english.kyodonews.net/rss/all.xml', 'Kyodo News'),
+            ],
+            'keywords': ['japan education', 'japanese school', 'juku', 'robotics education',
+                        'stem japan', 'tokyo university', 'japanese student',
+                        'programming education japan', 'ai japan', 'digital textbook japan'],
+            'priority_keywords': ['japan ai education', 'robotics school japan', 
+                                 'japanese stem', 'mext education']
+        },
+        
+        # 🇰🇷 GÜNEY KORE - AI Müfredat & EdTech
+        'korea': {
+            'flag': '🇰🇷',
+            'name': 'Güney Kore',
+            'focus': 'AI Müfredat & EdTech',
+            'sources': [
+                ('https://koreajoongangdaily.joins.com/section/rss/education', 'Korea JoongAng'),
+                ('https://en.yna.co.kr/RSS/news.xml', 'Yonhap News'),
+                ('https://www.koreaherald.com/rss/023.xml', 'Korea Herald'),
+            ],
+            'keywords': ['korea education', 'korean school', 'suneung', 'csat korea',
+                        'korean ai', 'seoul education', 'hagwon', 'korean student',
+                        'digital textbook korea', 'ai tutor korea', 'edtech korea'],
+            'priority_keywords': ['korea ai curriculum', 'korean ai education',
+                                 'keris education', 'korean digital textbook']
+        },
+        
+        # 🇫🇮 FİNLANDİYA - Eğitim Reformu
+        'finland': {
+            'flag': '🇫🇮',
+            'name': 'Finlandiya',
+            'focus': 'Eğitim Reformu & Öğretmen Eğitimi',
+            'sources': [
+                ('https://www.helsinkitimes.fi/feed.rss', 'Helsinki Times'),
+                ('https://yle.fi/rss/uutiset.rss', 'YLE News'),
+            ],
+            'keywords': ['finland education', 'finnish school', 'pisa finland',
+                        'teacher training finland', 'helsinki university',
+                        'finnish student', 'no homework finland', 'play-based learning'],
+            'priority_keywords': ['finnish education reform', 'pisa results finland',
+                                 'teacher education finland']
+        },
+        
+        # 🇸🇬 SİNGAPUR - Smart Nation & Kişiselleştirilmiş Öğrenme
+        'singapore': {
+            'flag': '🇸🇬',
+            'name': 'Singapur',
+            'focus': 'Smart Nation & Kişiselleştirilmiş Öğrenme',
+            'sources': [
+                ('https://www.straitstimes.com/rss/singapore', 'Straits Times'),
+                ('https://www.channelnewsasia.com/rss/latest_news.xml', 'CNA'),
+            ],
+            'keywords': ['singapore education', 'singapore school', 'moe singapore',
+                        'smart nation', 'singapore ai', 'nus', 'ntu',
+                        'adaptive learning singapore', 'psle', 'o level singapore'],
+            'priority_keywords': ['singapore ai education', 'smart nation education',
+                                 'singapore digital learning', 'nie singapore']
+        },
+        
+        # 🇷🇺 RUSYA - Matematik & Bilim Olimpiyatları  
+        'russia': {
+            'flag': '🇷🇺',
+            'name': 'Rusya',
+            'focus': 'Matematik Olimpiyatları & Bilim Eğitimi',
+            'sources': [
+                ('https://tass.com/rss/v2.xml', 'TASS'),
+                ('https://sputnikglobe.com/export/rss2/archive/index.xml', 'Sputnik'),
+            ],
+            'keywords': ['russia education', 'russian school', 'math olympiad russia',
+                        'russian mathematics', 'moscow university', 'msu',
+                        'unified state exam', 'ege russia', 'russian science'],
+            'priority_keywords': ['russian math olympiad', 'imo russia',
+                                 'russian mathematics education']
+        },
+        
+        # 🇮🇱 İSRAİL - Startup & Teknoloji Eğitimi
+        'israel': {
+            'flag': '🇮🇱',
+            'name': 'İsrail',
+            'focus': 'Startup Ekosistemi & Teknoloji Eğitimi',
+            'sources': [
+                ('https://www.timesofisrael.com/feed/', 'Times of Israel'),
+                ('https://www.jpost.com/rss/rssfeedseducation.aspx', 'Jerusalem Post'),
+            ],
+            'keywords': ['israel education', 'israeli school', 'technion',
+                        'hebrew university', 'startup nation education',
+                        'israeli tech', 'coding education israel', 'cyber education'],
+            'priority_keywords': ['israel tech education', 'israeli startup education',
+                                 'cybersecurity education israel']
+        },
+        
+        # 🇮🇳 HİNDİSTAN - EdTech Unicorn'ları
+        'india': {
+            'flag': '🇮🇳',
+            'name': 'Hindistan',
+            'focus': 'EdTech Unicorn & Dijital Dönüşüm',
+            'sources': [
+                ('https://indianexpress.com/section/education/feed/', 'Indian Express'),
+                ('https://timesofindia.indiatimes.com/rssfeeds/913168846.cms', 'Times of India'),
+            ],
+            'keywords': ['india education', 'indian school', 'iit', 'neet',
+                        'jee exam', 'byju', 'unacademy', 'vedantu',
+                        'indian edtech', 'digital india education', 'nep 2020'],
+            'priority_keywords': ['india edtech', 'indian ai education',
+                                 'nep education', 'digital classroom india']
+        },
+        
+        # 🇪🇪 ESTONYA - Dijital Vatandaşlık & Kodlama
+        'estonia': {
+            'flag': '🇪🇪',
+            'name': 'Estonya',
+            'focus': 'Dijital Vatandaşlık & Kodlama Eğitimi',
+            'sources': [
+                ('https://news.err.ee/rss', 'ERR News'),
+            ],
+            'keywords': ['estonia education', 'estonian school', 'e-estonia',
+                        'digital citizenship', 'progettiger', 'coding education estonia',
+                        'tartu university', 'tallinn tech'],
+            'priority_keywords': ['estonia digital education', 'e-estonia education',
+                                 'progettiger coding']
+        },
+    }
+    
+    global_news = {}
+    
+    # Genel haber kaynakları (ülke bazlı filtreleme için)
+    general_sources = [
+        ('https://www.weforum.org/agenda/feed', 'World Economic Forum'),
+        ('https://www.brookings.edu/feed/', 'Brookings'),
+        ('https://www.rand.org/pubs/rss.xml', 'RAND'),
+        ('https://internationalednews.com/feed/', 'International Ed News'),
+    ]
+    
+    for country_code, config in country_sources.items():
+        country_news = []
+        
+        # Ülke spesifik kaynakları tara
+        for rss_url, source_name in config['sources']:
+            try:
+                feed = feedparser.parse(rss_url)
+                for entry in feed.entries[:8]:
+                    title = entry.get('title', '')
+                    summary = entry.get('summary', '')[:400] if entry.get('summary') else ''
+                    link = entry.get('link', '')
+                    
+                    # Eğitim ile ilgili mi kontrol et
+                    text = (title + ' ' + summary).lower()
+                    
+                    # Ülke anahtar kelimelerini kontrol et
+                    is_relevant = any(kw in text for kw in config['keywords'])
+                    is_priority = any(kw in text for kw in config['priority_keywords'])
+                    
+                    # Genel eğitim kelimeleri
+                    education_keywords = ['education', 'school', 'student', 'teacher',
+                                         'university', 'learning', 'curriculum', 'exam',
+                                         'ai', 'digital', 'stem', 'math', 'science']
+                    is_education = any(kw in text for kw in education_keywords)
+                    
+                    if is_relevant or (is_education and config['name'].lower() in text):
+                        country_news.append({
+                            'title': title[:150],
+                            'summary': summary[:200],
+                            'source': source_name,
+                            'link': link,
+                            'country': config['name'],
+                            'flag': config['flag'],
+                            'focus': config['focus'],
+                            'is_priority': is_priority,
+                            'needs_translation': True
+                        })
+            except Exception as e:
+                print(f"Global RSS hatası ({source_name}): {e}")
+                continue
+        
+        # Genel kaynaklardan da bu ülkeye ait haberleri çek
+        for rss_url, source_name in general_sources:
+            try:
+                feed = feedparser.parse(rss_url)
+                for entry in feed.entries[:5]:
+                    title = entry.get('title', '')
+                    summary = entry.get('summary', '')[:400] if entry.get('summary') else ''
+                    link = entry.get('link', '')
+                    
+                    text = (title + ' ' + summary).lower()
+                    
+                    # Bu ülkeyle ilgili mi?
+                    country_mentioned = any(kw in text for kw in config['keywords'][:5])
+                    
+                    if country_mentioned:
+                        country_news.append({
+                            'title': title[:150],
+                            'summary': summary[:200],
+                            'source': source_name,
+                            'link': link,
+                            'country': config['name'],
+                            'flag': config['flag'],
+                            'focus': config['focus'],
+                            'is_priority': False,
+                            'needs_translation': True
+                        })
+            except:
+                continue
+        
+        # Öncelikli haberleri öne al ve en fazla 3 haber tut
+        country_news = sorted(country_news, key=lambda x: x.get('is_priority', False), reverse=True)
+        global_news[country_code] = country_news[:3]
+    
+    return global_news
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 📄 BİLİMSEL MAKALELER - arXiv & Akademik Kaynaklar
+# ══════════════════════════════════════════════════════════════════════════════
+
+def get_arxiv_papers() -> List[Dict]:
+    """
+    arXiv'den AI, Makine Öğrenmesi ve Eğitim Teknolojisi makaleleri
+    """
+    papers = []
+    
+    # arXiv kategorileri ve RSS URL'leri
+    arxiv_categories = [
+        ('http://export.arxiv.org/rss/cs.AI', 'cs.AI', 'Yapay Zeka'),
+        ('http://export.arxiv.org/rss/cs.CL', 'cs.CL', 'Doğal Dil İşleme'),
+        ('http://export.arxiv.org/rss/cs.LG', 'cs.LG', 'Makine Öğrenmesi'),
+        ('http://export.arxiv.org/rss/cs.CY', 'cs.CY', 'Bilgisayar ve Toplum'),
+        ('http://export.arxiv.org/rss/stat.ML', 'stat.ML', 'İstatistiksel ML'),
+    ]
+    
+    # Eğitim ile ilgili anahtar kelimeler
+    education_keywords = [
+        'education', 'learning', 'student', 'teacher', 'classroom',
+        'tutoring', 'assessment', 'curriculum', 'pedagogy', 'school',
+        'adaptive learning', 'intelligent tutoring', 'educational',
+        'e-learning', 'mooc', 'personalized learning'
+    ]
+    
+    for rss_url, category, category_name in arxiv_categories:
+        try:
+            feed = feedparser.parse(rss_url)
+            
+            for entry in feed.entries[:10]:
+                title = entry.get('title', '').replace('\n', ' ')
+                summary = entry.get('summary', '')[:500] if entry.get('summary') else ''
+                link = entry.get('link', '')
+                authors = ', '.join([a.get('name', '') for a in entry.get('authors', [])[:3]])[:100]
+                
+                # Eğitim ile ilgili mi kontrol et
+                text = (title + ' ' + summary).lower()
+                is_education_related = any(kw in text for kw in education_keywords)
+                
+                papers.append({
+                    'title': title[:200],
+                    'summary': summary[:300],
+                    'authors': authors,
+                    'link': link,
+                    'category': category_name,
+                    'arxiv_cat': category,
+                    'is_education_related': is_education_related,
+                    'source': 'arXiv',
+                    'needs_translation': True
+                })
+        except Exception as e:
+            print(f"arXiv hatası ({category}): {e}")
+            continue
+    
+    # Eğitim ile ilgili olanları öne al
+    papers = sorted(papers, key=lambda x: x.get('is_education_related', False), reverse=True)
+    
+    return papers[:10]
+
+def get_research_papers() -> List[Dict]:
+    """
+    Akademik araştırma makaleleri - çeşitli kaynaklardan
+    """
+    papers = []
+    
+    # Akademik kaynaklar
+    sources = [
+        # Nature Education
+        ('http://feeds.nature.com/srep/rss/current', 'Nature Scientific Reports'),
+        # Science
+        ('https://www.science.org/rss/news_current.xml', 'Science News'),
+        # PLOS ONE Education
+        ('https://journals.plos.org/plosone/feed/atom', 'PLOS ONE'),
+        # Frontiers in Education
+        ('https://www.frontiersin.org/journals/education/rss', 'Frontiers in Education'),
+    ]
+    
+    education_keywords = [
+        'education', 'learning', 'student', 'teacher', 'school',
+        'cognitive', 'pedagogy', 'instruction', 'assessment',
+        'mathematics', 'stem', 'science education', 'ai', 'technology'
+    ]
+    
+    for rss_url, source_name in sources:
+        try:
+            feed = feedparser.parse(rss_url)
+            for entry in feed.entries[:8]:
+                title = entry.get('title', '')
+                summary = entry.get('summary', '')[:400] if entry.get('summary') else ''
+                link = entry.get('link', '')
+                
+                text = (title + ' ' + summary).lower()
+                is_relevant = any(kw in text for kw in education_keywords)
+                
+                if is_relevant:
+                    papers.append({
+                        'title': title[:200],
+                        'summary': summary[:300],
+                        'link': link,
+                        'source': source_name,
+                        'needs_translation': True
+                    })
+        except Exception as e:
+            print(f"Research RSS hatası ({source_name}): {e}")
+            continue
+    
+    return papers[:6]
 # ══════════════════════════════════════════════════════════════════════════════
 
 def get_student_trending_topics() -> List[Dict]:
@@ -714,16 +1081,30 @@ def generate_daily_summary(all_news: Dict) -> str:
             for n in all_news['ai_news'][:3]:
                 news_text += f"- {n['title']}\n"
         
-        prompt = f"""Aşağıdaki eğitim haberlerini okuyarak öğretmenler ve öğrenciler için 3-4 cümlelik kısa bir günlük özet yaz.
+        # Global haberler
+        if all_news.get('global_news'):
+            news_text += "\nDünyadan Eğitim Haberleri:\n"
+            for country_code, news_list in all_news['global_news'].items():
+                for n in news_list[:1]:  # Her ülkeden 1 haber
+                    news_text += f"- {n.get('country', '')}: {n['title']}\n"
+        
+        # Bilimsel makaleler
+        if all_news.get('arxiv_papers'):
+            news_text += "\nBilimsel Makaleler:\n"
+            for p in all_news['arxiv_papers'][:2]:
+                news_text += f"- {p['title']}\n"
+        
+        prompt = f"""Aşağıdaki eğitim haberlerini okuyarak öğretmenler ve öğrenciler için 4-5 cümlelik kısa bir günlük özet yaz.
 
 {news_text}
 
 Kurallar:
-1. En önemli 2-3 konuyu vurgula
+1. En önemli 3-4 konuyu vurgula (Türkiye ve dünya)
 2. Öğrenci ve öğretmenlere ne anlama geldiğini açıkla
-3. Kısa ve öz tut
-4. Türkçe yaz
-5. Emoji kullanma
+3. Global trendleri de dahil et
+4. Kısa ve öz tut
+5. Türkçe yaz
+6. Emoji kullanma
 
 Özet:"""
 
@@ -921,7 +1302,142 @@ def generate_report() -> str:
     
     report.append("")
     
-    # 5. ÖĞRENCİ GÜNDEMİ
+    # 5. 🌍 GLOBAL EĞİTİM HABERLERİ
+    print("🌍 Global eğitim haberleri çekiliyor...")
+    global_news = get_global_education_news()
+    
+    report.append("━" * 50)
+    report.append("🌍 DÜNYADAN EĞİTİM HABERLERİ")
+    report.append("━" * 50)
+    
+    # Çeviri sayacı
+    translate_count = 0
+    max_translations = 10  # Global haberler için maksimum çeviri
+    
+    # Ülkeleri grupla
+    country_groups = {
+        'ai_leaders': ['china', 'korea', 'japan'],  # AI'da öncü
+        'education_leaders': ['finland', 'singapore', 'estonia'],  # Eğitimde öncü
+        'other': ['russia', 'israel', 'india']  # Matematik, Startup, EdTech
+    }
+    
+    group_titles = {
+        'ai_leaders': '🤖 AI & TEKNOLOJİ ÖNCÜLERİ',
+        'education_leaders': '📚 EĞİTİM ÖNCÜLERİ',
+        'other': '🔬 BİLİM & İNOVASYON'
+    }
+    
+    for group_key, countries in country_groups.items():
+        group_has_news = False
+        group_report = []
+        
+        for country_code in countries:
+            if country_code in global_news and global_news[country_code]:
+                if not group_has_news:
+                    group_report.append(f"\n{group_titles[group_key]}:")
+                    group_has_news = True
+                
+                for news in global_news[country_code][:2]:
+                    # Çeviri
+                    if news.get('needs_translation') and translate_count < max_translations:
+                        title_tr = translate_to_turkish(news['title'], is_headline=True)
+                        translate_count += 1
+                        import time
+                        time.sleep(0.3)
+                    else:
+                        title_tr = news['title']
+                    
+                    flag = news.get('flag', '🌐')
+                    country = news.get('country', '')
+                    link = news.get('link', '')
+                    
+                    group_report.append(f"\n{flag} {title_tr[:90]}")
+                    if link:
+                        group_report.append(f"   📍 {news['source']} ({country})")
+                        group_report.append(f"   🔗 {link}")
+                    else:
+                        group_report.append(f"   📍 {news['source']} ({country})")
+        
+        if group_has_news:
+            report.extend(group_report)
+    
+    # Eğer hiç global haber yoksa
+    if not any(global_news.get(c) for c in global_news):
+        report.append("\n• Şu an yeni global haber yok")
+    
+    report.append("")
+    
+    # 6. 📄 BİLİMSEL MAKALELER
+    print("📄 Bilimsel makaleler çekiliyor...")
+    arxiv_papers = get_arxiv_papers()
+    research_papers = get_research_papers()
+    
+    report.append("━" * 50)
+    report.append("📄 BİLİMSEL MAKALELER & ARAŞTIRMALAR")
+    report.append("━" * 50)
+    
+    # arXiv makaleleri
+    translate_count = 0
+    if arxiv_papers:
+        # Eğitim ile ilgili olanları öne al
+        edu_papers = [p for p in arxiv_papers if p.get('is_education_related')]
+        other_papers = [p for p in arxiv_papers if not p.get('is_education_related')]
+        
+        if edu_papers:
+            report.append("\n🎓 EĞİTİM & AI (arXiv):")
+            for paper in edu_papers[:3]:
+                if paper.get('needs_translation') and translate_count < 4:
+                    title_tr = translate_to_turkish(paper['title'], is_headline=True)
+                    translate_count += 1
+                    import time
+                    time.sleep(0.3)
+                else:
+                    title_tr = paper['title']
+                
+                report.append(f"\n📑 {title_tr[:100]}")
+                report.append(f"   📂 {paper.get('category', 'AI')} | arXiv")
+                if paper.get('link'):
+                    report.append(f"   🔗 {paper['link']}")
+        
+        if other_papers:
+            report.append("\n🧠 YAPAY ZEKA & ML (arXiv):")
+            for paper in other_papers[:2]:
+                if paper.get('needs_translation') and translate_count < 6:
+                    title_tr = translate_to_turkish(paper['title'], is_headline=True)
+                    translate_count += 1
+                    import time
+                    time.sleep(0.3)
+                else:
+                    title_tr = paper['title']
+                
+                report.append(f"\n📑 {title_tr[:100]}")
+                report.append(f"   📂 {paper.get('category', 'ML')} | arXiv")
+                if paper.get('link'):
+                    report.append(f"   🔗 {paper['link']}")
+    
+    # Diğer akademik makaleler
+    if research_papers:
+        report.append("\n📚 AKADEMİK ARAŞTIRMALAR:")
+        for paper in research_papers[:2]:
+            if paper.get('needs_translation') and translate_count < 8:
+                title_tr = translate_to_turkish(paper['title'], is_headline=True)
+                translate_count += 1
+                import time
+                time.sleep(0.3)
+            else:
+                title_tr = paper['title']
+            
+            report.append(f"\n📖 {title_tr[:100]}")
+            report.append(f"   📍 {paper['source']}")
+            if paper.get('link'):
+                report.append(f"   🔗 {paper['link']}")
+    
+    if not arxiv_papers and not research_papers:
+        report.append("\n• Henüz yeni makale yok")
+    
+    report.append("")
+    
+    # 7. ÖĞRENCİ GÜNDEMİ
     print("🔥 Öğrenci gündemi hazırlanıyor...")
     trending = get_student_trending_topics()
     
@@ -937,7 +1453,7 @@ def generate_report() -> str:
     
     report.append("")
     
-    # 6. GÜNÜN MOTİVASYONU
+    # 8. GÜNÜN MOTİVASYONU
     print("💪 Motivasyon mesajı hazırlanıyor...")
     motivation = get_daily_motivation()
     
@@ -948,13 +1464,15 @@ def generate_report() -> str:
     report.append(motivation['message'])
     report.append("")
     
-    # 7. GÜNÜN ÖZETİ (AI)
+    # 9. GÜNÜN ÖZETİ (AI)
     print("📝 Günün özeti oluşturuluyor...")
     all_news = {
         'meb_news': meb_news,
         'education_news': education_news,
         'ai_news': ai_news,
-        'math_news': math_news
+        'math_news': math_news,
+        'global_news': global_news,
+        'arxiv_papers': arxiv_papers
     }
     summary = generate_daily_summary(all_news)
     
