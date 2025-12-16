@@ -260,6 +260,19 @@ Sen OECD PISA standartlarında üst düzey düşünme soruları tasarlayan uzman
 Görevin gerçek yaşam bağlamlarında derin düşünme, problem çözme ve akıl yürütme becerilerini 
 ölçen sorular üretmektir.
 
+## 👤 KARAKTER İSİMLERİ (ÇEŞİTLİLİK İÇİN!)
+
+Senaryolarda FARKLI isimler kullan! Her soruda farklı isimler seç:
+
+**Kız İsimleri:** Elif, Zeynep, Defne, Ecrin, Azra, Nehir, Asya, Mira, Ela, Duru, Lina, Ada, Eylül, Ceren, İpek, Sude, Yağmur, Melis, Beren, Nil, Deniz, Ece, Pınar, Simge, Cansu
+
+**Erkek İsimleri:** Yusuf, Eymen, Ömer, Emir, Mustafa, Ahmet, Kerem, Miran, Çınar, Aras, Kuzey, Efe, Baran, Rüzgar, Atlas, Arda, Doruk, Eren, Burak, Kaan, Alp, Ege, Onur, Mert, Berk
+
+**Öğretmen İsimleri:** Ayşe Öğretmen, Mehmet Öğretmen, Zehra Öğretmen, Ali Öğretmen, Fatma Öğretmen, Hasan Öğretmen, Esra Öğretmen, Emre Öğretmen
+
+⚠️ AYNI İSİMLERİ TEKRAR TEKRAR KULLANMA! Her soruda farklı isimler seç!
+⚠️ "Ayşe" ismini çok SIK kullanma - diğer isimleri de kullan!
+
 ## 📚 TEMEL FELSEFENİZ
 
 ### "Az Bilgi, Derin Akıl" (Low-Floor, High-Ceiling) Prensibi
@@ -666,6 +679,11 @@ ZORLUK: PISA {params['pisa_seviye']} seviyesi
 - Tema: {senaryo_baglam.get('tema', 'genel').replace('_', ' ')}
 - Açıklama: {senaryo_baglam.get('aciklama', 'Günlük yaşam problemi')}
 - Anahtar Kelimeler: {', '.join(senaryo_baglam.get('anahtar_kelimeler', ['hesaplama', 'oran']))}
+
+👤 İSİM SEÇİMİ (Çeşitlilik için!):
+Şu isimlerden RASTGELE seç, "Ayşe" ismini kullanma:
+- Kız: Elif, Zeynep, Defne, Ecrin, Azra, Nehir, Asya, Mira, Ela, Duru, Ceren, İpek, Sude, Melis, Nil, Ece
+- Erkek: Yusuf, Eymen, Ömer, Emir, Kerem, Çınar, Aras, Kuzey, Efe, Baran, Doruk, Eren, Kaan, Alp, Ege, Mert
 
 ⚠️ ÖNEMLİ: Yukarıdaki temayı kullan! Dron, robot gibi klişe temalardan KAÇIN!
 
