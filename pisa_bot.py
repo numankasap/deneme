@@ -149,7 +149,7 @@ def rastgele_senaryo_sec():
     # Tüm senaryolar kullanıldıysa sıfırla
     if len(kullanilan_senaryolar) >= len(baglamlar) * 0.8:
         kullanilan_senaryolar.clear()
-        print("🔄 Senaryo havuzu sıfırlandı")
+        # print("🔄 Senaryo havuzu sıfırlandı")  # Çok fazla output veriyordu
     
     # Kullanılmamış senaryolardan seç
     kullanilabilir = [b for i, b in enumerate(baglamlar) if i not in kullanilan_senaryolar]
@@ -158,7 +158,6 @@ def rastgele_senaryo_sec():
     # Kullanıldı olarak işaretle
     kullanilan_senaryolar.add(baglamlar.index(secilen))
     
-    print(f"   🎬 Senaryo: {secilen['tema'].replace('_', ' ')}")
     return secilen
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1091,7 +1090,7 @@ def toplu_uret(adet):
     toplam_puan = 0
     baslangic = time.time()
     
-    # Kombinasyonlar
+    # Kombinasyonlar - senaryo_baglami SONRA eklenecek (döngüde)
     kombinasyonlar = []
     for sinif, sb in SINIF_SEVIYELERI.items():
         for kid, konu in MATEMATIK_KONULARI.items():
@@ -1108,8 +1107,8 @@ def toplu_uret(adet):
                                     'pisa_seviye': pisa,
                                     'bloom_seviye': bloom,
                                     'senaryo_turu': st,
-                                    'senaryo_baglami': rastgele_senaryo_sec(),
                                     'soru_tipi': tip
+                                    # senaryo_baglami döngüde eklenecek
                                 })
     
     random.shuffle(kombinasyonlar)
@@ -1118,9 +1117,12 @@ def toplu_uret(adet):
         if basarili >= adet:
             break
         
+        # Her soru için yeni senaryo bağlamı seç
+        params['senaryo_baglami'] = rastgele_senaryo_sec()
+        
         tema = params['senaryo_baglami'].get('tema', 'genel').replace('_', ' ')
         print(f"\n[{basarili+1}/{adet}] {params['konu_ad']} > {params['alt_konu']}")
-        print(f"   📚 {params['sinif_ad']} | PISA {params['pisa_seviye']} | {params['bloom_seviye']}")
+        print(f"   📚 {params['sinif_ad']} | PISA {params['pisa_seviye']} | {params['bloom_seviye']} | 🎬 {tema}")
         
         try:
             sonuc = tek_soru_uret(params)
