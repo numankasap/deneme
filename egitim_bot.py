@@ -1055,7 +1055,8 @@ Türkçe:"""
 
 def generate_daily_summary(all_news: Dict) -> str:
     """
-    Gemini ile günün özeti oluştur
+    Gemini ile kapsamlı günlük analiz ve özet oluştur
+    Tüm haberleri yorumlayarak öğretmen ve öğrencilere değerli içgörüler sunar
     """
     if not GEMINI_KEY or not genai:
         return ""
@@ -1063,50 +1064,92 @@ def generate_daily_summary(all_news: Dict) -> str:
     try:
         client = genai.Client(api_key=GEMINI_KEY)
         
-        # Haberleri özetle
+        # Haberleri kategorize et
         news_text = ""
         
+        # Türkiye haberleri
+        news_text += "=== TÜRKİYE EĞİTİM GÜNDEMİ ===\n"
         if all_news.get('meb_news'):
-            news_text += "MEB Haberleri:\n"
             for n in all_news['meb_news'][:3]:
                 news_text += f"- {n['title']}\n"
-        
         if all_news.get('education_news'):
-            news_text += "\nEğitim Haberleri:\n"
-            for n in all_news['education_news'][:3]:
+            for n in all_news['education_news'][:4]:
                 news_text += f"- {n['title']}\n"
         
+        # AI ve EdTech haberleri
+        news_text += "\n=== YAPAY ZEKA & EĞİTİM TEKNOLOJİSİ ===\n"
         if all_news.get('ai_news'):
-            news_text += "\nYapay Zeka & Eğitim:\n"
-            for n in all_news['ai_news'][:3]:
+            for n in all_news['ai_news'][:5]:
+                news_text += f"- {n['title']} ({n.get('source', '')})\n"
+        
+        # Matematik haberleri
+        news_text += "\n=== MATEMATİK GELİŞMELERİ ===\n"
+        if all_news.get('math_news'):
+            for n in all_news['math_news'][:3]:
                 news_text += f"- {n['title']}\n"
         
-        # Global haberler
+        # Global haberler - ülke bazlı
+        news_text += "\n=== DÜNYADAN EĞİTİM HABERLERİ ===\n"
         if all_news.get('global_news'):
-            news_text += "\nDünyadan Eğitim Haberleri:\n"
+            country_names = {
+                'china': 'Çin', 'japan': 'Japonya', 'korea': 'Güney Kore',
+                'finland': 'Finlandiya', 'singapore': 'Singapur', 'russia': 'Rusya',
+                'israel': 'İsrail', 'india': 'Hindistan', 'estonia': 'Estonya'
+            }
             for country_code, news_list in all_news['global_news'].items():
-                for n in news_list[:1]:  # Her ülkeden 1 haber
-                    news_text += f"- {n.get('country', '')}: {n['title']}\n"
+                country_name = country_names.get(country_code, country_code)
+                for n in news_list[:2]:
+                    news_text += f"- [{country_name}] {n['title']}\n"
         
         # Bilimsel makaleler
+        news_text += "\n=== BİLİMSEL MAKALELER ===\n"
         if all_news.get('arxiv_papers'):
-            news_text += "\nBilimsel Makaleler:\n"
-            for p in all_news['arxiv_papers'][:2]:
-                news_text += f"- {p['title']}\n"
+            for p in all_news['arxiv_papers'][:4]:
+                edu_tag = "[EĞİTİM]" if p.get('is_education_related') else "[AI/ML]"
+                news_text += f"- {edu_tag} {p['title'][:100]}\n"
         
-        prompt = f"""Aşağıdaki eğitim haberlerini okuyarak öğretmenler ve öğrenciler için 4-5 cümlelik kısa bir günlük özet yaz.
+        prompt = f"""Sen deneyimli bir eğitim analisti ve danışmanısın. Aşağıdaki güncel eğitim haberlerini analiz ederek öğretmenler ve öğrenciler için kapsamlı bir günlük brifing hazırla.
 
 {news_text}
 
-Kurallar:
-1. En önemli 3-4 konuyu vurgula (Türkiye ve dünya)
-2. Öğrenci ve öğretmenlere ne anlama geldiğini açıkla
-3. Global trendleri de dahil et
-4. Kısa ve öz tut
-5. Türkçe yaz
-6. Emoji kullanma
+GÖREV: Yukarıdaki haberleri analiz ederek aşağıdaki formatta bir rapor yaz:
 
-Özet:"""
+📊 GÜNÜN ANALİZİ
+
+🇹🇷 TÜRKİYE'DE BUGÜN:
+• [Türkiye'deki en önemli 2-3 gelişmeyi analiz et]
+• [Bu gelişmelerin öğretmen ve öğrencilere etkisini açıkla]
+• [Varsa sınav veya müfredat ile ilgili önemli notları belirt]
+
+🤖 YAPAY ZEKA & TEKNOLOJİ TRENDLERİ:
+• [AI ve EdTech haberlerinden önemli gelişmeleri yorumla]
+• [Bu teknolojilerin eğitime nasıl entegre edilebileceğini açıkla]
+• [Öğretmenlerin dikkat etmesi gereken noktaları belirt]
+
+🌍 DÜNYADAN DERSLER:
+• [Farklı ülkelerden gelen haberleri karşılaştır]
+• [Türkiye için çıkarılabilecek dersleri belirt]
+• [Global trendlerin Türk eğitim sistemine olası etkilerini yorumla]
+
+🔬 BİLİM & ARAŞTIRMA:
+• [Akademik makalelerden öne çıkan bulguları özetle]
+• [Bu araştırmaların pratik uygulamalarını açıkla]
+
+💡 ÖĞRETMENLERE TAVSİYELER:
+• [Günün haberlerinden yola çıkarak 2-3 pratik öneri ver]
+
+📚 ÖĞRENCİLERE NOT:
+• [Öğrencilerin bilmesi gereken 1-2 önemli nokta]
+
+KURALLAR:
+1. Her madde 1-2 cümle olsun, özlü ama bilgilendirici
+2. Haberleri sadece özetleme, YORUMLA ve BAĞLAM ekle
+3. Türkçe yaz, akıcı ve profesyonel bir dil kullan
+4. Spekülasyon yapma, haberlere dayalı analiz yap
+5. Emoji kullan ama aşırıya kaçma
+6. Toplam 300-400 kelime civarında tut
+
+Analiz:"""
 
         response = client.models.generate_content(
             model="gemini-2.0-flash",
@@ -1478,7 +1521,7 @@ def generate_report() -> str:
     
     if summary:
         report.append("━" * 50)
-        report.append("📝 GÜNÜN ÖZETİ")
+        report.append("📊 GÜNÜN ANALİZİ & DEĞERLENDİRME")
         report.append("━" * 50)
         report.append("")
         report.append(summary)
