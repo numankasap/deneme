@@ -41,8 +41,8 @@ SORU_ADEDI = int(os.environ.get('SORU_ADEDI', '50'))
 # Ayarlar
 DEEPSEEK_DOGRULAMA = bool(DEEPSEEK_API_KEY)
 COT_AKTIF = True
-BEKLEME = 2.5
-MAX_DENEME = 5  # Arttırıldı
+BEKLEME = 1.5  # GitHub Actions için optimize
+MAX_DENEME = 4  # Biraz azaltıldı
 MIN_DEEPSEEK_PUAN = 70  # Minimum kabul puanı
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -843,6 +843,7 @@ def cozumden_soru_olustur(cozum, params):
         soru = json_temizle(text)
         
         if not soru:
+            print(f"      ⚠️ JSON parse başarısız")
             return None
         
         # Meta bilgileri ekle
@@ -1072,7 +1073,8 @@ def tek_soru_uret(params):
         # ADIM 3: Kalite kontrol
         kalite = kalite_kontrol(soru)
         if not kalite['gecerli']:
-            print(f"      ⚠️ Kalite sorunları: {', '.join(kalite['sorunlar'][:2])}")
+            sorunlar_str = ', '.join(kalite['sorunlar'][:2])
+            print(f"      ⚠️ Kalite: {sorunlar_str}")
             continue
         
         # ADIM 4: DeepSeek Doğrulama
