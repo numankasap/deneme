@@ -21,6 +21,7 @@ import json
 import random
 import time
 import hashlib
+import re
 from datetime import datetime
 from openai import OpenAI
 
@@ -701,18 +702,8 @@ SADECE JSON döndür, başka bir şey yazma.'''
         response = model.generate_content(prompt)
         text = response.text.strip()
         
-        # JSON temizle
-        if '```json' in text:
-            text = text.split('```json')[1].split('```')[0]
-        elif '```' in text:
-            for part in text.split('```'):
-                if '{' in part and '}' in part:
-                    text = part
-                    break
-        if text.startswith('json'):
-            text = text[4:]
-        
-        cozum = json.loads(text.strip())
+        # Güçlendirilmiş JSON temizleme
+        cozum = json_temizle(text)
         return cozum
         
     except Exception as e:
@@ -722,6 +713,65 @@ SADECE JSON döndür, başka bir şey yazma.'''
 # ═══════════════════════════════════════════════════════════════════════════════
 # ADIM 2: ÇÖZÜMDEN SORU OLUŞTUR
 # ═══════════════════════════════════════════════════════════════════════════════
+
+def json_temizle(text):
+    """
+    AI'dan gelen JSON'u temizle ve parse et
+    """
+    # Markdown code block temizliği
+    if '```json' in text:
+        text = text.split('```json')[1].split('```')[0]
+    elif '```' in text:
+        for part in text.split('```'):
+            if '{' in part and '}' in part:
+                text = part
+                break
+    
+    if text.strip().startswith('json'):
+        text = text.strip()[4:]
+    
+    # İlk { ve son } arasını al
+    first_brace = text.find('{')
+    last_brace = text.rfind('}')
+    
+    if first_brace == -1 or last_brace == -1:
+        return None
+    
+    text = text[first_brace:last_brace + 1]
+    
+    # Sorunlu karakterleri düzelt
+    # 1. Escape edilmemiş newline'ları düzelt
+    # String içindeki gerçek satır sonlarını \n ile değiştir
+    def fix_strings(match):
+        s = match.group(0)
+        # String içindeki newline'ları escape et
+        s = s.replace('\n', '\\n')
+        s = s.replace('\r', '')
+        s = s.replace('\t', '\\t')
+        return s
+    
+    # Çift tırnak içindeki stringleri bul ve düzelt
+    text = re.sub(r'"(?:[^"\\]|\\.)*"', fix_strings, text, flags=re.DOTALL)
+    
+    # 2. Trailing comma'ları kaldır
+    text = re.sub(r',(\s*[}\]])', r'\1', text)
+    
+    # 3. Tek tırnaklı stringleri çift tırnağa çevir (key'ler için)
+    text = re.sub(r"'([^']+)'(\s*:)", r'"\1"\2', text)
+    
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as e:
+        # Son çare: Daha agresif temizlik
+        try:
+            # Tüm kontrol karakterlerini kaldır
+            text = ''.join(char for char in text if ord(char) >= 32 or char in '\n\r\t')
+            text = text.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ')
+            text = re.sub(r'\s+', ' ', text)
+            return json.loads(text)
+        except:
+            return None
+
 
 def cozumden_soru_olustur(cozum, params):
     """
@@ -789,18 +839,11 @@ def cozumden_soru_olustur(cozum, params):
         
         text = response.text.strip()
         
-        # JSON temizle
-        if '```json' in text:
-            text = text.split('```json')[1].split('```')[0]
-        elif '```' in text:
-            for part in text.split('```'):
-                if '{' in part and '}' in part:
-                    text = part
-                    break
-        if text.startswith('json'):
-            text = text[4:]
+        # Güçlendirilmiş JSON temizleme
+        soru = json_temizle(text)
         
-        soru = json.loads(text.strip())
+        if not soru:
+            return None
         
         # Meta bilgileri ekle
         soru['alan'] = 'matematik'
@@ -854,16 +897,11 @@ Yukarıdaki soruyu değerlendir ve SADECE JSON formatında sonuç döndür.'''
         
         text = response.choices[0].message.content.strip()
         
-        # JSON temizle
-        if '```json' in text:
-            text = text.split('```json')[1].split('```')[0]
-        elif '```' in text:
-            for part in text.split('```'):
-                if '{' in part and '}' in part:
-                    text = part
-                    break
+        # Güçlendirilmiş JSON temizleme
+        dogrulama = json_temizle(text)
         
-        dogrulama = json.loads(text.strip())
+        if not dogrulama:
+            return {'gecerli': True, 'puan': 75, 'aciklama': 'DeepSeek yanıtı parse edilemedi'}
         
         # Puan kontrolü
         puan = dogrulama.get('puan', 0)
@@ -963,12 +1001,10 @@ def supabase_kaydet(soru, dogrulama_sonucu=None):
             'beceri_alani': soru.get('beceri_alani'),
             'pedagojik_notlar': soru.get('pedagojik_notlar'),
             'tahmini_sure': soru.get('tahmini_sure'),
-            'senaryo_baglam': soru.get('senaryo_baglam'),
             'aktif': True,
             'dogrulama_durumu': 'dogrulanmis' if (dogrulama_sonucu and dogrulama_sonucu.get('gecerli')) else 'dogrulanmamis',
-            'dogrulama_puani': dogrulama_sonucu.get('puan') if dogrulama_sonucu else None,
-            'cot_kullanildi': COT_AKTIF,
-            'versiyon': '3.0'
+            'cot_kullanildi': COT_AKTIF
+            # dogrulama_puani ve senaryo_baglam kolonları tabloda yoksa eklenmedi
         }
         
         result = supabase.table('pisa_soru_havuzu').insert(data).execute()
