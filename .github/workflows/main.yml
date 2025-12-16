@@ -3,7 +3,10 @@ name: Advanced Crypto Analysis Bot
 on:
   schedule:
     # Her saat başı çalışır
-    - cron: '0 * * * *'
+    - cron: '0 4 * * *'
+     - cron: '0 9 * * *'
+      - cron: '0 13 * * *'
+       - cron: '0 18 * * *'
   workflow_dispatch:
     # Manuel çalıştırma butonu (test için)
     inputs:
