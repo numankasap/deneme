@@ -29,8 +29,8 @@ jobs:
           python-version: '3.11'
 
       - name: Kutuphaneler
-        run: |
-          pip install google-generativeai supabase openai
+  run: |
+    pip install google-genai openai supabase
 
       - name: Bot Calistir
         env:
