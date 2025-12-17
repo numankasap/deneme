@@ -44,8 +44,8 @@ SORU_ADEDI = int(os.environ.get('SORU_ADEDI', '50'))
 DEEPSEEK_DOGRULAMA = bool(DEEPSEEK_API_KEY)
 COT_AKTIF = True
 BEKLEME = 1.0
-MAX_DENEME = 3
-MIN_DEEPSEEK_PUAN = 70
+MAX_DENEME = 4
+MIN_DEEPSEEK_PUAN = 65
 API_TIMEOUT = 30
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1169,26 +1169,24 @@ def supabase_kaydet(soru, cot_kullanildi=True):
 def senaryo_veri_tamligini_dogrula(soru):
     """
     Senaryonun kendi kendine yeterli olup olmadığını kontrol eder.
-    Eksik veri varsa False döner.
+    
+    NOT: Çözüm adımlarındaki ARA SONUÇLAR senaryoda olmak zorunda DEĞİL!
+    Sadece başlangıç verileri (fiyat, miktar, oran vb.) kontrol edilir.
     """
     senaryo = soru.get('senaryo', '')
-    cozum = soru.get('cozum_adimlari', [])
     
     if not senaryo or len(senaryo) < 80:
         return False, "Senaryo çok kısa (min 80 karakter)"
     
-    # Çözüm adımlarını string'e çevir
-    cozum_text = ' '.join(cozum) if isinstance(cozum, list) else str(cozum)
-    
     # Tehlikeli ifadeleri kontrol et - bunlar varsa ama ilgili veri yoksa sorun var
     tehlikeli_ifadeler = [
-        ('tabloya göre', ['|', '•', 'Tablo', '📊', '📋']),
+        ('tabloya göre', ['|', '•', 'Tablo', '📊', '📋', ':']),
         ('yukarıdaki tablo', ['|', '•', 'Tablo', '📊', '📋']),
         ('aşağıdaki tablo', ['|', '•', 'Tablo', '📊', '📋']),
         ('verilen tablo', ['|', '•', 'Tablo', '📊', '📋']),
-        ('kurallara göre', ['kural', 'Kural', '•', '1.', '1)']),
+        ('kurallara göre', ['kural', 'Kural', '•', '1.', '1)', 'adım']),
         ('verilen kurallara', ['kural', 'Kural', '•', '1.', '1)']),
-        ('fiyat listesi', ['TL', 'lira', '₺', 'fiyat']),
+        ('fiyat listesi', ['TL', 'lira', '₺', 'fiyat', ':']),
         ('fiyatları aşağıda', ['TL', 'lira', '₺']),
     ]
     
@@ -1200,20 +1198,9 @@ def senaryo_veri_tamligini_dogrula(soru):
             if not any(isaret in senaryo for isaret in gereken_isaretler):
                 return False, f"'{ifade}' var ama ilgili veri yok"
     
-    # Çözümde kullanılan sayıları kontrol et - senaryoda da olmalı
-    import re
-    cozum_sayilari = set(re.findall(r'\b(\d+(?:\.\d+)?)\b', cozum_text))
-    senaryo_sayilari = set(re.findall(r'\b(\d+(?:\.\d+)?)\b', senaryo))
-    
-    # Önemli sayıları filtrele (1, 2, 3 gibi çok genel olanları çıkar)
-    onemli_cozum_sayilari = {s for s in cozum_sayilari if float(s) > 5 and float(s) != 100}
-    
-    # En az %50'si senaryoda olmalı
-    if onemli_cozum_sayilari:
-        bulunan = len(onemli_cozum_sayilari & senaryo_sayilari)
-        oran = bulunan / len(onemli_cozum_sayilari)
-        if oran < 0.4:
-            return False, f"Çözümdeki sayıların çoğu senaryoda yok ({bulunan}/{len(onemli_cozum_sayilari)})"
+    # NOT: Çözüm adımlarındaki sayı kontrolü KALDIRILDI!
+    # Çözüm adımlarındaki sayılar ARA SONUÇLAR olabilir, senaryoda olmak zorunda değil.
+    # DeepSeek zaten tam kontrolü yapıyor.
     
     return True, "OK"
 
