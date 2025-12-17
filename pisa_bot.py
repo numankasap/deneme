@@ -946,9 +946,24 @@ Aşağıdaki parametrelere göre ÖNCE bir matematik problemi tasarla, SONRA ad�
 ## SEVİYE BEKLENTİLERİ
 {seviye_prompt_olustur(seviye)}
 
+## ⚠️ VERİ TAMLIĞI KURALLARI (ÇOK KRİTİK!)
+
+Problem tanımında şunlar MUTLAKA yer almalı:
+1. Eğer TABLO gerekiyorsa → Tablo VERİLERİ AÇIKÇA yazılmalı (sadece "tabloya göre" demek YASAK)
+2. Eğer FİYAT/MALİYET varsa → Her bir öğenin fiyatı RAKAMLA belirtilmeli
+3. Eğer ORAN/KATSAYI varsa → Sayısal değerler AÇIKÇA verilmeli
+4. Eğer FORMÜL gerekiyorsa → Formül tam olarak yazılmalı
+5. Eğer KOŞUL/KURAL varsa → Her kural madde madde açıklanmalı
+
+❌ YANLIŞ ÖRNEK: "Aşağıdaki tabloya göre hesaplayın" (tablo yok!)
+✅ DOĞRU ÖRNEK: "Fiyatlar şöyledir: Elma 5 TL/kg, Armut 7 TL/kg, Muz 12 TL/kg"
+
+❌ YANLIŞ ÖRNEK: "Verilen kurallara göre puanı bulun" (kurallar yok!)
+✅ DOĞRU ÖRNEK: "Puanlama kuralları: Doğru cevap +4 puan, Yanlış cevap -1 puan, Boş 0 puan"
+
 ## ÖNEMLİ KURALLAR
 1. Senaryo OTANTİK olmalı - yapay sözcük problemi değil
-2. Tüm kurallar ve veriler AÇIKÇA yazılmalı
+2. TÜM SAYISAL VERİLER problem_tanimi içinde AÇIKÇA yazılmalı
 3. Küçük, hesaplanabilir sayılar kullan (1-500 arası)
 4. Sonuç tam sayı veya basit kesir/ondalık olsun
 5. EN AZ 5 çözüm adımı olmalı
@@ -956,10 +971,11 @@ Aşağıdaki parametrelere göre ÖNCE bir matematik problemi tasarla, SONRA ad�
 
 ## ÇIKTI FORMATI (JSON)
 {{
-    "problem_tanimi": "[En az 100 kelime, tüm veriler dahil]",
-    "kurallar": ["Kural 1", "Kural 2", "Kural 3"],
-    "verilen_degerler": {{"degisken1": deger1, "degisken2": deger2}},
-    "istenen": "Ne bulunacak",
+    "problem_tanimi": "[En az 120 kelime. TÜM VERİLER, TABLOLAR, FİYATLAR, KURALLAR bu alanda AÇIKÇA yazılmalı. Öğrenci sadece bunu okuyarak soruyu çözebilmeli!]",
+    "sayisal_veriler_tablosu": "[Eğer birden fazla öğe varsa, her birinin değerini liste halinde yaz. Örn: 'Ürün A: 25 TL, 50 kg | Ürün B: 30 TL, 40 kg | Ürün C: 20 TL, 35 kg']",
+    "kurallar": ["Kural 1: [Tam açıklama]", "Kural 2: [Tam açıklama]", "Kural 3: [Tam açıklama]"],
+    "verilen_degerler": {{"degisken1": "değer1 (birimle)", "degisken2": "değer2 (birimle)"}},
+    "istenen": "Ne bulunacak (net ifade)",
     "cozum_adimlari": [
         "Adım 1: [Açıklama] - [İşlem] = [Sonuç]",
         "Adım 2: [Açıklama] - [İşlem] = [Sonuç]",
@@ -989,10 +1005,13 @@ SADECE JSON döndür.'''
 def cozumden_soru_olustur(cozum, params):
     """CoT çözümünden tam PISA sorusu oluştur"""
     try:
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        model = genai.GenerativeModel('gemini-2.0-flash')
         
         soru_tipi = params.get('soru_tipi', 'acik_uclu')
         json_format = JSON_FORMAT_COKTAN_SECMELI if soru_tipi == 'coktan_secmeli' else JSON_FORMAT_ACIK_UCLU
+        
+        # Sayısal veriler tablosunu al (varsa)
+        sayisal_tablo = cozum.get('sayisal_veriler_tablosu', '')
         
         prompt = f'''{PISA_2022_SYSTEM_PROMPT}
 
@@ -1001,6 +1020,8 @@ def cozumden_soru_olustur(cozum, params):
 ## HAZIR ÇÖZÜM (Bunu kullan!)
 
 **Problem:** {cozum.get('problem_tanimi', '')}
+
+**Sayısal Veriler Tablosu:** {sayisal_tablo}
 
 **Kurallar:** {json.dumps(cozum.get('kurallar', []), ensure_ascii=False)}
 
@@ -1026,6 +1047,31 @@ Bu hazır çözümü kullanarak {'ÇOKTAN SEÇMELİ' if soru_tipi == 'coktan_sec
 • Matematiksel Süreç: {params.get('matematiksel_surec', 'kullanma')}
 
 {json_format}
+
+## ⚠️ SENARYO VERİ TAMLIĞI KONTROL LİSTESİ (HER BİRİ ZORUNLU!)
+
+Senaryoyu yazarken şu soruları EVET ile cevaplayabilmelisin:
+☐ Tüm sayısal değerler (fiyat, miktar, oran vb.) senaryoda YAZILI mı?
+☐ Birden fazla seçenek/ürün varsa HER BİRİNİN değeri ayrı ayrı belirtilmiş mi?
+☐ Formül veya hesaplama kuralı gerekiyorsa AÇIKÇA yazılmış mı?
+☐ "Tabloya göre", "Verilere göre", "Kurallara göre" gibi ifadeler kullandıysan, o tablo/veri/kural senaryoda VAR mı?
+☐ Öğrenci SADECE senaryoyu okuyarak soruyu çözebilir mi?
+
+❌ EKSİK VERİ = GEÇERSİZ SORU!
+
+## SENARYO FORMAT ÖRNEĞİ
+
+DOĞRU FORMAT:
+"... Mağazadaki ürün fiyatları şöyledir:
+📊 Ürün Fiyat Listesi:
+• Kalem: 8 TL
+• Defter: 15 TL  
+• Silgi: 3 TL
+• Cetvel: 12 TL
+Ahmet bu ürünlerden almak istiyor ve toplam 50 TL bütçesi var..."
+
+YANLIŞ FORMAT:
+"... Mağazadaki ürün fiyatları aşağıdaki tabloda verilmiştir. Ahmet bu ürünlerden almak istiyor..." (TABLO YOK!)
 
 ⚠️ KRİTİK: 
 - Senaryo KENDİ KENDİNE YETERLİ olmalı
@@ -1120,6 +1166,61 @@ def supabase_kaydet(soru, cot_kullanildi=True):
         return None
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# SENARYO VERİ TAMLIĞI DOĞRULAMA
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def senaryo_veri_tamligini_dogrula(soru):
+    """
+    Senaryonun kendi kendine yeterli olup olmadığını kontrol eder.
+    Eksik veri varsa False döner.
+    """
+    senaryo = soru.get('senaryo', '')
+    cozum = soru.get('cozum_adimlari', [])
+    
+    if not senaryo or len(senaryo) < 80:
+        return False, "Senaryo çok kısa (min 80 karakter)"
+    
+    # Çözüm adımlarını string'e çevir
+    cozum_text = ' '.join(cozum) if isinstance(cozum, list) else str(cozum)
+    
+    # Tehlikeli ifadeleri kontrol et - bunlar varsa ama ilgili veri yoksa sorun var
+    tehlikeli_ifadeler = [
+        ('tabloya göre', ['|', '•', 'Tablo', '📊', '📋']),
+        ('yukarıdaki tablo', ['|', '•', 'Tablo', '📊', '📋']),
+        ('aşağıdaki tablo', ['|', '•', 'Tablo', '📊', '📋']),
+        ('verilen tablo', ['|', '•', 'Tablo', '📊', '📋']),
+        ('kurallara göre', ['kural', 'Kural', '•', '1.', '1)']),
+        ('verilen kurallara', ['kural', 'Kural', '•', '1.', '1)']),
+        ('fiyat listesi', ['TL', 'lira', '₺', 'fiyat']),
+        ('fiyatları aşağıda', ['TL', 'lira', '₺']),
+    ]
+    
+    senaryo_lower = senaryo.lower()
+    
+    for ifade, gereken_isaretler in tehlikeli_ifadeler:
+        if ifade in senaryo_lower:
+            # Bu ifade varsa, ilgili işaretlerden en az biri olmalı
+            if not any(isaret in senaryo for isaret in gereken_isaretler):
+                return False, f"'{ifade}' var ama ilgili veri yok"
+    
+    # Çözümde kullanılan sayıları kontrol et - senaryoda da olmalı
+    import re
+    cozum_sayilari = set(re.findall(r'\b(\d+(?:\.\d+)?)\b', cozum_text))
+    senaryo_sayilari = set(re.findall(r'\b(\d+(?:\.\d+)?)\b', senaryo))
+    
+    # Önemli sayıları filtrele (1, 2, 3 gibi çok genel olanları çıkar)
+    onemli_cozum_sayilari = {s for s in cozum_sayilari if float(s) > 5 and float(s) != 100}
+    
+    # En az %50'si senaryoda olmalı
+    if onemli_cozum_sayilari:
+        bulunan = len(onemli_cozum_sayilari & senaryo_sayilari)
+        oran = bulunan / len(onemli_cozum_sayilari)
+        if oran < 0.4:
+            return False, f"Çözümdeki sayıların çoğu senaryoda yok ({bulunan}/{len(onemli_cozum_sayilari)})"
+    
+    return True, "OK"
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # TEK SORU ÜRET
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -1143,19 +1244,25 @@ def tek_soru_uret(params):
                 print(f"   ⚠️ Soru oluşturulamadı (deneme {deneme+1})")
                 continue
             
-            # Adım 3: Benzersizlik kontrolü
+            # Adım 3: Senaryo veri tamlığı kontrolü (YENİ!)
+            tamlik_ok, tamlik_mesaj = senaryo_veri_tamligini_dogrula(soru)
+            if not tamlik_ok:
+                print(f"   ⚠️ Veri eksikliği: {tamlik_mesaj} (deneme {deneme+1})")
+                continue
+            
+            # Adım 4: Benzersizlik kontrolü
             if not benzersiz_mi(soru):
                 print(f"   ⚠️ Tekrar soru (deneme {deneme+1})")
                 continue
             
-            # Adım 4: DeepSeek doğrulama
+            # Adım 5: DeepSeek doğrulama
             dogrulama = deepseek_dogrula(soru)
             
             if DEEPSEEK_DOGRULAMA and dogrulama.get('puan', 0) < MIN_DEEPSEEK_PUAN:
                 print(f"   ⚠️ Düşük puan: {dogrulama.get('puan', 0)} (deneme {deneme+1})")
                 continue
             
-            # Adım 5: Kaydet
+            # Adım 6: Kaydet
             soru_id = supabase_kaydet(soru, cot_kullanildi=COT_AKTIF)
             
             if soru_id:
@@ -1305,7 +1412,7 @@ def main():
     # Gemini testi
     print("🔍 Gemini API test ediliyor...")
     try:
-        test_model = genai.GenerativeModel('gemini-2.5-flash')
+        test_model = genai.GenerativeModel('gemini-2.0-flash')
         test_response = test_model.generate_content('2+2=?')
         print(f"✅ Gemini çalışıyor: {test_response.text.strip()}")
     except Exception as e:
