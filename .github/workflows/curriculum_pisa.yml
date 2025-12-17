@@ -3,15 +3,17 @@ name: Curriculum PISA Soru Uretici Bot
 on:
   schedule:
     - cron: '0 5 * * *'   # 08:00 TR - Sabah
+    - cron: '0 11 * * *'  # 14:00 TR - Öğlen
     - cron: '0 17 * * *'  # 20:00 TR - Akşam
+    - cron: '0 23 * * *'  # 02:00 TR - Gece
   workflow_dispatch:
     inputs:
       soru_per_kazanim:
-        description: 'Her kazanım için üretilecek soru sayısı'
+        description: 'Her kazanım için üretilecek soru sayısı (tur başına)'
         required: false
         default: '2'
-      max_kazanim:
-        description: 'İşlenecek maksimum kazanım sayısı'
+      max_islem:
+        description: 'Bu çalışmada işlenecek maksimum kazanım sayısı'
         required: false
         default: '50'
 
@@ -39,5 +41,5 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           SORU_PER_KAZANIM: ${{ github.event.inputs.soru_per_kazanim || '2' }}
-          MAX_KAZANIM: ${{ github.event.inputs.max_kazanim || '50' }}
+          MAX_ISLEM_PER_RUN: ${{ github.event.inputs.max_islem || '50' }}
         run: python curriculum_pisa_bot.py
