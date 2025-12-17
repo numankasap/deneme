@@ -26,7 +26,8 @@ import re
 from datetime import datetime
 from openai import OpenAI
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from supabase import create_client
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -58,7 +59,9 @@ if not all([SUPABASE_URL, SUPABASE_KEY, GEMINI_API_KEY]):
     exit(1)
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-genai.configure(api_key=GEMINI_API_KEY)
+
+# Yeni Google GenAI client
+gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 
 deepseek = None
 if DEEPSEEK_API_KEY:
@@ -918,8 +921,6 @@ def json_temizle(text):
 def cot_cozum_olustur(params):
     """Chain of Thought: Önce matematiksel çözümü oluştur"""
     try:
-        model = genai.GenerativeModel('gemini-2.0-flash')
-        
         baglam = params.get('baglam', {})
         icerik = params.get('icerik_kategorisi', {})
         seviye = params.get('pisa_seviye', 3)
@@ -939,7 +940,8 @@ Aşağıdaki parametrelere göre ÖNCE bir matematik problemi tasarla, SONRA ad�
 • Bağlam: {baglam.get('kategori_ad', 'Kişisel')} - {baglam.get('tema', 'alisveris').replace('_', ' ')}
 • Bağlam Açıklaması: {baglam.get('aciklama', 'Günlük yaşam problemi')}
 
-## KULLANILACAK İSİMLER
+## 👤 KULLANILACAK İSİMLER (ZORUNLU!)
+⚠️ Senaryoda MUTLAKA şu isimleri kullan, "Ayşe" veya "Ahmet" gibi klasik isimler KULLANMA:
 • Karakter 1: {isim1}
 • Karakter 2: {isim2}
 
@@ -991,7 +993,14 @@ Problem tanımında şunlar MUTLAKA yer almalı:
 
 SADECE JSON döndür.'''
 
-        response = model.generate_content(prompt)
+        response = gemini_client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                temperature=0.7,
+                max_output_tokens=2500
+            )
+        )
         return json_temizle(response.text.strip())
         
     except Exception as e:
@@ -1005,8 +1014,6 @@ SADECE JSON döndür.'''
 def cozumden_soru_olustur(cozum, params):
     """CoT çözümünden tam PISA sorusu oluştur"""
     try:
-        model = genai.GenerativeModel('gemini-2.0-flash')
-        
         soru_tipi = params.get('soru_tipi', 'acik_uclu')
         json_format = JSON_FORMAT_COKTAN_SECMELI if soru_tipi == 'coktan_secmeli' else JSON_FORMAT_ACIK_UCLU
         
@@ -1048,41 +1055,31 @@ Bu hazır çözümü kullanarak {'ÇOKTAN SEÇMELİ' if soru_tipi == 'coktan_sec
 
 {json_format}
 
-## ⚠️ SENARYO VERİ TAMLIĞI KONTROL LİSTESİ (HER BİRİ ZORUNLU!)
-
-Senaryoyu yazarken şu soruları EVET ile cevaplayabilmelisin:
-☐ Tüm sayısal değerler (fiyat, miktar, oran vb.) senaryoda YAZILI mı?
-☐ Birden fazla seçenek/ürün varsa HER BİRİNİN değeri ayrı ayrı belirtilmiş mi?
-☐ Formül veya hesaplama kuralı gerekiyorsa AÇIKÇA yazılmış mı?
-☐ "Tabloya göre", "Verilere göre", "Kurallara göre" gibi ifadeler kullandıysan, o tablo/veri/kural senaryoda VAR mı?
-☐ Öğrenci SADECE senaryoyu okuyarak soruyu çözebilir mi?
-
-❌ EKSİK VERİ = GEÇERSİZ SORU!
-
-## SENARYO FORMAT ÖRNEĞİ
-
-DOĞRU FORMAT:
-"... Mağazadaki ürün fiyatları şöyledir:
-📊 Ürün Fiyat Listesi:
-• Kalem: 8 TL
-• Defter: 15 TL  
-• Silgi: 3 TL
-• Cetvel: 12 TL
-Ahmet bu ürünlerden almak istiyor ve toplam 50 TL bütçesi var..."
-
-YANLIŞ FORMAT:
-"... Mağazadaki ürün fiyatları aşağıdaki tabloda verilmiştir. Ahmet bu ürünlerden almak istiyor..." (TABLO YOK!)
-
-⚠️ KRİTİK: 
-- Senaryo KENDİ KENDİNE YETERLİ olmalı
-- Tüm kurallar ve veriler senaryoda AÇIKÇA yazılmalı
-- Çözüm adımları hazır çözümle TUTARLI olmalı
-- dogru_cevap/beklenen_cevap "{cozum.get('sonuc', '')}" ile uyumlu olmalı
+⚠️ ÖNEMLİ: Problemdeki karakterlerin isimlerini AYNEN koru, değiştirme!
 
 SADECE JSON döndür.'''
 
-        response = model.generate_content(prompt)
-        return json_temizle(response.text.strip())
+        response = gemini_client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                temperature=0.7,
+                max_output_tokens=3500
+            )
+        )
+        
+        soru = json_temizle(response.text.strip())
+        
+        if not soru:
+            return None
+        
+        # Meta bilgileri ekle
+        soru['sinif'] = params.get('sinif', '8')
+        soru['pisa_seviye'] = params.get('pisa_seviye', 3)
+        soru['bloom_seviye'] = params.get('bloom_seviye', 'uygulama')
+        soru['matematiksel_surec'] = params.get('matematiksel_surec', 'kullanma')
+        
+        return soru
         
     except Exception as e:
         print(f"   ⚠️ Soru oluşturma hatası: {str(e)[:50]}")
@@ -1412,8 +1409,10 @@ def main():
     # Gemini testi
     print("🔍 Gemini API test ediliyor...")
     try:
-        test_model = genai.GenerativeModel('gemini-2.0-flash')
-        test_response = test_model.generate_content('2+2=?')
+        test_response = gemini_client.models.generate_content(
+            model='gemini-2.0-flash',
+            contents='2+2=?'
+        )
         print(f"✅ Gemini çalışıyor: {test_response.text.strip()}")
     except Exception as e:
         print(f"❌ Gemini HATASI: {e}")
