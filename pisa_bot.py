@@ -873,46 +873,92 @@ SADECE JSON döndür.
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def json_temizle(text):
-    """AI'dan gelen JSON'u temizle ve parse et"""
-    # Markdown code block temizliği
+    """AI'dan gelen JSON'u temizle ve parse et - Geliştirilmiş versiyon"""
+    if not text:
+        return None
+    
+    original_text = text  # Debug için sakla
+    
+    # 1. Markdown code block temizliği
     if '```json' in text:
-        text = text.split('```json')[1].split('```')[0]
+        try:
+            text = text.split('```json')[1].split('```')[0]
+        except:
+            pass
     elif '```' in text:
-        for part in text.split('```'):
+        parts = text.split('```')
+        for part in parts:
             if '{' in part and '}' in part:
                 text = part
                 break
     
-    if text.strip().startswith('json'):
-        text = text.strip()[4:]
-    
+    # 2. "json" prefix temizliği
     text = text.strip()
+    if text.lower().startswith('json'):
+        text = text[4:].strip()
     
-    # JSON başlangıç ve bitiş bul
+    # 3. JSON başlangıç ve bitiş bul
     start = text.find('{')
-    end = text.rfind('}') + 1
+    end = text.rfind('}')
     
-    if start >= 0 and end > start:
-        text = text[start:end]
+    if start < 0 or end < 0 or end <= start:
+        print(f"   ⚠️ JSON bulunamadı: {text[:100]}...")
+        return None
     
-    # Temizleme işlemleri
-    text = re.sub(r',(\s*[}\]])', r'\1', text)  # Trailing comma
-    text = text.replace('\n', ' ').replace('\r', '')
+    text = text[start:end+1]
+    
+    # 4. String içindeki sorunlu karakterleri düzelt
+    # Önce tüm escape edilmemiş newline'ları temizle
+    # JSON string içinde \n olmalı, raw newline değil
+    
+    # Kontrol karakterlerini temizle (tab, newline vb.)
+    text = text.replace('\t', ' ')
+    text = text.replace('\r\n', ' ')
+    text = text.replace('\r', ' ')
+    text = text.replace('\n', ' ')
+    
+    # Çoklu boşlukları tek boşluğa indir
     text = re.sub(r'\s+', ' ', text)
     
-    # Escape karakterleri düzelt
-    text = text.replace('\\n', '\n')
+    # 5. Trailing comma temizliği
+    text = re.sub(r',\s*}', '}', text)
+    text = re.sub(r',\s*\]', ']', text)
     
+    # 6. İlk deneme
     try:
         return json.loads(text)
-    except json.JSONDecodeError as e:
-        # Daha agresif temizleme dene
-        try:
-            text = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', text)
-            return json.loads(text)
-        except:
-            print(f"   ⚠️ JSON parse hatası: {str(e)[:50]}")
-            return None
+    except json.JSONDecodeError as e1:
+        pass
+    
+    # 7. Daha agresif temizleme - kontrol karakterleri
+    try:
+        # ASCII olmayan kontrol karakterlerini temizle
+        text = re.sub(r'[\x00-\x1f\x7f-\x9f]', ' ', text)
+        text = re.sub(r'\s+', ' ', text)
+        return json.loads(text)
+    except json.JSONDecodeError as e2:
+        pass
+    
+    # 8. Son çare - string değerleri düzelt
+    try:
+        # String içindeki escape edilmemiş tırnakları düzelt
+        # Bu riskli ama bazen çalışıyor
+        def fix_strings(match):
+            s = match.group(1)
+            # İç tırnakları escape et
+            s = s.replace('\\"', '@@QUOTE@@')
+            s = s.replace('"', '\\"')
+            s = s.replace('@@QUOTE@@', '\\"')
+            return '"' + s + '"'
+        
+        # Çift tırnak içindeki stringleri bul ve düzelt
+        fixed = re.sub(r'"([^"]*)"', fix_strings, text)
+        return json.loads(fixed)
+    except:
+        pass
+    
+    print(f"   ⚠️ JSON parse hatası: {text[:80]}...")
+    return None
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # COT ÇÖZÜM OLUŞTUR
@@ -972,10 +1018,16 @@ Problem tanımında şunlar MUTLAKA yer almalı:
 6. Her adımda matematiksel işlemi göster
 
 ## ÇIKTI FORMATI (JSON)
+⚠️ ÖNEMLİ: Yanıtında SADECE aşağıdaki JSON formatını kullan. 
+- Markdown code block (```) KULLANMA
+- JSON dışında HİÇBİR ŞEY yazma
+- String değerlerde satır sonu (\n) KULLANMA, tek satırda yaz
+- String değerlerde çift tırnak (") KULLANMA, tek tırnak (') kullan
+
 {{
     "problem_tanimi": "[En az 120 kelime. TÜM VERİLER, TABLOLAR, FİYATLAR, KURALLAR bu alanda AÇIKÇA yazılmalı. Öğrenci sadece bunu okuyarak soruyu çözebilmeli!]",
-    "sayisal_veriler_tablosu": "[Eğer birden fazla öğe varsa, her birinin değerini liste halinde yaz. Örn: 'Ürün A: 25 TL, 50 kg | Ürün B: 30 TL, 40 kg | Ürün C: 20 TL, 35 kg']",
-    "kurallar": ["Kural 1: [Tam açıklama]", "Kural 2: [Tam açıklama]", "Kural 3: [Tam açıklama]"],
+    "sayisal_veriler_tablosu": "[Eğer birden fazla öğe varsa, her birinin değerini liste halinde yaz. Örn: Ürün A: 25 TL, 50 kg | Ürün B: 30 TL, 40 kg]",
+    "kurallar": ["Kural 1: [Tam açıklama]", "Kural 2: [Tam açıklama]"],
     "verilen_degerler": {{"degisken1": "değer1 (birimle)", "degisken2": "değer2 (birimle)"}},
     "istenen": "Ne bulunacak (net ifade)",
     "cozum_adimlari": [
@@ -989,16 +1041,15 @@ Problem tanımında şunlar MUTLAKA yer almalı:
     "sonuc_aciklama": "[Cevabın bağlamdaki anlamı]",
     "aha_moment": "[Kilit matematiksel fikir]",
     "kontrol": "[Doğrulama işlemi]"
-}}
-
-SADECE JSON döndür.'''
+}}'''
 
         response = gemini_client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-2.0-flash',
             contents=prompt,
             config=types.GenerateContentConfig(
                 temperature=0.7,
-                max_output_tokens=2500
+                max_output_tokens=3000,
+                response_mime_type="application/json"
             )
         )
         return json_temizle(response.text.strip())
@@ -1055,16 +1106,18 @@ Bu hazır çözümü kullanarak {'ÇOKTAN SEÇMELİ' if soru_tipi == 'coktan_sec
 
 {json_format}
 
-⚠️ ÖNEMLİ: Problemdeki karakterlerin isimlerini AYNEN koru, değiştirme!
-
-SADECE JSON döndür.'''
+⚠️ ÖNEMLİ: 
+- Problemdeki karakterlerin isimlerini AYNEN koru, değiştirme!
+- String değerlerde satır sonu kullanma, tek satırda yaz
+- Markdown code block kullanma'''
 
         response = gemini_client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-2.0-flash',
             contents=prompt,
             config=types.GenerateContentConfig(
                 temperature=0.7,
-                max_output_tokens=3500
+                max_output_tokens=3500,
+                response_mime_type="application/json"
             )
         )
         
