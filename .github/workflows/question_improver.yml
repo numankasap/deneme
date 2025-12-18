@@ -1,0 +1,53 @@
+name: Question Bank Iyilestirici Bot
+
+on:
+  schedule:
+    # Günde 6 kez çalışır (her 4 saatte bir) - günlük ~300 soru için
+    - cron: '0 2 * * *'   # 05:00 TR
+    - cron: '0 6 * * *'   # 09:00 TR
+    - cron: '0 10 * * *'  # 13:00 TR
+    - cron: '0 14 * * *'  # 17:00 TR
+    - cron: '0 18 * * *'  # 21:00 TR
+    - cron: '0 22 * * *'  # 01:00 TR
+  workflow_dispatch:
+    inputs:
+      batch_size:
+        description: 'Bu çalışmada işlenecek soru sayısı'
+        required: false
+        default: '50'
+      start_id:
+        description: 'Başlangıç ID'
+        required: false
+        default: '7255'
+      end_id:
+        description: 'Bitiş ID'
+        required: false
+        default: '12122'
+
+jobs:
+  improve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python Kur
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Kutuphaneler
+        run: pip install google-genai openai supabase
+
+      - name: Bot Calistir
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          BATCH_SIZE: ${{ github.event.inputs.batch_size || '50' }}
+          START_ID: ${{ github.event.inputs.start_id || '7255' }}
+          END_ID: ${{ github.event.inputs.end_id || '12122' }}
+        run: python question_improver_bot.py
