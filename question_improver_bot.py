@@ -366,67 +366,70 @@ def soru_kalite_analizi(soru):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def json_temizle(text):
-    """JSON'u temizle ve parse et - HTML uyumlu"""
+    """JSON'u temizle ve parse et - daha robust versiyon"""
     if not text:
+        print(f"      ⚠️ json_temizle: text boş")
         return None
     
-    # Markdown code block temizliği - daha agresif
+    original_text = text
     text = text.strip()
     
-    # ```json ... ``` formatını temizle
+    # Debug: Orijinal uzunluk
+    # print(f"      📝 Yanıt uzunluğu: {len(text)} karakter")
+    
+    # 1. Markdown code block temizliği
     if text.startswith('```json'):
-        text = text[7:]  # ```json kısmını kaldır
+        text = text[7:]
     elif text.startswith('```'):
-        text = text[3:]  # ``` kısmını kaldır
+        text = text[3:]
     
     if text.endswith('```'):
-        text = text[:-3]  # sondaki ``` kaldır
+        text = text[:-3]
     
     text = text.strip()
     
-    # JSON başlangıç ve bitiş noktalarını bul
+    # 2. JSON sınırlarını bul
     start = text.find('{')
     end = text.rfind('}')
     
-    if start < 0 or end < 0 or end <= start:
+    if start < 0:
+        print(f"      ⚠️ json_temizle: '{{' bulunamadı")
         return None
     
-    text = text[start:end+1]
+    if end < 0 or end <= start:
+        print(f"      ⚠️ json_temizle: '}}' bulunamadı veya yanlış pozisyon (start={start}, end={end})")
+        print(f"      ⚠️ Son 50 karakter: ...{text[-50:] if len(text) > 50 else text}")
+        return None
     
-    # İlk deneme - direkt parse
+    json_text = text[start:end+1]
+    
+    # 3. İlk deneme - direkt parse
     try:
-        return json.loads(text)
-    except:
+        result = json.loads(json_text)
+        return result
+    except json.JSONDecodeError as e:
         pass
+        # print(f"      ⚠️ İlk parse hatası: {str(e)[:50]}")
     
-    # Kontrol karakterlerini temizle
-    text = text.replace('\t', ' ')
-    text = text.replace('\r\n', '\\n')
-    text = text.replace('\r', '\\n')
-    
-    # Gerçek newline'ları escape et (JSON string içindekiler için)
-    # Ancak zaten escape edilmişleri bozma
-    lines = text.split('\n')
-    text = ''.join(lines)
-    
-    # Çoklu boşlukları temizle
-    text = re.sub(r'\s+', ' ', text)
-    
-    # Trailing comma temizliği
-    text = re.sub(r',\s*}', '}', text)
-    text = re.sub(r',\s*\]', ']', text)
-    
+    # 4. Newline'ları temizle ve tekrar dene
     try:
-        return json.loads(text)
-    except:
+        # JSON içindeki gerçek newline'ları space yap
+        clean_text = json_text.replace('\n', ' ').replace('\r', ' ')
+        clean_text = re.sub(r'\s+', ' ', clean_text)
+        result = json.loads(clean_text)
+        return result
+    except json.JSONDecodeError as e:
         pass
+        # print(f"      ⚠️ İkinci parse hatası: {str(e)[:50]}")
     
-    # Son çare - tüm kontrol karakterlerini kaldır
+    # 5. Trailing comma temizle
     try:
-        text = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', text)
-        return json.loads(text)
-    except Exception as e:
-        print(f"      ⚠️ JSON parse son hata: {str(e)[:50]}")
+        clean_text = re.sub(r',\s*}', '}', clean_text)
+        clean_text = re.sub(r',\s*\]', ']', clean_text)
+        result = json.loads(clean_text)
+        return result
+    except json.JSONDecodeError as e:
+        print(f"      ⚠️ JSON parse final hata: {str(e)[:80]}")
         return None
 
 def html_safe_text(text):
@@ -573,19 +576,31 @@ def gemini_ile_iyilestir(soru, analiz):
             contents=prompt,
             config=types.GenerateContentConfig(
                 temperature=0.3,
-                max_output_tokens=2000
+                max_output_tokens=4000  # 2000'den 4000'e artırdık
             )
         )
         
         if not response:
             print(f"      ⚠️ Gemini response None")
             return None
-            
-        if not hasattr(response, 'text') or not response.text:
+        
+        # Response text kontrolü
+        response_text = None
+        if hasattr(response, 'text'):
+            response_text = response.text
+        elif hasattr(response, 'candidates') and response.candidates:
+            if hasattr(response.candidates[0], 'content'):
+                if hasattr(response.candidates[0].content, 'parts'):
+                    response_text = response.candidates[0].content.parts[0].text
+        
+        if not response_text:
             print(f"      ⚠️ Gemini response.text boş")
             return None
         
-        result = json_temizle(response.text.strip())
+        # Debug: Yanıt uzunluğu
+        print(f"      📝 Gemini yanıt: {len(response_text)} karakter")
+        
+        result = json_temizle(response_text.strip())
         
         if not result:
             print(f"      ⚠️ JSON parse başarısız, yanıt: {response.text[:100]}...")
