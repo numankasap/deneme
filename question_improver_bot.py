@@ -72,17 +72,36 @@ if not all([SUPABASE_URL, SUPABASE_KEY, GEMINI_API_KEY]):
     print("   - GEMINI_API_KEY")
     exit(1)
 
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+print("🔗 Supabase bağlantısı kuruluyor...")
+try:
+    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+    # Test sorgusu
+    test_result = supabase.table('question_bank').select('id').limit(1).execute()
+    print(f"✅ Supabase bağlantısı başarılı")
+except Exception as e:
+    print(f"❌ Supabase bağlantı hatası: {e}")
+    exit(1)
+
+print("🔗 Gemini bağlantısı kuruluyor...")
+try:
+    gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+    print(f"✅ Gemini client oluşturuldu")
+except Exception as e:
+    print(f"❌ Gemini client hatası: {e}")
+    exit(1)
 
 deepseek = None
 if DEEPSEEK_API_KEY:
-    deepseek = OpenAI(api_key=DEEPSEEK_API_KEY, base_url='https://api.deepseek.com/v1')
-    print("✅ DeepSeek doğrulama AKTİF")
+    print("🔗 DeepSeek bağlantısı kuruluyor...")
+    try:
+        deepseek = OpenAI(api_key=DEEPSEEK_API_KEY, base_url='https://api.deepseek.com/v1')
+        print("✅ DeepSeek doğrulama AKTİF")
+    except Exception as e:
+        print(f"⚠️ DeepSeek hatası: {e}")
 else:
     print("⚠️ DeepSeek API key yok, doğrulama DEVRE DIŞI")
 
-print("✅ API bağlantıları hazır!")
+print("✅ Tüm API bağlantıları hazır!\n")
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # BLOOM TAKSONOMİSİ
@@ -136,8 +155,25 @@ SINIF_BLOOM_MAP = {
 # PROGRESS YÖNETİMİ
 # ═══════════════════════════════════════════════════════════════════════════════
 
+PROGRESS_TABLE_EXISTS = False
+
+def progress_tablo_kontrol():
+    """Progress tablosunun var olup olmadığını kontrol et"""
+    global PROGRESS_TABLE_EXISTS
+    try:
+        supabase.table(PROGRESS_TABLE).select('id').limit(1).execute()
+        PROGRESS_TABLE_EXISTS = True
+        print(f"✅ Progress tablosu mevcut")
+        return True
+    except:
+        print(f"⚠️ Progress tablosu yok - takipsiz modda çalışılacak")
+        PROGRESS_TABLE_EXISTS = False
+        return False
+
 def progress_getir(question_id):
     """Bir soru için progress bilgisi getir"""
+    if not PROGRESS_TABLE_EXISTS:
+        return None
     try:
         result = supabase.table(PROGRESS_TABLE)\
             .select('*')\
@@ -149,6 +185,8 @@ def progress_getir(question_id):
 
 def progress_kaydet(question_id, status, attempt=1, deepseek_puan=None, hata=None):
     """Progress kaydet veya güncelle"""
+    if not PROGRESS_TABLE_EXISTS:
+        return True
     try:
         mevcut = progress_getir(question_id)
         
@@ -177,7 +215,19 @@ def progress_kaydet(question_id, status, attempt=1, deepseek_puan=None, hata=Non
 def islenmemis_sorulari_getir(limit, retry_mode=False):
     """İşlenmemiş veya tekrar işlenecek soruları getir"""
     try:
-        # Önce progress tablosunda işlenmiş ID'leri al
+        if not PROGRESS_TABLE_EXISTS:
+            # Progress tablosu yoksa direkt question_bank'tan çek
+            print(f"   📋 Progress tablosu yok, direkt sorgulama...")
+            result = supabase.table('question_bank')\
+                .select('*')\
+                .gte('id', START_ID)\
+                .lte('id', END_ID)\
+                .order('id')\
+                .limit(limit)\
+                .execute()
+            return result.data if result.data else []
+        
+        # Progress tablosu varsa normal akış
         if retry_mode:
             # 2. geçiş: failed veya pending_retry olanlar
             progress_result = supabase.table(PROGRESS_TABLE)\
@@ -190,7 +240,6 @@ def islenmemis_sorulari_getir(limit, retry_mode=False):
             
             retry_ids = [p['question_id'] for p in progress_result.data]
             
-            # Bu ID'lerdeki soruları getir
             result = supabase.table('question_bank')\
                 .select('*')\
                 .in_('id', retry_ids)\
@@ -202,22 +251,19 @@ def islenmemis_sorulari_getir(limit, retry_mode=False):
                 .select('question_id')\
                 .execute()
             
-            islenmis_ids = [p['question_id'] for p in progress_result.data] if progress_result.data else []
+            islenmis_ids = set([p['question_id'] for p in progress_result.data]) if progress_result.data else set()
             
-            # İşlenmemiş soruları getir
-            query = supabase.table('question_bank')\
+            # Tüm soruları çek ve filtrele
+            result = supabase.table('question_bank')\
                 .select('*')\
                 .gte('id', START_ID)\
                 .lte('id', END_ID)\
-                .order('id')
+                .order('id')\
+                .limit(limit * 2)\
+                .execute()
             
-            if islenmis_ids:
-                # not in kullanamıyoruz, manuel filtreleme yapacağız
-                result = query.limit(limit * 2).execute()
-                if result.data:
-                    result.data = [q for q in result.data if q['id'] not in islenmis_ids][:limit]
-            else:
-                result = query.limit(limit).execute()
+            if result.data:
+                result.data = [q for q in result.data if q['id'] not in islenmis_ids][:limit]
         
         return result.data if result.data else []
         
@@ -227,6 +273,9 @@ def islenmemis_sorulari_getir(limit, retry_mode=False):
 
 def tum_isler_bitti_mi():
     """Tüm işlerin bitip bitmediğini kontrol et"""
+    if not PROGRESS_TABLE_EXISTS:
+        return {'total': END_ID - START_ID + 1, 'success': 0, 'pending': 0, 'completed': False}
+    
     try:
         # Toplam soru sayısı
         total = supabase.table('question_bank')\
@@ -504,19 +553,22 @@ def gemini_ile_iyilestir(soru, analiz):
 Şimdi bu soruyu iyileştir. SADECE JSON döndür."""
 
         response = gemini_client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-2.0-flash',
             contents=prompt,
             config=types.GenerateContentConfig(
                 temperature=0.3,
-                max_output_tokens=2000,
-                response_mime_type="application/json"
+                max_output_tokens=2000
             )
         )
         
+        if not response or not response.text:
+            print(f"      ⚠️ Gemini boş yanıt döndü")
+            return None
+            
         return json_temizle(response.text.strip())
         
     except Exception as e:
-        print(f"   ⚠️ Gemini hatası: {str(e)[:50]}")
+        print(f"      ⚠️ Gemini detay: {str(e)[:100]}")
         return None
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -794,17 +846,19 @@ def main():
     print("   ✅ Yanlış çözümleri düzeltir")
     print("   ✅ Adım adım çözüm formatı")
     print("   ✅ DeepSeek kalite kontrolü")
-    print("   ✅ Atlananları 2. geçişte işler")
     print("="*70 + "\n")
     
+    # Progress tablosu kontrolü
+    progress_tablo_kontrol()
+    
     # API testleri
-    print("🔍 Gemini API test ediliyor...")
+    print("\n🔍 Gemini API test ediliyor...")
     try:
         test = gemini_client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents='2+2=?'
+            model='gemini-2.0-flash',
+            contents='Merhaba, 2+2=?'
         )
-        print(f"✅ Gemini çalışıyor")
+        print(f"✅ Gemini çalışıyor: {test.text[:30] if test.text else 'OK'}...")
     except Exception as e:
         print(f"❌ Gemini HATASI: {e}")
         exit(1)
