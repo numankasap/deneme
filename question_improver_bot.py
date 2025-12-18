@@ -27,7 +27,13 @@ from openai import OpenAI
 
 from google import genai
 from google.genai import types
-from supabase import create_client
+
+# Supabase import - yeni ve eski versiyonları destekle
+try:
+    from supabase import create_client, Client
+except ImportError:
+    from supabase._sync.client import SyncClient as Client
+    from supabase import create_client
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # YAPILANDIRMA
@@ -510,12 +516,12 @@ Soruyu şu seviyelerden birine uygun tasarla:
 def gemini_ile_iyilestir(soru, analiz):
     """Gemini ile soruyu iyileştir"""
     try:
-        original_text = soru.get('original_text', '')
-        solution_text = soru.get('solution_text', '')
+        original_text = soru.get('original_text', '') or ''
+        solution_text = soru.get('solution_text', '') or ''
         options = soru.get('options', {})
-        correct_answer = soru.get('correct_answer', '')
+        correct_answer = soru.get('correct_answer', '') or ''
         grade_level = soru.get('grade_level', 8)
-        topic = soru.get('topic', '')
+        topic = soru.get('topic', '') or ''
         
         # Options'ı string'e çevir
         if isinstance(options, str):
@@ -528,6 +534,8 @@ def gemini_ile_iyilestir(soru, analiz):
         if isinstance(options, dict):
             for k, v in options.items():
                 options_str += f"{k}) {v}\n"
+        elif options:
+            options_str = str(options)
         
         prompt = f"""{IYILESTIRME_PROMPT}
 
@@ -538,15 +546,15 @@ def gemini_ile_iyilestir(soru, analiz):
 **Sorunlar:** {', '.join(analiz['sorunlar']) if analiz['sorunlar'] else 'Yok'}
 
 **Soru Metni:**
-{original_text}
+{original_text[:1000] if original_text else 'BOŞ'}
 
 **Mevcut Seçenekler:**
-{options_str}
+{options_str if options_str else 'YOK'}
 
-**Doğru Cevap:** {correct_answer}
+**Doğru Cevap:** {correct_answer if correct_answer else 'YOK'}
 
 **Mevcut Çözüm:**
-{solution_text if solution_text else 'YOK'}
+{solution_text[:1000] if solution_text else 'YOK'}
 
 ---
 
@@ -561,14 +569,24 @@ def gemini_ile_iyilestir(soru, analiz):
             )
         )
         
-        if not response or not response.text:
-            print(f"      ⚠️ Gemini boş yanıt döndü")
+        if not response:
+            print(f"      ⚠️ Gemini response None")
             return None
             
-        return json_temizle(response.text.strip())
+        if not hasattr(response, 'text') or not response.text:
+            print(f"      ⚠️ Gemini response.text boş")
+            return None
+        
+        result = json_temizle(response.text.strip())
+        
+        if not result:
+            print(f"      ⚠️ JSON parse başarısız, yanıt: {response.text[:100]}...")
+            return None
+            
+        return result
         
     except Exception as e:
-        print(f"      ⚠️ Gemini detay: {str(e)[:100]}")
+        print(f"      ⚠️ Gemini exception: {type(e).__name__}: {str(e)[:100]}")
         return None
 
 # ═══════════════════════════════════════════════════════════════════════════════
