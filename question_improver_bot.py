@@ -370,21 +370,21 @@ def json_temizle(text):
     if not text:
         return None
     
-    # Markdown code block temizliği
-    if '```json' in text:
-        try:
-            text = text.split('```json')[1].split('```')[0]
-        except:
-            pass
-    elif '```' in text:
-        parts = text.split('```')
-        for part in parts:
-            if '{' in part and '}' in part:
-                text = part
-                break
+    # Markdown code block temizliği - daha agresif
+    text = text.strip()
+    
+    # ```json ... ``` formatını temizle
+    if text.startswith('```json'):
+        text = text[7:]  # ```json kısmını kaldır
+    elif text.startswith('```'):
+        text = text[3:]  # ``` kısmını kaldır
+    
+    if text.endswith('```'):
+        text = text[:-3]  # sondaki ``` kaldır
     
     text = text.strip()
     
+    # JSON başlangıç ve bitiş noktalarını bul
     start = text.find('{')
     end = text.rfind('}')
     
@@ -393,14 +393,23 @@ def json_temizle(text):
     
     text = text[start:end+1]
     
+    # İlk deneme - direkt parse
+    try:
+        return json.loads(text)
+    except:
+        pass
+    
     # Kontrol karakterlerini temizle
     text = text.replace('\t', ' ')
     text = text.replace('\r\n', '\\n')
     text = text.replace('\r', '\\n')
-    text = text.replace('\n', '\\n')
+    
+    # Gerçek newline'ları escape et (JSON string içindekiler için)
+    # Ancak zaten escape edilmişleri bozma
+    lines = text.split('\n')
+    text = ''.join(lines)
     
     # Çoklu boşlukları temizle
-    text = re.sub(r'\\n\\n+', '\\n', text)
     text = re.sub(r'\s+', ' ', text)
     
     # Trailing comma temizliği
@@ -412,14 +421,13 @@ def json_temizle(text):
     except:
         pass
     
-    # Agresif temizleme
+    # Son çare - tüm kontrol karakterlerini kaldır
     try:
         text = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', text)
         return json.loads(text)
-    except:
-        pass
-    
-    return None
+    except Exception as e:
+        print(f"      ⚠️ JSON parse son hata: {str(e)[:50]}")
+        return None
 
 def html_safe_text(text):
     """Metni HTML-safe hale getir"""
