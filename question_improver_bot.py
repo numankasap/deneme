@@ -35,7 +35,7 @@ from supabase import create_client
 
 SUPABASE_URL = os.environ.get('SUPABASE_URL')
 SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
-GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
+_API_KEY = os.environ.get('_API_KEY')
 DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY', '')
 
 # İşlenecek ID aralığı
@@ -58,12 +58,12 @@ PROGRESS_TABLE = 'question_improver_progress'
 
 print("🔌 API bağlantıları kuruluyor...")
 
-if not all([SUPABASE_URL, SUPABASE_KEY, GEMINI_API_KEY]):
+if not all([SUPABASE_URL, SUPABASE_KEY, _API_KEY]):
     print("❌ HATA: Gerekli environment variable'lar eksik!")
     exit(1)
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+_client = genai.Client(api_key=_API_KEY)
 
 deepseek = None
 if DEEPSEEK_API_KEY:
@@ -448,8 +448,8 @@ Soruyu şu seviyelerden birine uygun tasarla:
 ⚠️ SADECE JSON döndür. Başka açıklama yazma.
 """
 
-def gemini_ile_iyilestir(soru, analiz):
-    """Gemini ile soruyu iyileştir"""
+def _ile_iyilestir(soru, analiz):
+    """ ile soruyu iyileştir"""
     try:
         original_text = soru.get('original_text', '')
         solution_text = soru.get('solution_text', '')
@@ -493,8 +493,8 @@ def gemini_ile_iyilestir(soru, analiz):
 
 Şimdi bu soruyu iyileştir. SADECE JSON döndür."""
 
-        response = gemini_client.models.generate_content(
-            model='gemini-2.5-flash-preview-05-20',
+        response = _client.models.generate_content(
+            model='gemini-2.5-flash',
             contents=prompt,
             config=types.GenerateContentConfig(
                 temperature=0.3,
@@ -791,7 +791,7 @@ def main():
     print("🔍 Gemini API test ediliyor...")
     try:
         test = gemini_client.models.generate_content(
-            model='gemini-2.5-flash-preview-05-20',
+            model='gemini-2.5-flash',
             contents='2+2=?'
         )
         print(f"✅ Gemini çalışıyor")
