@@ -11,11 +11,11 @@ on:
       soru_per_kazanim:
         description: 'Her kazanım için üretilecek soru sayısı (tur başına)'
         required: false
-        default: '2'
+        default: '1'
       max_islem:
         description: 'Bu çalışmada işlenecek maksimum kazanım sayısı'
         required: false
-        default: '50'
+        default: '64'
 
 jobs:
   generate:
