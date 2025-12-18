@@ -2,7 +2,7 @@ name: Question Bank Iyilestirici Bot
 
 on:
   schedule:
-    # Günde 6 kez çalışır (her 4 saatte bir) - günlük ~300 soru için
+    # Günde 6 kez çalışır (her 4 saatte bir) - günlük ~600 soru için
     - cron: '0 2 * * *'   # 05:00 TR
     - cron: '0 6 * * *'   # 09:00 TR
     - cron: '0 10 * * *'  # 13:00 TR
@@ -14,7 +14,7 @@ on:
       batch_size:
         description: 'Bu çalışmada işlenecek soru sayısı'
         required: false
-        default: '50'
+        default: '100'
       start_id:
         description: 'Başlangıç ID'
         required: false
@@ -47,7 +47,7 @@ jobs:
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          BATCH_SIZE: ${{ github.event.inputs.batch_size || '50' }}
+          BATCH_SIZE: ${{ github.event.inputs.batch_size || '100' }}
           START_ID: ${{ github.event.inputs.start_id || '7255' }}
           END_ID: ${{ github.event.inputs.end_id || '12122' }}
         run: python question_improver_bot.py
