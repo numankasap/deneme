@@ -35,7 +35,7 @@ from supabase import create_client
 
 SUPABASE_URL = os.environ.get('SUPABASE_URL')
 SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
-_API_KEY = os.environ.get('_API_KEY')
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY', '')
 
 # İşlenecek ID aralığı
@@ -58,12 +58,22 @@ PROGRESS_TABLE = 'question_improver_progress'
 
 print("🔌 API bağlantıları kuruluyor...")
 
-if not all([SUPABASE_URL, SUPABASE_KEY, _API_KEY]):
+# Debug: Hangi env var'lar eksik?
+print(f"   SUPABASE_URL: {'✅' if SUPABASE_URL else '❌ EKSİK'}")
+print(f"   SUPABASE_KEY: {'✅' if SUPABASE_KEY else '❌ EKSİK'}")
+print(f"   GEMINI_API_KEY: {'✅' if GEMINI_API_KEY else '❌ EKSİK'}")
+print(f"   DEEPSEEK_API_KEY: {'✅' if DEEPSEEK_API_KEY else '⚠️ Opsiyonel'}")
+
+if not all([SUPABASE_URL, SUPABASE_KEY, GEMINI_API_KEY]):
     print("❌ HATA: Gerekli environment variable'lar eksik!")
+    print("   Lütfen GitHub Secrets'ı kontrol edin:")
+    print("   - SUPABASE_URL")
+    print("   - SUPABASE_KEY") 
+    print("   - GEMINI_API_KEY")
     exit(1)
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-_client = genai.Client(api_key=_API_KEY)
+gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 
 deepseek = None
 if DEEPSEEK_API_KEY:
@@ -448,8 +458,8 @@ Soruyu şu seviyelerden birine uygun tasarla:
 ⚠️ SADECE JSON döndür. Başka açıklama yazma.
 """
 
-def _ile_iyilestir(soru, analiz):
-    """ ile soruyu iyileştir"""
+def gemini_ile_iyilestir(soru, analiz):
+    """Gemini ile soruyu iyileştir"""
     try:
         original_text = soru.get('original_text', '')
         solution_text = soru.get('solution_text', '')
@@ -493,7 +503,7 @@ def _ile_iyilestir(soru, analiz):
 
 Şimdi bu soruyu iyileştir. SADECE JSON döndür."""
 
-        response = _client.models.generate_content(
+        response = gemini_client.models.generate_content(
             model='gemini-2.5-flash',
             contents=prompt,
             config=types.GenerateContentConfig(
