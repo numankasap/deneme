@@ -721,41 +721,48 @@ def tek_soru_isle(soru):
     """Tek bir soruyu işle ve iyileştir"""
     question_id = soru.get('id')
     
+    # Kalite analizi
+    analiz = soru_kalite_analizi(soru)
+    
     for deneme in range(MAX_DENEME):
         try:
-            # 1. Kalite analizi
-            analiz = soru_kalite_analizi(soru)
-            
-            # 2. Gemini ile iyileştir
+            # Gemini ile iyileştir
+            print(f"      🔄 Gemini çağrılıyor (deneme {deneme+1})...")
             iyilestirilmis = gemini_ile_iyilestir(soru, analiz)
             
             if not iyilestirilmis:
                 print(f"   ⚠️ Gemini başarısız (deneme {deneme+1})")
+                time.sleep(1)
                 continue
             
-            # 3. DeepSeek kontrolü
+            print(f"      ✅ Gemini yanıt verdi")
+            
+            # DeepSeek kontrolü
+            print(f"      🔄 DeepSeek kontrolü...")
             kontrol = deepseek_kontrol(iyilestirilmis, soru)
             puan = kontrol.get('puan', 0)
             
             if puan < MIN_DEEPSEEK_PUAN:
                 print(f"   ⚠️ Düşük puan: {puan} (deneme {deneme+1})")
                 if deneme < MAX_DENEME - 1:
+                    time.sleep(1)
                     continue
                 else:
-                    # Son denemede de başarısız - pending_retry olarak işaretle
                     progress_kaydet(question_id, 'pending_retry', deneme+1, puan, 'Düşük kalite puanı')
                     return {'success': False, 'puan': puan, 'reason': 'low_score'}
             
-            # 4. Matematik doğru mu?
+            # Matematik doğru mu?
             if not kontrol.get('matematik_dogru', True) or not kontrol.get('cevap_dogru', True):
                 print(f"   ⚠️ Matematik hatası (deneme {deneme+1})")
                 if deneme < MAX_DENEME - 1:
+                    time.sleep(1)
                     continue
                 else:
                     progress_kaydet(question_id, 'pending_retry', deneme+1, puan, 'Matematik hatası')
                     return {'success': False, 'puan': puan, 'reason': 'math_error'}
             
-            # 5. Question Bank'ı güncelle
+            # Question Bank'ı güncelle
+            print(f"      🔄 Veritabanı güncelleniyor...")
             if question_bank_guncelle(question_id, iyilestirilmis, puan):
                 progress_kaydet(question_id, 'success', deneme+1, puan)
                 return {
@@ -765,10 +772,12 @@ def tek_soru_isle(soru):
                 }
             else:
                 print(f"   ⚠️ DB güncelleme hatası (deneme {deneme+1})")
+                time.sleep(1)
                 continue
                 
         except Exception as e:
-            print(f"   ⚠️ Hata (deneme {deneme+1}): {str(e)[:50]}")
+            print(f"   ⚠️ Hata (deneme {deneme+1}): {type(e).__name__}: {str(e)[:80]}")
+            time.sleep(1)
             continue
     
     progress_kaydet(question_id, 'failed', MAX_DENEME, None, 'Max deneme aşıldı')
