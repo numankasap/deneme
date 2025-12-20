@@ -15,7 +15,7 @@ on:
       max_islem:
         description: 'Bu çalışmada işlenecek maksimum kazanım sayısı'
         required: false
-        default: '64'
+        default: '36'
 
 jobs:
   generate:
