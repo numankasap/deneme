@@ -1,6 +1,7 @@
 # Scenario Bot Workflow
 # PISA ve senaryo tabanlı sorular için infografik görsel üretir
 # Günde 3 kez çalışır (09:00, 15:00, 21:00 UTC+3)
+# Her seansta 30 soru işler, test modunda 10 soru
 
 name: Scenario Bot
 
@@ -16,6 +17,11 @@ on:
         options:
           - 'true'
           - 'false'
+      batch_size:
+        description: 'İşlenecek soru sayısı (1-100)'
+        required: false
+        default: '30'
+        type: string
   
   # Zamanlanmış çalışma (Geometri botundan 1 saat sonra)
   schedule:
@@ -56,10 +62,12 @@ jobs:
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TEST_MODE: ${{ github.event.inputs.test_mode || 'false' }}
+          BATCH_SIZE: ${{ github.event.inputs.batch_size || '30' }}
         run: |
           echo "🚀 Senaryo Görsel Botu Başlatılıyor..."
           echo "📅 Tarih: $(date)"
           echo "🔧 Test Modu: $TEST_MODE"
+          echo "📊 Batch Boyutu: $BATCH_SIZE soru"
           python scenario_bot.py
       
       - name: 📊 Job Summary
@@ -69,5 +77,6 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- **Tarih:** $(date)" >> $GITHUB_STEP_SUMMARY
           echo "- **Test Modu:** ${{ github.event.inputs.test_mode || 'false' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Batch Boyutu:** ${{ github.event.inputs.batch_size || '30' }} soru" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Detaylar için logları kontrol edin." >> $GITHUB_STEP_SUMMARY
