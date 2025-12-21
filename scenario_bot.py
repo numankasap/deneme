@@ -58,7 +58,7 @@ class Config:
     STORAGE_BUCKET = 'questions-images'
     
     # İşlem limitleri
-    BATCH_SIZE = 30
+    BATCH_SIZE = int(os.environ.get('BATCH_SIZE', '30'))  # Varsayılan 30 soru
     TEST_MODE = os.environ.get('TEST_MODE', 'false').lower() == 'true'
     TEST_BATCH_SIZE = 10
     
