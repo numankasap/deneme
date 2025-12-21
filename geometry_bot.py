@@ -235,34 +235,45 @@ class GeminiAnalyzer:
 
 GÖREV: Verilen geometri sorusunu analiz et ve çizim için gerekli bilgileri JSON formatında çıkar.
 
+⚠️ ÇOK ÖNEMLİ - ÇİZİM YAPMAMA KURALLARI:
+Aşağıdaki durumlarda KESİNLİKLE "cizim_pisinilir": false olmalı:
+1. Şeklin tipi/boyutu SORUDA VERİLMEYİP HESAPLANMASI GEREKİYORSA → ÇİZME!
+   Örnek: "Köşegen sayısı köşe sayısının 2 katı olan çokgen" - kaç köşeli olduğu bilinmiyor, hesaplanacak
+2. Tamamen FORMÜLe dayalı problemlerse → ÇİZME!
+   Örnek: "n köşeli çokgenin köşegen sayısı", "çemberin çevresi formülü"
+3. Çizim CEVABI DOĞRUDAN VERİYORSA → ÇİZME!
+   Örnek: Hesaplanması gereken değerler (dış dikdörtgen boyutları gibi) görselde görünürse
+4. Grafikler için VERİ NOKTASI veya DOĞRU DENKLEMİ yoksa → ÇİZME!
+   Örnek: "Birikim grafiği" ama başlangıç değerleri, artış miktarları verilmemişse
+
+✅ ÇİZİM YAPILACAK DURUMLAR:
+- Soruda SOMUT boyutlar verilmişse (8m x 12m havuz gibi)
+- Koordinatlar açıkça verilmişse: A(1,2), B(3,4)
+- Şekil tipi ve özellikleri belirtilmişse
+- Açı ölçüleri, kenar uzunlukları verilmişse
+
+⚠️ SADECE VERİLENLERİ ÇİZ:
+- Havuz 8x12m, güvenlik 2m → Sadece havuzu ve 2m genişliği göster
+- Dış dikdörtgenin boyutları (16x12) HESAPLANAN değer, gösterme!
+- Çözümün adımlarını görsele KOYMA!
+
 KRİTİK KURAL - ÇİZİM KARARI:
-Aşağıdaki durumlarda KESİNLİKLE "cizim_pisinilir": true olmalı:
-- Soruda üçgen, dörtgen, çember, kare, dikdörtgen, paralelkenar geçiyorsa → ÇİZ
-- Soruda A, B, C gibi köşe noktaları varsa → ÇİZ
-- Soruda kenar uzunluğu, açı ölçüsü, alan, çevre verilmişse → ÇİZ
-- Soruda yükseklik, kenarortay, açıortay geçiyorsa → ÇİZ
-- Soruda prizma, piramit, silindir, koni, küre geçiyorsa → ÇİZ
-- Soruda koordinat düzlemi, nokta, doğru geçiyorsa → ÇİZ
-- Hesaplama gerektirse bile şekil varsa → ÇİZ
+Aşağıdaki durumlarda "cizim_pisinilir": true:
+- Soruda üçgen, dörtgen, çember ile SOMUT ölçüler verilmişse → ÇİZ
+- Soruda A, B, C köşeleri ve koordinatları/uzunlukları verilmişse → ÇİZ
+- Geometrik şekil ÇİZİLEBİLİR somut verilerle tanımlanmışsa → ÇİZ
 
 ⚠️ BİRDEN FAZLA ŞEKİL:
-Soruda birden fazla geometrik şekil varsa (örn: dikdörtgen + yamuk, üçgen + kare):
+Soruda birden fazla geometrik şekil varsa (örn: havuz + güvenlik alanı):
 - sekil_tipi: "birlesik" olarak ayarla
-- "sekiller" dizisine HER ŞEKLİ ayrı ayrı ekle
-- Şekillerin birbirine göre konumunu belirt (bitişik, içinde, yanında)
-
-SADECE şu durumlarda "cizim_pisinilir": false:
-- Soruda hiçbir geometrik şekil veya figür yoksa
-- Tamamen cebirsel/sayısal bir problemse (örn: "3x + 5 = 11")
+- SADECE VERİLEN ölçüleri kullan
+- Hesaplanan değerleri GÖSTERME
 
 ÖNEMLİ KURALLAR:
-1. Sadece VERİLENLERİ çıkar - ÇÖZÜMÜ YAPMA!
+1. Sadece VERİLENLERİ çıkar - ÇÖZÜMÜ veya HESAPLANAN değerleri KOYMA!
 2. Bilinmeyenleri "?" ile işaretle
-3. Koordinatları mantıklı ve dengeli belirle (görsel güzel görünsün)
-4. Nokta isimlerini soruda geçtiği gibi kullan (A, B, C, vb.)
-5. Türkçe karakterleri düzgün kullan
-6. Şüphe durumunda ÇİZ!
-7. BİRDEN FAZLA ŞEKİL VARSA HEPSİNİ ÇİZ!
+3. Eğer şeklin boyutu/tipi hesaplanması gerekiyorsa → ÇİZME!
+4. Koordinat düzleminde grafik çizilecekse, mutlaka çizilecek DOĞRU veya NOKTALAR olmalı
 
 DESTEKLENEN ŞEKİL TİPLERİ:
 - ucgen: Üçgen (genel, dik, ikizkenar, eşkenar)
@@ -349,45 +360,26 @@ Soru: "Dikdörtgen (12x7 m) ve üstüne bitişik yamuk (üst kenar 8m). Bahçeni
 → sekiller dizisine dikdörtgen ve yamuk ayrı ayrı eklenir
 → Ortak kenarlar aynı noktaları paylaşır (D ve C)
 
+ÖRNEK - ÇİZİM YAPILMAYACAK:
+Soru: "Bir dışbükey çokgenin köşegen sayısı, köşe sayısının 2 katına eşittir. Kaç köşeli?"
+→ cizim_pisinilir: false
+→ neden: "Çokgenin köşe sayısı verilmemiş, hesaplanması gereken değer. Şekil çizilemez."
+
+Soru: "n köşeli çokgende köşegen sayısı formülü n(n-3)/2'dir. 5 köşeli için?"
+→ cizim_pisinilir: false
+→ neden: "Formül bazlı soru, somut şekil çizimi gerekmez."
+
+ÖRNEK - SADECE VERİLENLERİ ÇİZ:
+Soru: "8x12m havuz etrafına 2m güvenlik alanı. Güvenlik alanının alanı?"
+→ cizim_pisinilir: true
+→ İç dikdörtgen (havuz): 8m x 12m - bu VERİLMİŞ, ÇİZ
+→ Güvenlik genişliği: 2m - bu VERİLMİŞ, ÇİZ
+→ Dış dikdörtgen: 12m x 16m - bu HESAPLANAN, ÇİZME!
+
 NOT: 
-- Geometri sorusu ise MUTLAKA çizim yap, hesaplama gerektirse bile!
-- BİRDEN FAZLA ŞEKİL VARSA "birlesik" TİPİNİ KULLAN!
+- Şeklin boyutu/tipi hesaplanması gerekiyorsa ÇİZME!
+- Sadece somut verilerle tanımlanan şekilleri çiz
 - Koordinatlar -15 ile 15 arasında olsun
-- Şekil merkezi (0,0) civarında olsun
-- Eğer soruda şekil tipi belirsizse, en uygun olanı seç ve çiz
-
-SORU:
-  "sekil_tipi": "ucgen|dortgen|cember|analitik|cokgen",
-  "alt_tip": "genel|dik|ikizkenar|eskenar|kare|dikdortgen|paralelkenar|yamuk",
-  "noktalar": [
-    {"isim": "A", "x": 0, "y": 4, "konum": "tepe"},
-    {"isim": "B", "x": -3, "y": 0, "konum": "sol_alt"},
-    {"isim": "C", "x": 3, "y": 0, "konum": "sag_alt"}
-  ],
-  "kenarlar": [
-    {"baslangic": "A", "bitis": "B", "uzunluk": "5 cm", "goster_uzunluk": true},
-    {"baslangic": "B", "bitis": "C", "uzunluk": "6 cm", "goster_uzunluk": true}
-  ],
-  "acilar": [
-    {"kose": "B", "deger": "90°", "goster": true, "dik_aci": true}
-  ],
-  "ozel_cizgiler": [
-    {"tip": "yukseklik", "baslangic": "A", "bitis": "H", "bitis_koordinat": [0, 0], "etiket": "h = ?", "kenar_uzerinde": "BC"}
-  ],
-  "daireler": [
-    {"merkez": "O", "yaricap": 3, "yaricap_goster": true, "yaricap_etiketi": "r = 5 cm"}
-  ],
-  "ek_etiketler": [
-    {"metin": "Alan = 24 cm²", "konum": "sag_ust"}
-  ],
-  "bilinmeyenler": ["h", "x"]
-}
-
-NOT: 
-- Geometri sorusu ise MUTLAKA çizim yap, hesaplama gerektirse bile!
-- Koordinatlar -10 ile 10 arasında olsun
-- Şekil merkezi (0,0) civarında olsun
-- Eğer soruda şekil tipi belirsizse, en uygun olanı seç ve çiz
 
 SORU:
 """
