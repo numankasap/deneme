@@ -217,9 +217,26 @@ class DatabaseManager:
 class GeminiAnalyzer:
     """Gemini ile soru analizi"""
     
-    ANALYSIS_PROMPT = """Sen bir geometri soru analiz uzmanısın.
+    ANALYSIS_PROMPT = """Sen bir geometri soru analiz uzmanısın. Görevin geometri sorularını görselleştirmek için analiz etmek.
 
 GÖREV: Verilen geometri sorusunu analiz et ve çizim için gerekli bilgileri JSON formatında çıkar.
+
+KRİTİK KURAL - ÇİZİM KARARI:
+Aşağıdaki durumlarda KESİNLİKLE "cizim_pisinilir": true olmalı:
+- Soruda üçgen, dörtgen, çember, kare, dikdörtgen, paralelkenar geçiyorsa → ÇİZ
+- Soruda A, B, C gibi köşe noktaları varsa → ÇİZ
+- Soruda kenar uzunluğu, açı ölçüsü, alan, çevre verilmişse → ÇİZ
+- Soruda yükseklik, kenarortay, açıortay geçiyorsa → ÇİZ
+- Soruda prizma, piramit, silindir, koni, küre geçiyorsa → ÇİZ
+- Soruda koordinat düzlemi, nokta, doğru geçiyorsa → ÇİZ
+- Hesaplama gerektirse bile şekil varsa → ÇİZ
+
+SADECE şu durumlarda "cizim_pisinilir": false:
+- Soruda hiçbir geometrik şekil veya figür yoksa
+- Tamamen cebirsel/sayısal bir problemse (örn: "3x + 5 = 11")
+
+ÖRNEK: "ABC üçgeninin alanı 48 cm², taban 8 cm ise yükseklik kaçtır?" 
+→ Bu soru ÇİZİLMELİ çünkü üçgen var, alan ve taban verilmiş, yükseklik sorulmuş.
 
 ÖNEMLİ KURALLAR:
 1. Sadece VERİLENLERİ çıkar - ÇÖZÜMÜ YAPMA!
@@ -227,6 +244,7 @@ GÖREV: Verilen geometri sorusunu analiz et ve çizim için gerekli bilgileri JS
 3. Koordinatları mantıklı ve dengeli belirle (görsel güzel görünsün)
 4. Nokta isimlerini soruda geçtiği gibi kullan (A, B, C, vb.)
 5. Türkçe karakterleri düzgün kullan
+6. Şüphe durumunda ÇİZ!
 
 DESTEKLENEN ŞEKİL TİPLERİ:
 - ucgen: Üçgen (genel, dik, ikizkenar, eşkenar)
@@ -237,8 +255,8 @@ DESTEKLENEN ŞEKİL TİPLERİ:
 
 JSON ÇIKTI FORMATI:
 {
-  "cizim_pisinilir": true/false,
-  "neden": "Eğer çizilemiyorsa neden",
+  "cizim_pisinilir": true,
+  "neden": "",
   "sekil_tipi": "ucgen|dortgen|cember|analitik|cokgen",
   "alt_tip": "genel|dik|ikizkenar|eskenar|kare|dikdortgen|paralelkenar|yamuk",
   "noktalar": [
@@ -266,9 +284,10 @@ JSON ÇIKTI FORMATI:
 }
 
 NOT: 
-- Eğer soru geometrik çizim gerektirmiyorsa (sadece hesaplama), "cizim_pisinilir": false yap
+- Geometri sorusu ise MUTLAKA çizim yap, hesaplama gerektirse bile!
 - Koordinatlar -10 ile 10 arasında olsun
 - Şekil merkezi (0,0) civarında olsun
+- Eğer soruda şekil tipi belirsizse, en uygun olanı seç ve çiz
 
 SORU:
 """
@@ -313,10 +332,15 @@ SORU:
             # JSON parse
             result = json.loads(response_text)
             
-            # Çizilebilirlik kontrolü
+            # Çizilebilirlik kontrolü - geometri sorusu ise çiz
             if not result.get('cizim_pisinilir', True):
-                logger.info(f"Soru çizilemez: {result.get('neden', 'Bilinmiyor')}")
-                return None
+                # Yine de şekil tipi varsa çiz
+                if result.get('sekil_tipi') and result.get('noktalar'):
+                    logger.info("Şekil bilgisi mevcut, çizim yapılacak")
+                    result['cizim_pisinilir'] = True
+                else:
+                    logger.info(f"Soru çizilemez: {result.get('neden', 'Bilinmiyor')}")
+                    return None
             
             logger.info(f"Analiz tamamlandı: {result.get('sekil_tipi', 'bilinmiyor')}")
             return result
@@ -859,6 +883,57 @@ class GeometryBot:
             'failed': 0
         }
     
+    def _create_default_triangle_analysis(self, question_text: str) -> Dict:
+        """Varsayılan üçgen analizi oluştur"""
+        import re
+        
+        # Metinden sayıları ve nokta isimlerini çıkarmaya çalış
+        numbers = re.findall(r'\d+', question_text)
+        points = re.findall(r'\b([A-Z])\b', question_text)
+        
+        # Varsayılan noktalar
+        if len(points) >= 3:
+            p1, p2, p3 = points[0], points[1], points[2]
+        else:
+            p1, p2, p3 = 'A', 'B', 'C'
+        
+        # Varsayılan kenar uzunlukları
+        if len(numbers) >= 2:
+            side1 = numbers[0]
+            side2 = numbers[1] if len(numbers) > 1 else numbers[0]
+        else:
+            side1, side2 = '6', '8'
+        
+        # Soru metninden ne sorulduğunu anlamaya çalış
+        text_lower = question_text.lower()
+        bilinmeyen = '?'
+        ozel_cizgiler = []
+        
+        if 'yükseklik' in text_lower or 'yüksekliği' in text_lower:
+            ozel_cizgiler.append({
+                "tip": "yukseklik",
+                "baslangic": p1,
+                "kenar_uzerinde": f"{p2}{p3}",
+                "etiket": "h = ?"
+            })
+        
+        return {
+            "cizim_pisinilir": True,
+            "sekil_tipi": "ucgen",
+            "alt_tip": "genel",
+            "noktalar": [
+                {"isim": p1, "x": 3, "y": 5, "konum": "tepe"},
+                {"isim": p2, "x": 0, "y": 0, "konum": "sol_alt"},
+                {"isim": p3, "x": 6, "y": 0, "konum": "sag_alt"}
+            ],
+            "kenarlar": [
+                {"baslangic": p2, "bitis": p3, "uzunluk": f"{side1} cm", "goster_uzunluk": True}
+            ],
+            "acilar": [],
+            "ozel_cizgiler": ozel_cizgiler,
+            "ek_etiketler": []
+        }
+    
     def run(self):
         """Botu çalıştır"""
         logger.info("="*60)
@@ -895,6 +970,7 @@ class GeometryBot:
         """Tek bir soruyu işle"""
         question_id = question['id']
         question_text = question.get('original_text', '')
+        topic = question.get('topic', '')
         
         if not question_text:
             logger.warning(f"Soru #{question_id}: Metin boş, atlandı")
@@ -905,10 +981,20 @@ class GeometryBot:
         logger.info("Gemini analizi yapılıyor...")
         analysis = self.analyzer.analyze_question(question_text)
         
+        # Eğer analiz başarısız ama geometri konusuysa, varsayılan çizim yap
         if not analysis:
-            logger.warning(f"Soru #{question_id}: Analiz başarısız veya çizilemez")
-            self.stats['skipped'] += 1
-            return
+            # Konu geometri ile ilgiliyse basit bir şekil çiz
+            geo_keywords = ['üçgen', 'dörtgen', 'çember', 'kare', 'dikdörtgen', 'alan', 'çevre', 'açı', 'kenar']
+            text_lower = question_text.lower()
+            topic_lower = topic.lower()
+            
+            if any(kw in text_lower or kw in topic_lower for kw in geo_keywords):
+                logger.info("Varsayılan üçgen çizimi yapılıyor...")
+                analysis = self._create_default_triangle_analysis(question_text)
+            else:
+                logger.warning(f"Soru #{question_id}: Analiz başarısız veya çizilemez")
+                self.stats['skipped'] += 1
+                return
         
         logger.info(f"Şekil tipi: {analysis.get('sekil_tipi', 'bilinmiyor')}")
         
