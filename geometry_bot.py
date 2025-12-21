@@ -73,18 +73,32 @@ class Config:
     IMAGE_HEIGHT = 600
     IMAGE_DPI = 150
     
-    # Renk paleti
+    # Renk paleti - CANLI RENKLER
     COLORS = {
-        'primary': '#3b82f6',      # Ana şekil (mavi)
-        'secondary': '#10b981',    # İkincil şekil (yeşil)
-        'highlight': '#ef4444',    # Yükseklik/önemli (kırmızı)
-        'auxiliary': '#f59e0b',    # Yardımcı çizgi (turuncu)
-        'angle': '#8b5cf6',        # Açı yayları (mor)
-        'unknown': '#dc2626',      # Bilinmeyen (koyu kırmızı)
+        'primary': '#2563eb',      # Ana şekil (parlak mavi)
+        'secondary': '#16a34a',    # İkincil şekil (parlak yeşil)
+        'tertiary': '#dc2626',     # Üçüncü şekil (parlak kırmızı)
+        'quaternary': '#9333ea',   # Dördüncü şekil (parlak mor)
+        'highlight': '#ea580c',    # Vurgulu (parlak turuncu)
+        'auxiliary': '#0891b2',    # Yardımcı çizgi (cyan)
+        'angle': '#c026d3',        # Açı yayları (magenta)
+        'unknown': '#dc2626',      # Bilinmeyen (kırmızı)
         'text': '#1e293b',         # Metin (koyu gri)
         'background': '#ffffff',   # Arka plan (beyaz)
-        'grid': '#e2e8f0'          # Grid (açık gri)
+        'grid': '#e2e8f0',         # Grid (açık gri)
+        'label_bg': '#fef9c3',     # Etiket arka plan (açık sarı)
+        'label_border': '#ca8a04'  # Etiket kenarlık (koyu sarı)
     }
+    
+    # Şekil renk paleti (birden fazla şekil için)
+    SHAPE_COLORS = [
+        {'fill': '#dbeafe', 'stroke': '#2563eb', 'text': '#1d4ed8'},  # Mavi
+        {'fill': '#dcfce7', 'stroke': '#16a34a', 'text': '#166534'},  # Yeşil
+        {'fill': '#fee2e2', 'stroke': '#dc2626', 'text': '#991b1b'},  # Kırmızı
+        {'fill': '#f3e8ff', 'stroke': '#9333ea', 'text': '#7e22ce'},  # Mor
+        {'fill': '#ffedd5', 'stroke': '#ea580c', 'text': '#c2410c'},  # Turuncu
+        {'fill': '#cffafe', 'stroke': '#0891b2', 'text': '#0e7490'},  # Cyan
+    ]
 
 
 # ============== VERİTABANI İŞLEMLERİ ==============
@@ -231,12 +245,15 @@ Aşağıdaki durumlarda KESİNLİKLE "cizim_pisinilir": true olmalı:
 - Soruda koordinat düzlemi, nokta, doğru geçiyorsa → ÇİZ
 - Hesaplama gerektirse bile şekil varsa → ÇİZ
 
+⚠️ BİRDEN FAZLA ŞEKİL:
+Soruda birden fazla geometrik şekil varsa (örn: dikdörtgen + yamuk, üçgen + kare):
+- sekil_tipi: "birlesik" olarak ayarla
+- "sekiller" dizisine HER ŞEKLİ ayrı ayrı ekle
+- Şekillerin birbirine göre konumunu belirt (bitişik, içinde, yanında)
+
 SADECE şu durumlarda "cizim_pisinilir": false:
 - Soruda hiçbir geometrik şekil veya figür yoksa
 - Tamamen cebirsel/sayısal bir problemse (örn: "3x + 5 = 11")
-
-ÖRNEK: "ABC üçgeninin alanı 48 cm², taban 8 cm ise yükseklik kaçtır?" 
-→ Bu soru ÇİZİLMELİ çünkü üçgen var, alan ve taban verilmiş, yükseklik sorulmuş.
 
 ÖNEMLİ KURALLAR:
 1. Sadece VERİLENLERİ çıkar - ÇÖZÜMÜ YAPMA!
@@ -245,6 +262,7 @@ SADECE şu durumlarda "cizim_pisinilir": false:
 4. Nokta isimlerini soruda geçtiği gibi kullan (A, B, C, vb.)
 5. Türkçe karakterleri düzgün kullan
 6. Şüphe durumunda ÇİZ!
+7. BİRDEN FAZLA ŞEKİL VARSA HEPSİNİ ÇİZ!
 
 DESTEKLENEN ŞEKİL TİPLERİ:
 - ucgen: Üçgen (genel, dik, ikizkenar, eşkenar)
@@ -253,42 +271,86 @@ DESTEKLENEN ŞEKİL TİPLERİ:
 - analitik: Koordinat düzleminde nokta/doğru
 - cokgen: Çokgen (beşgen, altıgen, vb.)
 - kati_cisim: 3D katı cisimler (alt_tip belirt: kup, prizma, silindir, koni, kure, piramit)
+- birlesik: Birden fazla şekil içeren kompozit şekil
 
-ÖNEMLİ: Katı cisimler için:
-- Soruda küp, prizma, silindir, koni, küre, piramit geçiyorsa → sekil_tipi: "kati_cisim"
-- alt_tip alanına cisim türünü yaz: "kup", "prizma", "silindir", "koni", "kure", "piramit"
-- Boyutları kenarlar listesinde belirt (uzunluk, genişlik, yükseklik, yarıçap vb.)
-
-ÖNEMLİ: Analitik geometri için:
-- Koordinat düzleminde doğru, nokta, kesişim varsa → sekil_tipi: "analitik"
-- Eksen kesim noktaları (a,0) ve (0,b) şeklinde bilinmeyense, koordinatları TAHMİNİ ver (örn: A için x=6, B için y=4)
-- Doğru üzerindeki noktalar için doğrunun üzerinde olacak şekilde koordinat belirle
-- Üçgen alanı verilmişse ek_etiketler'e "Alan = 12 birimkare" gibi ekle
-- Doğruyu çizmek için kenarlar listesine iki uç noktayı ekle
-
-ÖRNEK - Analitik Geometri Sorusu:
-Soru: "(2,3) noktasından geçen doğru eksenleri (a,0) ve (0,b)'de kesiyor. Alan=12 ise b=?"
-Çıktı:
-{
-  "sekil_tipi": "analitik",
-  "noktalar": [
-    {"isim": "A", "x": 6, "y": 0},
-    {"isim": "B", "x": 0, "y": 4},
-    {"isim": "C", "x": 2, "y": 3}
-  ],
-  "kenarlar": [
-    {"baslangic": "A", "bitis": "B", "goster_uzunluk": false}
-  ],
-  "ek_etiketler": [
-    {"metin": "S = 12 birimkare", "konum": "sag_ust"},
-    {"metin": "C doğru üzerinde", "konum": "merkez"}
-  ]
-}
-
-JSON ÇIKTI FORMATI:
+JSON ÇIKTI FORMATI (TEK ŞEKİL):
 {
   "cizim_pisinilir": true,
   "neden": "",
+  "sekil_tipi": "ucgen|dortgen|cember|analitik|cokgen|kati_cisim",
+  "alt_tip": "genel|dik|ikizkenar|eskenar|kare|dikdortgen|paralelkenar|yamuk",
+  "noktalar": [
+    {"isim": "A", "x": 0, "y": 4, "konum": "tepe"},
+    {"isim": "B", "x": -3, "y": 0, "konum": "sol_alt"},
+    {"isim": "C", "x": 3, "y": 0, "konum": "sag_alt"}
+  ],
+  "kenarlar": [
+    {"baslangic": "A", "bitis": "B", "uzunluk": "5 cm", "goster_uzunluk": true}
+  ],
+  "acilar": [
+    {"kose": "B", "deger": "90°", "goster": true, "dik_aci": true}
+  ],
+  "ozel_cizgiler": [],
+  "ek_etiketler": [],
+  "bilinmeyenler": ["h"]
+}
+
+JSON ÇIKTI FORMATI (BİRDEN FAZLA ŞEKİL - ÖNEMLİ!):
+{
+  "cizim_pisinilir": true,
+  "sekil_tipi": "birlesik",
+  "baslik": "Bahçe Planı",
+  "sekiller": [
+    {
+      "tip": "dikdortgen",
+      "isim": "Dikdörtgen",
+      "renk_index": 0,
+      "noktalar": [
+        {"isim": "A", "x": 0, "y": 0},
+        {"isim": "B", "x": 12, "y": 0},
+        {"isim": "C", "x": 12, "y": 7},
+        {"isim": "D", "x": 0, "y": 7}
+      ],
+      "kenarlar": [
+        {"baslangic": "A", "bitis": "B", "uzunluk": "12 m"},
+        {"baslangic": "B", "bitis": "C", "uzunluk": "7 m"}
+      ]
+    },
+    {
+      "tip": "yamuk",
+      "isim": "İkizkenar Yamuk",
+      "renk_index": 1,
+      "noktalar": [
+        {"isim": "D", "x": 0, "y": 7},
+        {"isim": "C", "x": 12, "y": 7},
+        {"isim": "E", "x": 10, "y": 12},
+        {"isim": "F", "x": 2, "y": 12}
+      ],
+      "kenarlar": [
+        {"baslangic": "F", "bitis": "E", "uzunluk": "8 m"}
+      ]
+    }
+  ],
+  "ek_etiketler": [
+    {"metin": "Yamuk Alanı = Dikdörtgen Alanının 1/4'ü", "konum": "ust"}
+  ],
+  "soru_metni": "Toplam alan kaç m²?"
+}
+
+ÖRNEK - BİRLEŞİK ŞEKİL:
+Soru: "Dikdörtgen (12x7 m) ve üstüne bitişik yamuk (üst kenar 8m). Bahçenin toplam alanı?"
+→ sekil_tipi: "birlesik"
+→ sekiller dizisine dikdörtgen ve yamuk ayrı ayrı eklenir
+→ Ortak kenarlar aynı noktaları paylaşır (D ve C)
+
+NOT: 
+- Geometri sorusu ise MUTLAKA çizim yap, hesaplama gerektirse bile!
+- BİRDEN FAZLA ŞEKİL VARSA "birlesik" TİPİNİ KULLAN!
+- Koordinatlar -15 ile 15 arasında olsun
+- Şekil merkezi (0,0) civarında olsun
+- Eğer soruda şekil tipi belirsizse, en uygun olanı seç ve çiz
+
+SORU:
   "sekil_tipi": "ucgen|dortgen|cember|analitik|cokgen",
   "alt_tip": "genel|dik|ikizkenar|eskenar|kare|dikdortgen|paralelkenar|yamuk",
   "noktalar": [
@@ -403,7 +465,9 @@ class GeometryRenderer:
             sekil_tipi = analysis.get('sekil_tipi', 'ucgen')
             alt_tip = analysis.get('alt_tip', 'genel')
             
-            if sekil_tipi == 'ucgen':
+            if sekil_tipi == 'birlesik':
+                return self._render_composite(analysis)
+            elif sekil_tipi == 'ucgen':
                 return self._render_triangle(analysis)
             elif sekil_tipi == 'dortgen':
                 return self._render_quadrilateral(analysis)
@@ -424,6 +488,143 @@ class GeometryRenderer:
             import traceback
             traceback.print_exc()
             return None
+    
+    def _render_composite(self, analysis: Dict) -> bytes:
+        """Birden fazla şekil içeren kompozit çizim"""
+        fig, ax = self._create_figure()
+        
+        sekiller = analysis.get('sekiller', [])
+        
+        if not sekiller:
+            logger.warning("Birleşik şekilde hiç şekil yok")
+            plt.close(fig)
+            return None
+        
+        all_points = {}  # Tüm noktaları topla
+        
+        # Her şekli çiz
+        for idx, sekil in enumerate(sekiller):
+            tip = sekil.get('tip', 'dikdortgen')
+            renk_idx = sekil.get('renk_index', idx) % len(Config.SHAPE_COLORS)
+            colors = Config.SHAPE_COLORS[renk_idx]
+            
+            noktalar = sekil.get('noktalar', [])
+            
+            if len(noktalar) < 3:
+                continue
+            
+            # Koordinatları al
+            coords = [(n['x'], n['y']) for n in noktalar]
+            
+            # Noktaları kaydet
+            for n in noktalar:
+                all_points[n['isim']] = (n['x'], n['y'])
+            
+            # Şekli çiz
+            polygon = patches.Polygon(coords, fill=True,
+                                      facecolor=colors['fill'],
+                                      edgecolor=colors['stroke'],
+                                      linewidth=3, alpha=0.7, zorder=2)
+            ax.add_patch(polygon)
+            
+            # Şekil ismi etiketi
+            sekil_isim = sekil.get('isim', f'Şekil {idx+1}')
+            center_x = sum(c[0] for c in coords) / len(coords)
+            center_y = sum(c[1] for c in coords) / len(coords)
+            
+            ax.annotate(sekil_isim, (center_x, center_y), fontsize=11, 
+                       fontweight='bold', color=colors['text'],
+                       ha='center', va='center', alpha=0.7,
+                       bbox=dict(boxstyle='round,pad=0.3', facecolor='white', 
+                                edgecolor=colors['stroke'], alpha=0.8))
+            
+            # Kenar uzunlukları
+            for kenar in sekil.get('kenarlar', []):
+                bas = kenar.get('baslangic')
+                bit = kenar.get('bitis')
+                uzunluk = kenar.get('uzunluk', '')
+                
+                if bas in all_points and bit in all_points and uzunluk:
+                    p1, p2 = all_points[bas], all_points[bit]
+                    self._draw_length_label_colored(ax, p1, p2, uzunluk, colors['stroke'])
+        
+        # Tüm noktaları çiz (farklı renklerle)
+        drawn_points = set()
+        for idx, sekil in enumerate(sekiller):
+            renk_idx = sekil.get('renk_index', idx) % len(Config.SHAPE_COLORS)
+            colors = Config.SHAPE_COLORS[renk_idx]
+            
+            for n in sekil.get('noktalar', []):
+                isim = n['isim']
+                if isim not in drawn_points:
+                    drawn_points.add(isim)
+                    x, y = n['x'], n['y']
+                    
+                    # Nokta
+                    ax.scatter([x], [y], c=colors['stroke'], s=120, zorder=5,
+                              edgecolors='white', linewidths=2)
+                    
+                    # Etiket - konuma göre offset
+                    center_x = sum(p[0] for p in all_points.values()) / len(all_points)
+                    center_y = sum(p[1] for p in all_points.values()) / len(all_points)
+                    
+                    dx = x - center_x
+                    dy = y - center_y
+                    norm = np.sqrt(dx**2 + dy**2)
+                    if norm > 0:
+                        offset = (int(dx/norm * 20), int(dy/norm * 20))
+                    else:
+                        offset = (10, 10)
+                    
+                    ax.annotate(isim, (x, y), xytext=offset, textcoords='offset points',
+                               fontsize=14, fontweight='bold', color=colors['stroke'], zorder=6)
+        
+        # Başlık
+        baslik = analysis.get('baslik', '')
+        if baslik:
+            ax.set_title(baslik, fontsize=14, fontweight='bold', color='#1e293b', pad=10)
+        
+        # Ek etiketler
+        for ek in analysis.get('ek_etiketler', []):
+            metin = ek.get('metin', '')
+            konum = ek.get('konum', 'ust')
+            
+            if metin:
+                xlim = ax.get_xlim()
+                ylim = ax.get_ylim()
+                
+                if konum == 'ust':
+                    x, y = (xlim[0] + xlim[1]) / 2, ylim[1] * 0.95
+                elif konum == 'alt':
+                    x, y = (xlim[0] + xlim[1]) / 2, ylim[0] * 1.1
+                else:
+                    x, y = xlim[1] * 0.7, ylim[1] * 0.9
+                
+                ax.annotate(metin, (x, y), fontsize=11, fontweight='bold',
+                           color='#1e40af', ha='center',
+                           bbox=dict(boxstyle='round,pad=0.4', facecolor='#fef3c7',
+                                    edgecolor='#f59e0b', alpha=0.95), zorder=7)
+        
+        return self._finalize_figure(fig, ax)
+    
+    def _draw_length_label_colored(self, ax, p1: tuple, p2: tuple, label: str, color: str):
+        """Renkli kenar uzunluk etiketi"""
+        # Orta nokta
+        mx, my = (p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2
+        
+        # Dik yönde offset
+        dx, dy = p2[0] - p1[0], p2[1] - p1[1]
+        length = np.sqrt(dx**2 + dy**2)
+        if length > 0:
+            offset = 0.5
+            nx, ny = -dy / length * offset, dx / length * offset
+        else:
+            nx, ny = 0, 0.5
+        
+        ax.annotate(label, (mx + nx, my + ny), fontsize=12, fontweight='bold',
+                   color=color, ha='center', va='center',
+                   bbox=dict(boxstyle='round,pad=0.3', facecolor='white',
+                            edgecolor=color, linewidth=2, alpha=0.95), zorder=4)
     
     def _create_figure(self) -> tuple:
         """Yeni figure oluştur"""
@@ -815,7 +1016,7 @@ class GeometryRenderer:
         return self._finalize_figure(fig, ax)
     
     def _render_quadrilateral(self, analysis: Dict) -> bytes:
-        """Dörtgen çiz - geliştirilmiş açı gösterimi"""
+        """Dörtgen çiz - canlı renkler ve geliştirilmiş gösterim"""
         fig, ax = self._create_figure()
         
         coords = self._get_point_coords(analysis)
@@ -831,10 +1032,15 @@ class GeometryRenderer:
         # İlk 4 noktayı al
         points = [coords[n] for n in noktalar[:4]]
         
+        # Canlı renk paleti (yeşil tema)
+        fill_color = '#dcfce7'
+        stroke_color = '#16a34a'
+        text_color = '#166534'
+        
         # Dörtgen çiz
         quad = patches.Polygon(points, fill=True,
-                              facecolor=Config.COLORS['secondary'], alpha=0.15,
-                              edgecolor=Config.COLORS['secondary'], linewidth=2.5)
+                              facecolor=fill_color, alpha=0.7,
+                              edgecolor=stroke_color, linewidth=3)
         ax.add_patch(quad)
         
         # Kenar uzunlukları
@@ -844,8 +1050,19 @@ class GeometryRenderer:
             if bas in coords and bit in coords and kenar.get('goster_uzunluk', True):
                 uzunluk = kenar.get('uzunluk', '')
                 if uzunluk:
-                    self._draw_length_label(ax, coords[bas], coords[bit], uzunluk,
-                                          color=Config.COLORS['secondary'])
+                    p1, p2 = coords[bas], coords[bit]
+                    mx, my = (p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2
+                    dx, dy = p2[0] - p1[0], p2[1] - p1[1]
+                    length = np.sqrt(dx**2 + dy**2)
+                    if length > 0:
+                        nx, ny = -dy / length * 0.5, dx / length * 0.5
+                    else:
+                        nx, ny = 0, 0.5
+                    
+                    ax.annotate(uzunluk, (mx + nx, my + ny), fontsize=13, fontweight='bold',
+                               color=stroke_color, ha='center', va='center',
+                               bbox=dict(boxstyle='round,pad=0.3', facecolor='white',
+                                        edgecolor=stroke_color, linewidth=2, alpha=0.95), zorder=4)
         
         # Açılar - geliştirilmiş konumlandırma
         for aci in analysis.get('acilar', []):
@@ -857,10 +1074,9 @@ class GeometryRenderer:
                 
                 if aci.get('dik_aci', False):
                     self._draw_right_angle(ax, coords[kose], coords[onceki], coords[sonraki],
-                                          color=Config.COLORS['secondary'], size=0.5)
+                                          color='#dc2626', size=0.5)
                 else:
                     deger = aci.get('deger', '')
-                    # Açı yayı çiz - daha büyük radius
                     self._draw_angle_arc_improved(ax, coords[kose], coords[onceki], coords[sonraki],
                                                  radius=0.7, label=deger)
         
@@ -870,17 +1086,19 @@ class GeometryRenderer:
         
         for i, isim in enumerate(noktalar[:4]):
             coord = coords[isim]
-            # Merkezden uzağa doğru offset
             dx = coord[0] - center_x
             dy = coord[1] - center_y
             norm = np.sqrt(dx**2 + dy**2)
             if norm > 0:
-                offset = (int(dx/norm * 18), int(dy/norm * 18))
+                offset = (int(dx/norm * 22), int(dy/norm * 22))
             else:
-                offset = (10, 10)
+                offset = (12, 12)
             
-            self._draw_point(ax, coord[0], coord[1], isim,
-                           color=Config.COLORS['secondary'], offset=offset)
+            # Canlı nokta
+            ax.scatter([coord[0]], [coord[1]], c=stroke_color, s=130, zorder=5,
+                      edgecolors='white', linewidths=2)
+            ax.annotate(isim, coord, xytext=offset, textcoords='offset points',
+                       fontsize=15, fontweight='bold', color=stroke_color, zorder=6)
         
         return self._finalize_figure(fig, ax)
     
