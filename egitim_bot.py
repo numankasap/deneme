@@ -422,50 +422,82 @@ def get_math_news() -> List[Dict]:
     return news[:8]
 
 # ══════════════════════════════════════════════════════════════════════════════
-# YAPAY ZEKA VE EĞİTİM HABERLERİ
+# YAPAY ZEKA VE EĞİTİM HABERLERİ - GENİŞLETİLMİŞ
 # ══════════════════════════════════════════════════════════════════════════════
 
 def get_ai_education_news() -> List[Dict]:
-    """Yapay zeka ve eğitim haberleri - güncel"""
+    """
+    Yapay zeka, LLM gelişmeleri ve eğitim teknolojisi haberleri
+    Çoklu kaynak - tek kaynağa bağımlı değil
+    """
     news = []
     
-    sources = [
-        ('https://www.edsurge.com/articles_rss', 'EdSurge', 'Ana'),
-        ('https://www.the74million.org/feed/', 'The 74', 'Ana'),
-        ('https://www.eschoolnews.com/feed/', 'eSchool News', 'Ana'),
-        ('https://edtechmagazine.com/k12/rss.xml', 'EdTech Magazine', 'Ana'),
-        ('https://www.techlearning.com/rss.xml', 'Tech & Learning', 'EdTech'),
-        ('https://www.technologyreview.com/feed/', 'MIT Tech Review', 'AI'),
-        ('https://www.weforum.org/agenda/feed', 'World Economic Forum', 'Global'),
-        ('https://www.brookings.edu/feed/', 'Brookings', 'Policy'),
-        ('https://www.rand.org/topics/education-and-literacy.xml', 'RAND', 'Research'),
+    # ═══════════════════════════════════════════════════════════════
+    # 1. BÜYÜK DİL MODELLERİ (LLM) VE AI GELİŞMELERİ
+    # ═══════════════════════════════════════════════════════════════
+    
+    llm_sources = [
+        # Ana AI şirket blogları
+        ('https://openai.com/blog/rss/', 'OpenAI', 'LLM'),
+        ('https://www.anthropic.com/rss.xml', 'Anthropic', 'LLM'),
+        ('https://blog.google/technology/ai/rss/', 'Google AI', 'LLM'),
+        ('https://ai.meta.com/blog/rss/', 'Meta AI', 'LLM'),
+        ('https://blogs.microsoft.com/ai/feed/', 'Microsoft AI', 'LLM'),
+        
+        # AI Haber siteleri
+        ('https://www.artificialintelligence-news.com/feed/', 'AI News', 'AI Haber'),
+        ('https://venturebeat.com/category/ai/feed/', 'VentureBeat AI', 'AI Haber'),
+        ('https://www.technologyreview.com/feed/', 'MIT Tech Review', 'AI Haber'),
+        ('https://techcrunch.com/category/artificial-intelligence/feed/', 'TechCrunch AI', 'AI Haber'),
+        ('https://www.wired.com/feed/tag/ai/latest/rss', 'WIRED AI', 'AI Haber'),
+        ('https://www.theverge.com/rss/ai-artificial-intelligence/index.xml', 'The Verge AI', 'AI Haber'),
+        ('https://arstechnica.com/tag/artificial-intelligence/feed/', 'Ars Technica AI', 'AI Haber'),
+        
+        # AI Araştırma
+        ('https://deepmind.google/blog/rss.xml', 'DeepMind', 'Araştırma'),
+        ('https://bair.berkeley.edu/blog/feed.xml', 'Berkeley AI', 'Araştırma'),
+        ('https://huggingface.co/blog/feed.xml', 'Hugging Face', 'Araştırma'),
     ]
     
-    ai_keywords = [
-        'ai', 'artificial intelligence', 'machine learning', 'chatgpt', 'gpt',
-        'claude', 'gemini', 'generative ai', 'llm', 'edtech', 'education technology',
-        'adaptive learning', 'personalized learning', 'intelligent tutoring',
-        'ai tutor', 'ai teacher', 'ai assessment', 'learning analytics',
-        'future of education', 'digital transformation', 'ai literacy'
+    # LLM ve AI anahtar kelimeleri
+    llm_keywords = [
+        # Model isimleri
+        'gpt', 'gpt-4', 'gpt-5', 'chatgpt', 'claude', 'gemini', 'llama', 'mistral',
+        'copilot', 'deepseek', 'qwen', 'phi', 'o1', 'o3', 'sonnet', 'opus', 'haiku',
+        # Teknik terimler
+        'large language model', 'llm', 'transformer', 'neural network',
+        'machine learning', 'deep learning', 'artificial intelligence',
+        'generative ai', 'genai', 'foundation model', 'multimodal',
+        'fine-tuning', 'prompt', 'reasoning', 'chain of thought',
+        'rag', 'retrieval', 'embedding', 'context window', 'token',
+        # Yetenekler
+        'coding', 'code generation', 'text generation', 'image generation',
+        'voice', 'speech', 'vision', 'video', 'agent', 'tool use', 'agentic',
+        # Şirketler
+        'openai', 'anthropic', 'google ai', 'meta ai', 'microsoft ai',
+        'deepmind', 'hugging face', 'stability ai', 'midjourney', 'perplexity'
     ]
     
-    for rss_url, source, category in sources:
+    for rss_url, source, category in llm_sources:
         try:
             feed = feedparser.parse(rss_url)
-            for entry in feed.entries[:6]:
+            for entry in feed.entries[:5]:
                 title = entry.get('title', '')
-                summary = entry.get('summary', '')[:200] if entry.get('summary') else ''
+                summary = entry.get('summary', '')[:300] if entry.get('summary') else ''
                 link = entry.get('link', '')
                 published = entry.get('published', '')
                 
-                if not is_recent(published, hours=48):
+                if not title:
+                    continue
+                
+                if not is_recent(published, hours=96):  # 4 gün
                     continue
                 
                 if deduplicator.is_duplicate(title):
                     continue
                 
                 text = (title + ' ' + summary).lower()
-                is_ai_related = any(kw in text for kw in ai_keywords)
+                is_ai_related = any(kw in text for kw in llm_keywords)
                 
                 if is_ai_related:
                     news.append({
@@ -474,13 +506,90 @@ def get_ai_education_news() -> List[Dict]:
                         'source': source,
                         'category': category,
                         'link': link,
-                        'is_ai_related': True,
+                        'is_llm': category == 'LLM',
                         'needs_translation': True
                     })
         except Exception as e:
             continue
     
-    return news[:10]
+    # ═══════════════════════════════════════════════════════════════
+    # 2. EĞİTİM TEKNOLOJİSİ (EdTech) HABERLERİ
+    # ═══════════════════════════════════════════════════════════════
+    
+    edtech_sources = [
+        ('https://www.edsurge.com/articles_rss', 'EdSurge', 'EdTech'),
+        ('https://www.the74million.org/feed/', 'The 74', 'EdTech'),
+        ('https://www.eschoolnews.com/feed/', 'eSchool News', 'EdTech'),
+        ('https://edtechmagazine.com/k12/rss.xml', 'EdTech Magazine', 'EdTech'),
+        ('https://www.techlearning.com/rss.xml', 'Tech & Learning', 'EdTech'),
+        ('https://www.elearningindustry.com/feed', 'eLearning Industry', 'EdTech'),
+        ('https://www.insidehighered.com/rss.xml', 'Inside Higher Ed', 'Yükseköğretim'),
+    ]
+    
+    edtech_keywords = [
+        'ai tutor', 'ai teacher', 'ai classroom', 'ai education', 'ai learning',
+        'chatgpt education', 'chatgpt school', 'chatgpt student', 'chatgpt teacher',
+        'adaptive learning', 'personalized learning', 'intelligent tutoring',
+        'learning analytics', 'educational technology', 'edtech',
+        'online learning', 'digital learning', 'khanmigo', 'duolingo',
+        'assessment', 'grading', 'feedback', 'cheating', 'plagiarism',
+        'ai policy', 'ai ban', 'ai literacy'
+    ]
+    
+    for rss_url, source, category in edtech_sources:
+        try:
+            feed = feedparser.parse(rss_url)
+            for entry in feed.entries[:4]:
+                title = entry.get('title', '')
+                summary = entry.get('summary', '')[:200] if entry.get('summary') else ''
+                link = entry.get('link', '')
+                published = entry.get('published', '')
+                
+                if not title:
+                    continue
+                
+                if not is_recent(published, hours=72):
+                    continue
+                
+                if deduplicator.is_duplicate(title):
+                    continue
+                
+                text = (title + ' ' + summary).lower()
+                is_relevant = any(kw in text for kw in edtech_keywords)
+                
+                if is_relevant:
+                    news.append({
+                        'title': title[:150],
+                        'summary': summary[:200],
+                        'source': source,
+                        'category': category,
+                        'link': link,
+                        'is_llm': False,
+                        'needs_translation': True
+                    })
+        except Exception as e:
+            continue
+    
+    # Önce LLM haberleri, sonra EdTech
+    news = sorted(news, key=lambda x: (x.get('is_llm', False)), reverse=True)
+    
+    # Kaynak çeşitliliği sağla - her kaynaktan max 2
+    final_news = []
+    source_counts = {}
+    
+    for item in news:
+        source = item.get('source', '')
+        if source not in source_counts:
+            source_counts[source] = 0
+        
+        if source_counts[source] < 2:
+            final_news.append(item)
+            source_counts[source] += 1
+        
+        if len(final_news) >= 12:
+            break
+    
+    return final_news
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 🏆 PISA LİDERLERİNDEN EĞİTİM HABERLERİ
@@ -894,32 +1003,74 @@ def get_semantic_scholar_papers() -> List[Dict]:
     return papers[:5]
 
 def get_research_papers() -> List[Dict]:
-    """Akademik araştırma makaleleri - çeşitli kaynaklardan"""
+    """
+    Akademik araştırma makaleleri - SADECE eğitim, matematik, AI ile ilgili
+    Çeşitli kaynaklar
+    """
     papers = []
     
-    sources = [
-        ('http://feeds.nature.com/srep/rss/current', 'Nature Scientific Reports'),
-        ('https://www.science.org/rss/news_current.xml', 'Science News'),
-        ('https://journals.plos.org/plosone/feed/atom', 'PLOS ONE'),
+    # Eğitim odaklı kaynaklar
+    education_sources = [
         ('https://www.frontiersin.org/journals/education/rss', 'Frontiers in Education'),
+        ('https://educationaltechnologyjournal.springeropen.com/articles/most-recent/rss.xml', 'Ed Tech Research'),
         ('https://www.tandfonline.com/feed/rss/cede20', 'Educational Research'),
     ]
     
-    education_keywords = [
-        'education', 'learning', 'student', 'teacher', 'school',
-        'cognitive', 'pedagogy', 'instruction', 'assessment',
-        'mathematics', 'stem', 'science education', 'ai', 'technology',
-        'pisa', 'timss', 'achievement', 'performance'
+    # Matematik odaklı kaynaklar
+    math_sources = [
+        ('https://www.frontiersin.org/journals/applied-mathematics-and-statistics/rss', 'Frontiers Applied Math'),
     ]
     
-    for rss_url, source_name in sources:
+    # AI odaklı kaynaklar
+    ai_sources = [
+        ('https://www.nature.com/natmachintell.rss', 'Nature Machine Intelligence'),
+        ('http://feeds.nature.com/srep/rss/current', 'Nature Scientific Reports'),
+    ]
+    
+    # Eğitim anahtar kelimeleri
+    education_keywords = [
+        'education', 'learning', 'student', 'teacher', 'school', 'classroom',
+        'curriculum', 'pedagogy', 'instruction', 'assessment', 'teaching',
+        'academic', 'educational', 'cognitive', 'achievement', 'performance',
+        'literacy', 'numeracy', 'stem', 'mathematics education', 'science education',
+        'pisa', 'timss', 'evaluation'
+    ]
+    
+    # Matematik anahtar kelimeleri
+    math_keywords = [
+        'mathematics', 'mathematical', 'algebra', 'geometry', 'calculus',
+        'statistics', 'probability', 'theorem', 'proof', 'equation',
+        'algorithm', 'computation', 'optimization', 'numerical'
+    ]
+    
+    # AI anahtar kelimeleri
+    ai_keywords = [
+        'artificial intelligence', 'machine learning', 'deep learning',
+        'neural network', 'nlp', 'natural language', 'computer vision',
+        'reinforcement learning', 'transformer', 'large language model'
+    ]
+    
+    # Kesinlikle istemediğimiz konular
+    exclude_keywords = [
+        'cancer', 'tumor', 'disease', 'clinical', 'patient', 'medical',
+        'drug', 'therapy', 'cell', 'protein', 'gene', 'virus', 'bacteria',
+        'mouse', 'rat', 'animal', 'plant', 'ecology', 'ocean', 'bridge',
+        'earthquake', 'geology', 'thyroid', 'seismic', 'fire', 'flood'
+    ]
+    
+    all_sources = education_sources + math_sources + ai_sources
+    
+    for rss_url, source_name in all_sources:
         try:
             feed = feedparser.parse(rss_url)
-            for entry in feed.entries[:6]:
+            for entry in feed.entries[:8]:
                 title = entry.get('title', '')
                 summary = entry.get('summary', '')[:400] if entry.get('summary') else ''
                 link = entry.get('link', '')
                 published = entry.get('published', '')
+                
+                if not title:
+                    continue
                 
                 if not is_recent(published, hours=168):  # 1 hafta
                     continue
@@ -928,20 +1079,52 @@ def get_research_papers() -> List[Dict]:
                     continue
                 
                 text = (title + ' ' + summary).lower()
-                is_relevant = any(kw in text for kw in education_keywords)
                 
-                if is_relevant:
+                # En az bir ilgili anahtar kelime içermeli
+                is_education = any(kw in text for kw in education_keywords)
+                is_math = any(kw in text for kw in math_keywords)
+                is_ai = any(kw in text for kw in ai_keywords)
+                
+                # Dışlanan konular içermemeli
+                is_excluded = any(kw in text for kw in exclude_keywords)
+                
+                if (is_education or is_math or is_ai) and not is_excluded:
+                    # Kategori belirle
+                    if is_education:
+                        category = 'Eğitim'
+                    elif is_math:
+                        category = 'Matematik'
+                    else:
+                        category = 'AI'
+                    
                     papers.append({
                         'title': title[:200],
                         'summary': summary[:300],
                         'link': link,
                         'source': source_name,
+                        'category': category,
                         'needs_translation': True
                     })
         except Exception as e:
             continue
     
-    return papers[:6]
+    # Kaynak çeşitliliği
+    final_papers = []
+    source_counts = {}
+    
+    for paper in papers:
+        source = paper.get('source', '')
+        if source not in source_counts:
+            source_counts[source] = 0
+        
+        if source_counts[source] < 2:
+            final_papers.append(paper)
+            source_counts[source] += 1
+        
+        if len(final_papers) >= 8:
+            break
+    
+    return final_papers
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 📊 ULUSLARARASI DEĞERLENDİRME RAPORLARI (PISA, TIMSS)
@@ -1642,17 +1825,81 @@ def generate_report() -> str:
     report.append("🤖 YAPAY ZEKA & EĞİTİM TEKNOLOJİSİ")
     report.append("━" * 50)
     
+    # LLM ve AI gelişmelerini ayır
+    llm_news = [n for n in ai_news if n.get('is_llm') or n.get('category') in ['LLM', 'AI Haber', 'Araştırma']]
+    edtech_news = [n for n in ai_news if n.get('category') in ['EdTech', 'Yükseköğretim']]
+    
     translate_count = 0
-    for news in ai_news[:5]:
-        if news.get('needs_translation') and translate_count < 3:
-            title_tr = translate_to_turkish(news['title'])
-            translate_count += 1
-            time.sleep(0.3)
-        else:
-            title_tr = news['title']
-        
-        report.append(f"\n🔹 {title_tr[:90]}")
-        report.append(f"   📍 {news['source']} | 🔗 {news.get('link', '')[:50]}...")
+    
+    # LLM Gelişmeleri
+    if llm_news:
+        report.append("\n🧠 BÜYÜK DİL MODELLERİ & AI GELİŞMELERİ:")
+        for news in llm_news[:4]:
+            if news.get('needs_translation') and translate_count < 4:
+                title_tr = translate_to_turkish(news['title'])
+                translate_count += 1
+                time.sleep(0.3)
+            else:
+                title_tr = news['title']
+            
+            category_icon = {
+                'LLM': '🔮',
+                'AI Haber': '📰',
+                'Araştırma': '🔬'
+            }.get(news.get('category', ''), '🔹')
+            
+            report.append(f"\n{category_icon} {title_tr[:90]}")
+            report.append(f"   📍 {news['source']} ({news.get('category', '')}) | 🔗 {news.get('link', '')[:45]}...")
+    
+    # EdTech Haberleri
+    if edtech_news:
+        report.append("\n📱 EĞİTİM TEKNOLOJİSİ (EdTech):")
+        for news in edtech_news[:3]:
+            if news.get('needs_translation') and translate_count < 6:
+                title_tr = translate_to_turkish(news['title'])
+                translate_count += 1
+                time.sleep(0.3)
+            else:
+                title_tr = news['title']
+            
+            report.append(f"\n🔹 {title_tr[:90]}")
+            report.append(f"   📍 {news['source']} | 🔗 {news.get('link', '')[:50]}...")
+    
+    # Gemini ile AI gelişmelerinin eğitimde kullanım analizi
+    if ai_news and GEMINI_KEY and genai:
+        print("   🤖 AI gelişmeleri eğitim analizi yapılıyor...")
+        try:
+            client = genai.Client(api_key=GEMINI_KEY)
+            
+            # Haberleri topla
+            news_titles = [n['title'] for n in ai_news[:6]]
+            news_text = "\n".join([f"- {t}" for t in news_titles])
+            
+            prompt = f"""Aşağıdaki yapay zeka ve eğitim teknolojisi haberlerini analiz et:
+
+{news_text}
+
+GÖREV: Bu gelişmelerin Türkiye'deki öğretmen ve öğrenciler için pratik uygulamalarını 3-4 maddede özetle.
+
+Format:
+💡 [Kısa başlık]: [1 cümle açıklama]
+
+Kurallar:
+- Her madde 1-2 cümle
+- Pratik ve uygulanabilir öneriler
+- Türkçe yaz
+- Toplam 100 kelime"""
+
+            response = client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=prompt
+            )
+            
+            if response.text:
+                report.append("\n📊 EĞİTİMDE KULLANIM ANALİZİ (Gemini):")
+                report.append(response.text.strip())
+        except Exception as e:
+            print(f"   ⚠️ AI analiz hatası: {e}")
     
     report.append("")
     
@@ -1749,7 +1996,7 @@ def generate_report() -> str:
     
     # ERIC
     if eric_papers:
-        report.append("\n📚 ERIC - EĞİTİM ARAŞTIRMALARI:")
+        report.append("\n📚 EĞİTİM ARAŞTIRMALARI:")
         for paper in eric_papers[:2]:
             if translate_count < 14:
                 title_tr = translate_to_turkish(paper['title'])
@@ -1761,18 +2008,48 @@ def generate_report() -> str:
             if paper.get('link'):
                 report.append(f"   🔗 {paper['link']}")
     
-    # Diğer
+    # Research papers - kategoriye göre grupla
     if research_papers:
-        report.append("\n🔬 AKADEMİK DERGİLER:")
-        for paper in research_papers[:2]:
-            if translate_count < 16:
-                title_tr = translate_to_turkish(paper['title'])
-                translate_count += 1
-                time.sleep(0.3)
-            else:
-                title_tr = paper['title']
-            report.append(f"\n📖 {title_tr[:100]}")
-            report.append(f"   📍 {paper['source']}")
+        # Kategorilere ayır
+        edu_papers = [p for p in research_papers if p.get('category') == 'Eğitim']
+        math_papers = [p for p in research_papers if p.get('category') == 'Matematik']
+        ai_papers = [p for p in research_papers if p.get('category') == 'AI']
+        
+        if edu_papers:
+            report.append("\n🎓 EĞİTİM BİLİMLERİ:")
+            for paper in edu_papers[:2]:
+                if translate_count < 16:
+                    title_tr = translate_to_turkish(paper['title'])
+                    translate_count += 1
+                    time.sleep(0.3)
+                else:
+                    title_tr = paper['title']
+                report.append(f"\n📖 {title_tr[:100]}")
+                report.append(f"   📍 {paper['source']}")
+        
+        if math_papers:
+            report.append("\n📐 MATEMATİK ARAŞTIRMALARI:")
+            for paper in math_papers[:2]:
+                if translate_count < 18:
+                    title_tr = translate_to_turkish(paper['title'])
+                    translate_count += 1
+                    time.sleep(0.3)
+                else:
+                    title_tr = paper['title']
+                report.append(f"\n📖 {title_tr[:100]}")
+                report.append(f"   📍 {paper['source']}")
+        
+        if ai_papers:
+            report.append("\n🤖 YAPAY ZEKA ARAŞTIRMALARI:")
+            for paper in ai_papers[:2]:
+                if translate_count < 20:
+                    title_tr = translate_to_turkish(paper['title'])
+                    translate_count += 1
+                    time.sleep(0.3)
+                else:
+                    title_tr = paper['title']
+                report.append(f"\n📖 {title_tr[:100]}")
+                report.append(f"   📍 {paper['source']}")
     
     report.append("")
     
