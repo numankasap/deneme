@@ -489,30 +489,23 @@ def get_ai_education_news() -> List[Dict]:
 def get_pisa_leaders_news() -> Dict[str, List[Dict]]:
     """
     PISA 2022'de en başarılı ülkelerden eğitim haberleri
-    Makro/politika düzeyinde haberler öncelikli
+    SADECE eğitim politikası ve okul haberleri - çok sıkı filtreleme
     """
     
-    # PISA 2022 Top Performers (resimden)
+    # PISA 2022 Top Performers
     pisa_leaders = {
         'singapore': {
             'flag': '🇸🇬',
             'name': 'Singapur',
             'rank': '#1-2 PISA',
             'sources': [
-                ('https://www.straitstimes.com/singapore/education', 'Straits Times'),
+                ('https://www.straitstimes.com/singapore/parenting-education', 'Straits Times Education'),
                 ('https://www.channelnewsasia.com/rss/latest_news.xml', 'CNA'),
             ],
-            'keywords': ['moe singapore', 'singapore curriculum', 'singapore education policy',
-                        'psle', 'singapore school', 'nie singapore', 'smart nation education']
-        },
-        'macao': {
-            'flag': '🇲🇴',
-            'name': 'Makao',
-            'rank': '#1 PISA Mat',
-            'sources': [
-                ('https://www.macaonews.org/feed/', 'Macau News'),
-            ],
-            'keywords': ['macao education', 'macau school', 'macao curriculum']
+            # SADECE bu kelimeler geçerse al
+            'must_have': ['school', 'education', 'student', 'teacher', 'exam', 'curriculum', 
+                         'university', 'moe', 'psle', 'o level', 'a level', 'learning', 
+                         'classroom', 'tuition', 'polytechnic'],
         },
         'japan': {
             'flag': '🇯🇵',
@@ -520,21 +513,23 @@ def get_pisa_leaders_news() -> Dict[str, List[Dict]]:
             'rank': '#4-5 PISA',
             'sources': [
                 ('https://www.japantimes.co.jp/feed/', 'Japan Times'),
-                ('https://japantoday.com/feed', 'Japan Today'),
+                ('https://english.kyodonews.net/rss/all.xml', 'Kyodo News'),
             ],
-            'keywords': ['japan education reform', 'mext', 'japanese curriculum',
-                        'juku', 'stem japan', 'robotics education japan']
+            'must_have': ['school', 'education', 'student', 'teacher', 'university', 
+                         'mext', 'exam', 'curriculum', 'juku', 'learning', 'classroom',
+                         'elementary', 'high school', 'college'],
         },
         'korea': {
             'flag': '🇰🇷',
             'name': 'Güney Kore',
             'rank': '#6 PISA',
             'sources': [
-                ('https://koreajoongangdaily.joins.com/section/rss/education', 'Korea JoongAng'),
                 ('https://en.yna.co.kr/RSS/news.xml', 'Yonhap'),
+                ('https://www.koreaherald.com/rss/023.xml', 'Korea Herald'),
             ],
-            'keywords': ['korea education policy', 'suneung', 'korean curriculum',
-                        'hagwon reform', 'keris', 'digital textbook korea']
+            'must_have': ['school', 'education', 'student', 'teacher', 'university',
+                         'suneung', 'csat', 'hagwon', 'curriculum', 'learning',
+                         'college', 'exam', 'classroom'],
         },
         'estonia': {
             'flag': '🇪🇪',
@@ -543,8 +538,9 @@ def get_pisa_leaders_news() -> Dict[str, List[Dict]]:
             'sources': [
                 ('https://news.err.ee/rss', 'ERR News'),
             ],
-            'keywords': ['estonia education', 'estonian school', 'digital education estonia',
-                        'coding education', 'e-estonia education']
+            'must_have': ['school', 'education', 'student', 'teacher', 'university',
+                         'curriculum', 'learning', 'classroom', 'exam', 'digital education',
+                         'e-school', 'gymnasium'],
         },
         'hong_kong': {
             'flag': '🇭🇰',
@@ -553,8 +549,9 @@ def get_pisa_leaders_news() -> Dict[str, List[Dict]]:
             'sources': [
                 ('https://www.scmp.com/rss/91/feed', 'SCMP'),
             ],
-            'keywords': ['hong kong education', 'dse exam', 'hk curriculum',
-                        'education bureau hong kong']
+            'must_have': ['school', 'education', 'student', 'teacher', 'university',
+                         'dse', 'curriculum', 'learning', 'classroom', 'exam',
+                         'education bureau'],
         },
         'chinese_taipei': {
             'flag': '🇹🇼',
@@ -563,8 +560,8 @@ def get_pisa_leaders_news() -> Dict[str, List[Dict]]:
             'sources': [
                 ('https://focustaiwan.tw/rss', 'Focus Taiwan'),
             ],
-            'keywords': ['taiwan education', 'taiwanese school', 'gsat exam',
-                        'taiwan curriculum', 'moe taiwan']
+            'must_have': ['school', 'education', 'student', 'teacher', 'university',
+                         'curriculum', 'learning', 'exam', 'college', 'ministry of education'],
         },
         'finland': {
             'flag': '🇫🇮',
@@ -573,8 +570,8 @@ def get_pisa_leaders_news() -> Dict[str, List[Dict]]:
             'sources': [
                 ('https://yle.fi/rss/uutiset.rss', 'YLE'),
             ],
-            'keywords': ['finland education', 'finnish school', 'teacher training finland',
-                        'no homework finland', 'finnish curriculum']
+            'must_have': ['school', 'education', 'student', 'teacher', 'university',
+                         'curriculum', 'learning', 'classroom', 'pisa', 'finnish education'],
         },
         'canada': {
             'flag': '🇨🇦',
@@ -583,20 +580,23 @@ def get_pisa_leaders_news() -> Dict[str, List[Dict]]:
             'sources': [
                 ('https://www.cbc.ca/cmlink/rss-canada', 'CBC'),
             ],
-            'keywords': ['canada education policy', 'canadian curriculum',
-                        'provincial education', 'canada school']
-        },
-        'ireland': {
-            'flag': '🇮🇪',
-            'name': 'İrlanda',
-            'rank': '#7 PISA Oku',
-            'sources': [
-                ('https://www.irishtimes.com/cmlink/news-1.1319192', 'Irish Times'),
-            ],
-            'keywords': ['ireland education', 'irish curriculum', 'leaving cert',
-                        'irish school']
+            'must_have': ['school', 'education', 'student', 'teacher', 'university',
+                         'curriculum', 'learning', 'classroom', 'college', 'provincial education'],
         },
     }
+    
+    # Kesinlikle ALMAYACAĞIMIZ konular (eğitimle alakasız)
+    exclude_keywords = [
+        'prison', 'jail', 'crime', 'murder', 'police', 'court', 'arrested',
+        'skating', 'ice rink', 'tourist', 'hotel', 'restaurant', 'food',
+        'weather', 'storm', 'earthquake', 'flood', 'fire', 'accident',
+        'sports', 'football', 'basketball', 'soccer', 'olympics', 'athlete',
+        'entertainment', 'movie', 'celebrity', 'concert', 'festival',
+        'stock', 'market', 'business', 'trade', 'export', 'import',
+        'military', 'war', 'army', 'navy', 'defense', 'weapon',
+        'smoking', 'cigarette', 'alcohol', 'drug', 'casino', 'gambling',
+        'covid', 'virus', 'pandemic', 'vaccine', 'hospital', 'health crisis'
+    ]
     
     all_news = {}
     
@@ -606,51 +606,61 @@ def get_pisa_leaders_news() -> Dict[str, List[Dict]]:
         for source_url, source_name in country_info['sources']:
             try:
                 feed = feedparser.parse(source_url)
-                for entry in feed.entries[:8]:
+                for entry in feed.entries[:15]:  # Daha fazla entry tara, filtreleyeceğiz
                     title = entry.get('title', '')
                     link = entry.get('link', '')
+                    summary = entry.get('summary', '')[:300] if entry.get('summary') else ''
                     published = entry.get('published', '')
-                    summary = entry.get('summary', '')[:200] if entry.get('summary') else ''
                     
-                    if not is_recent(published, hours=72):
+                    if not title:
                         continue
                     
+                    # Tarih kontrolü
+                    if not is_recent(published, hours=96):
+                        continue
+                    
+                    # Yineleme kontrolü
                     if deduplicator.is_duplicate(title):
                         continue
                     
                     text = (title + ' ' + summary).lower()
                     
-                    # Eğitim ile ilgili mi? (makro seviye)
-                    education_keywords = [
-                        'education', 'school', 'curriculum', 'student', 'teacher',
-                        'university', 'exam', 'learning', 'policy', 'reform',
-                        'ministry', 'assessment', 'pisa', 'timss'
-                    ] + country_info['keywords']
+                    # 1. ZORUNLU: En az bir eğitim kelimesi İÇERMELİ
+                    has_education_keyword = any(kw in text for kw in country_info['must_have'])
                     
-                    # Mikro haberleri filtrele
-                    micro_keywords = [
-                        'individual student', 'local school', 'single teacher',
-                        'graduation ceremony', 'school trip', 'sports day'
-                    ]
+                    if not has_education_keyword:
+                        continue
                     
-                    is_education = any(kw in text for kw in education_keywords)
-                    is_micro = any(kw in text for kw in micro_keywords)
+                    # 2. YASAK: Hiçbir yasak kelime İÇERMEMELİ
+                    has_excluded = any(kw in text for kw in exclude_keywords)
                     
-                    if is_education and not is_micro:
-                        country_news.append({
-                            'title': title[:150],
-                            'source': source_name,
-                            'link': link,
-                            'country': country_info['name'],
-                            'flag': country_info['flag'],
-                            'rank': country_info['rank'],
-                            'needs_translation': True
-                        })
+                    if has_excluded:
+                        continue
+                    
+                    # Filtreleri geçti - ekle
+                    country_news.append({
+                        'title': title[:150],
+                        'source': source_name,
+                        'link': link,
+                        'country': country_info['name'],
+                        'flag': country_info['flag'],
+                        'rank': country_info['rank'],
+                        'needs_translation': True
+                    })
+                    
+                    # Her ülkeden max 2 haber
+                    if len(country_news) >= 2:
+                        break
+                
+                if len(country_news) >= 2:
+                    break
+                    
             except Exception as e:
+                print(f"   ⚠️ {country_info['name']} RSS hatası: {e}")
                 continue
         
         if country_news:
-            all_news[country_code] = country_news[:3]
+            all_news[country_code] = country_news
     
     return all_news
 
@@ -1881,12 +1891,46 @@ def generate_report() -> str:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def send_telegram_message(message: str) -> bool:
-    """Telegram'a mesaj gönder"""
+    """Telegram'a mesaj gönder - HTML tagları temizlenmiş"""
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
         print("⚠️ Telegram ayarları eksik!")
         return False
     
     try:
+        # HTML taglarını temizle (Telegram sadece belirli tagları destekler)
+        # Desteklenen: <b>, <i>, <u>, <s>, <code>, <pre>, <a>
+        # Desteklenmeyen tagları kaldır
+        import re
+        
+        def clean_html(text):
+            # Desteklenmeyen HTML taglarını kaldır
+            unsupported_tags = [
+                'cite', 'span', 'div', 'p', 'br', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+                'ul', 'ol', 'li', 'table', 'tr', 'td', 'th', 'img', 'figure', 'figcaption',
+                'blockquote', 'em', 'strong', 'small', 'sub', 'sup', 'mark', 'del', 'ins',
+                'article', 'section', 'header', 'footer', 'nav', 'aside', 'main'
+            ]
+            
+            for tag in unsupported_tags:
+                # Açılış ve kapanış taglarını kaldır
+                text = re.sub(f'<{tag}[^>]*>', '', text, flags=re.IGNORECASE)
+                text = re.sub(f'</{tag}>', '', text, flags=re.IGNORECASE)
+            
+            # Kalan HTML entity'leri düzelt
+            text = text.replace('&nbsp;', ' ')
+            text = text.replace('&amp;', '&')
+            text = text.replace('&lt;', '<')
+            text = text.replace('&gt;', '>')
+            text = text.replace('&quot;', '"')
+            
+            # Birden fazla boşluğu tek boşluğa indir
+            text = re.sub(r' +', ' ', text)
+            
+            return text
+        
+        # Mesajı temizle
+        message = clean_html(message)
+        
         max_length = 4000
         parts = []
         
@@ -1910,18 +1954,26 @@ def send_telegram_message(message: str) -> bool:
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
         
         for i, part in enumerate(parts):
+            # HTML parse modunu kapat - düz metin gönder
             payload = {
                 'chat_id': TELEGRAM_CHAT_ID,
                 'text': part,
-                'parse_mode': 'HTML',
                 'disable_web_page_preview': True
+                # parse_mode kaldırıldı - düz metin olarak gönder
             }
             
             response = requests.post(url, json=payload, timeout=30)
             
             if response.status_code != 200:
-                print(f"❌ Telegram hatası: {response.text}")
-                return False
+                print(f"❌ Telegram hatası (parça {i+1}): {response.text}")
+                # HTML ile tekrar dene
+                payload['parse_mode'] = 'HTML'
+                payload['text'] = clean_html(part)
+                response = requests.post(url, json=payload, timeout=30)
+                
+                if response.status_code != 200:
+                    print(f"❌ Telegram HTML hatası: {response.text}")
+                    return False
             
             if i < len(parts) - 1:
                 time.sleep(1)
