@@ -1068,57 +1068,96 @@ class DatabaseManager:
 class GeminiAnalyzer:
     """Gemini ile senaryo analizi"""
     
-    ANALYSIS_PROMPT = """Sen bir eğitim materyali tasarımcısısın.
+    ANALYSIS_PROMPT = """Sen bir eğitim materyali tasarımcısısın. Görevin matematik sorularını görselleştirmek için EN UYGUN şablonu seçmek.
 
 GÖREV: Verilen matematik sorusunu analiz et ve infografik görsel için gerekli bilgileri JSON formatında çıkar.
+
+⚠️ KRİTİK: ŞABLON SEÇİMİ ÇOK ÖNEMLİ!
+Aşağıdaki anahtar kelimelere göre DOĞRU şablonu seç:
+
+🚗 "hareket" şablonu SEÇ eğer:
+- Yol, mesafe, hız, süre, km, m/s, km/saat varsa
+- Otobüs, araba, tren, bisiklet, yürüme, koşma varsa
+- Buluşma, karşılaşma, yetişme problemi ise
+- A şehrinden B şehrine, yolculuk varsa
+→ gorsel_tipi: "hareket"
+
+⚖️ "karsilastirma" şablonu SEÇ eğer:
+- İki seçenek/firma/ürün karşılaştırması varsa
+- Maliyet, fiyat, ücret karşılaştırması varsa
+- "Hangisi daha avantajlı/ucuz/karlı" soruluyorsa
+- A planı vs B planı, X markası vs Y markası varsa
+→ gorsel_tipi: "karsilastirma"
+
+🏊 "havuz" şablonu SEÇ eğer:
+- Havuz, musluk, boru, tank, depo varsa
+- Doldurma, boşaltma, dolum süresi varsa
+- "Birlikte açılırsa kaç saatte dolar" tipi soruysa
+→ gorsel_tipi: "havuz"
+
+👨‍👩‍👧 "yas" şablonu SEÇ eğer:
+- Yaş problemi ise (anne, baba, çocuk yaşları)
+- "X yıl önce", "Y yıl sonra" ifadeleri varsa
+- Yaşlar toplamı, yaş farkı soruluyorsa
+→ gorsel_tipi: "yas"
+
+📊 "tablo" şablonu SEÇ eğer:
+- Veriler tablo formatında verilmişse
+- Birden fazla satır/sütun veri varsa
+- Ürün listesi, fiyat listesi varsa
+→ gorsel_tipi: "tablo"
+
+📋 "genel" şablonu SEÇ SADECE eğer:
+- Yukarıdaki kategorilerin HİÇBİRİNE uymuyorsa
+- Basit bir senaryo ile tek bir hesaplama varsa
 
 ÖNEMLİ KURALLAR:
 1. Sadece VERİLENLERİ çıkar - ÇÖZÜMÜ YAPMA!
 2. Bilinmeyenleri "?" ile işaretle
 3. Sorudaki isimleri ve değerleri aynen kullan
 4. Türkçe karakterleri düzgün kullan
-
-DESTEKLENEN GÖRSEL TİPLERİ:
-- hareket: Yol, hız, zaman problemleri (otobüs, araba, yürüme)
-- karsilastirma: İki seçenek karşılaştırma (maliyet, fiyat)
-- havuz: Havuz, musluk, dolum/boşaltım
-- yas: Yaş problemleri, timeline
-- tablo: Veri tablosu gerektiren
-- genel: Diğer senaryo bazlı problemler
+5. ozel_pisiniler içinde SEÇTİĞİN şablona ait verileri MUTLAKA doldur!
 
 JSON ÇIKTI FORMATI:
 {
-  "gorsel_pisinilir": true/false,
-  "neden": "Eğer görsel gerekmiyorsa neden",
+  "gorsel_pisinilir": true,
   "gorsel_tipi": "hareket|karsilastirma|havuz|yas|tablo|genel",
   "baslik": "Görsel başlığı (kısa ve öz)",
-  "icon": "📊 veya 🚗 veya 🏊 gibi emoji",
+  "icon": "🚗|⚖️|🏊|👨‍👩‍👧|📊|📋",
   "karakterler": [
-    {"isim": "Efe", "avatar": "👨", "rol": "Kuzey Hattı"},
-    {"isim": "Kaan", "avatar": "👦", "rol": "Batı Hattı"}
+    {"isim": "Ali", "avatar": "👨", "rol": "Sürücü"}
   ],
   "verilenler": [
-    {"etiket": "Efe'nin yolculuk süresi", "deger": "15 dakika", "renk": "blue"},
-    {"etiket": "Kaan'ın yolculuk süresi", "deger": "20 dakika", "renk": "red"}
+    {"etiket": "Hız", "deger": "60 km/saat", "renk": "blue"}
   ],
   "ozel_pisiniler": {
+    // SEÇTİĞİN ŞABLONA GÖRE DOLDUR:
+    
+    // hareket için:
     "hareket": {
-      "yollar": [
-        {"isim": "Kuzey Hattı", "yon": "dikey", "renk": "blue"},
-        {"isim": "Batı Hattı", "yon": "yatay", "renk": "red"}
-      ],
+      "yollar": [{"isim": "Ana Yol", "yon": "yatay", "renk": "blue"}],
       "araclar": [
-        {"isim": "Efe", "hat": "Kuzey Hattı", "sure": "15 dk", "saat": "10:00"},
-        {"isim": "Kaan", "hat": "Batı Hattı", "sure": "20 dk", "saat": "?"}
+        {"isim": "Ali", "hat": "Ana Yol", "sure": "2 saat", "saat": "09:00", "hiz": "60 km/s"}
       ],
-      "hedef": "Buluşma Noktası"
+      "hedef": "Buluşma Noktası",
+      "mesafe": "120 km"
     },
+    
+    // karsilastirma için:
     "karsilastirma": {
       "secenekler": [
-        {"isim": "A Malzemesi", "pisiniler": [{"etiket": "Birim fiyat", "deger": "50 TL/m²"}]},
-        {"isim": "B Malzemesi", "pisiniler": [{"etiket": "Birim fiyat", "deger": "80 TL/m²"}]}
+        {"isim": "A Firması", "ozellikler": [
+          {"etiket": "Aylık ücret", "deger": "100 TL"},
+          {"etiket": "Kullanım ücreti", "deger": "2 TL/dk"}
+        ]},
+        {"isim": "B Firması", "ozellikler": [
+          {"etiket": "Aylık ücret", "deger": "50 TL"},
+          {"etiket": "Kullanım ücreti", "deger": "5 TL/dk"}
+        ]}
       ]
     },
+    
+    // havuz için:
     "havuz": {
       "havuz_hacmi": "1000 litre",
       "musluklar": [
@@ -1126,6 +1165,8 @@ JSON ÇIKTI FORMATI:
         {"isim": "B Musluğu", "tip": "bosaltma", "sure": "8 saatte boşaltır"}
       ]
     },
+    
+    // yas için:
     "yas": {
       "zaman_noktalari": ["5 yıl önce", "Şimdi", "3 yıl sonra"],
       "kisiler": [
@@ -1133,16 +1174,35 @@ JSON ÇIKTI FORMATI:
         {"isim": "Oğul", "avatar": "👦", "yas_simdi": "?"}
       ]
     },
+    
+    // tablo için:
     "tablo": {
       "basliklar": ["Ürün", "Fiyat", "Miktar"],
       "satirlar": [
         ["Elma", "5 TL/kg", "3 kg"],
-        ["Armut", "8 TL/kg", "2 kg"]
+        ["Armut", "8 TL/kg", "?"]
       ]
     }
   },
-  "soru_metni": "Kısa ve net soru ifadesi (ne sorulduğu)"
+  "soru_metni": "Kısa ve net soru ifadesi"
 }
+
+ÖRNEKLER:
+
+Soru: "Bir otobüs A şehrinden B şehrine 80 km/saat hızla gidiyor. 3 saatte varırsa mesafe kaç km?"
+→ gorsel_tipi: "hareket" (çünkü otobüs, hız, mesafe var)
+
+Soru: "X firması aylık 100 TL + 2 TL/dk, Y firması 200 TL sabit. 60 dk kullanımda hangisi ucuz?"
+→ gorsel_tipi: "karsilastirma" (çünkü iki firma karşılaştırması)
+
+Soru: "A musluğu havuzu 6 saatte, B musluğu 4 saatte dolduruyor. Birlikte kaç saatte dolar?"
+→ gorsel_tipi: "havuz" (çünkü musluk, havuz, dolum var)
+
+Soru: "Bir babanın yaşı oğlunun yaşının 3 katıdır. 10 yıl sonra 2 katı olacaktır. Oğul kaç yaşında?"
+→ gorsel_tipi: "yas" (çünkü yaş problemi, yıl sonra var)
+
+Soru: "Mağazada elma 5 TL, armut 8 TL, muz 6 TL. 2 kg elma, 3 kg armut alınırsa toplam?"
+→ gorsel_tipi: "tablo" (çünkü ürün listesi, fiyatlar var)
 
 SORU:
 """
@@ -1362,10 +1422,11 @@ class HTMLRenderer:
         
         cards_html = []
         for i, secenek in enumerate(secenekler[:2]):
-            renk_key = color_pairs[i % len(color_pairs)][i]
+            renk_key = color_pairs[i % len(color_pairs)][i % 2]
             c = colors.get(renk_key, colors['blue'])
             
-            ozellikler = secenek.get('pisiniler', [])
+            # Hem 'pisiniler' hem 'ozellikler' anahtarını destekle
+            ozellikler = secenek.get('ozellikler', secenek.get('pisiniler', []))
             rows = []
             for oz in ozellikler:
                 rows.append(f'''
