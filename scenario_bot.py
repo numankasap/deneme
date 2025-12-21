@@ -1068,166 +1068,259 @@ class DatabaseManager:
 class GeminiAnalyzer:
     """Gemini ile senaryo analizi"""
     
-    ANALYSIS_PROMPT = """Sen bir eğitim materyali tasarımcısısın. Görevin matematik sorularını görselleştirmek için EN UYGUN şablonu seçmek.
+    ANALYSIS_PROMPT = """Sen profesyonel bir eğitim infografik tasarımcısısın. Bir öğrenci soruyu okuduğunda, problemi zihninde canlandırmasına yardımcı olacak MÜKEMMEL bir görsel tasarlayacaksın.
 
-GÖREV: Verilen matematik sorusunu analiz et ve infografik görsel için gerekli bilgileri JSON formatında çıkar.
+🎨 GÖREV: Soruyu oku, senaryoyu zihninde adım adım canlandır, sonra görsel talimatlarını JSON olarak ver.
 
-⚠️ ŞABLON SEÇİM KURALLARI (ÖNCELİK SIRASINA GÖRE):
+═══════════════════════════════════════════════════════════════
+🎯 ADIM 1: SORUYU DERİNLEMESİNE ANALİZ ET
+═══════════════════════════════════════════════════════════════
 
-1️⃣ "hareket" şablonu SEÇ eğer şu KELİMELERDEN HERHANGİ BİRİ VARSA:
-   ✓ hız, km/saat, m/s, mesafe, yol, süre
-   ✓ otobüs, araba, tren, bisiklet, motorsiklet, kamyon
-   ✓ yürüme, koşma, gidiş, dönüş, yolculuk
-   ✓ buluşma, karşılaşma, yetişme, yakalama
-   ✓ şehir, köy, kasaba (A dan B ye)
-   → gorsel_tipi: "hareket"
-   → icon: "🚗"
+Kendine şu soruları sor:
 
-2️⃣ "karsilastirma" şablonu SEÇ eğer:
-   ✓ İKİ FARKLI SEÇENEĞİN karşılaştırılması varsa
-   ✓ "A firması", "B firması" veya "X markası", "Y markası"
-   ✓ "hangisi daha ucuz", "hangisi avantajlı", "hangisi karlı"
-   ✓ iki farklı tarife, plan, paket karşılaştırması
-   ✓ sabit ücret + değişken ücret tipi problemler
-   → gorsel_tipi: "karsilastirma"
-   → icon: "⚖️"
+🔍 PROBLEM TİPİ NEDİR?
+• Bu bir hareket/yol problemi mi? (hız, mesafe, süre)
+• Bu bir karşılaştırma mı? (iki seçenek, hangisi avantajlı)
+• Bu bir havuz/musluk problemi mi? (dolum, boşaltma)
+• Bu bir yaş problemi mi? (yıllar önce/sonra)
+• Bu bir tablo/liste problemi mi?
 
-3️⃣ "havuz" şablonu SEÇ eğer:
-   ✓ havuz, depo, tank, su deposu, çeşme
-   ✓ musluk, boru, vana, pompa
-   ✓ doldurma, boşaltma, dolum, tahliye
-   ✓ "kaç saatte dolar", "kaç dakikada boşalır"
-   → gorsel_tipi: "havuz"
-   → icon: "🏊"
+👤 KARAKTERLERİ BELİRLE:
+• Soruda kimler var? (Ali, Ayşe, firma adları...)
+• Her karakterin rolü ne? (sürücü, işçi, müşteri...)
+• Hangi emoji/avatar uygun?
 
-4️⃣ "yas" şablonu SEÇ eğer:
-   ✓ yaş, yaşında, yaşındaydı
-   ✓ "X yıl önce", "Y yıl sonra"
-   ✓ anne, baba, çocuk, kardeş yaşları
-   ✓ yaşlar toplamı, yaş farkı
-   → gorsel_tipi: "yas"
-   → icon: "👨‍👩‍👧"
+📊 VERİLERİ ÇIKAR:
+• Hangi sayısal değerler VERİLMİŞ?
+• Hangi değer HESAPLANACAK (bilinmeyen)?
+• Birimler neler? (km, saat, TL, litre...)
 
-5️⃣ "tablo" şablonu SEÇ eğer:
-   ✓ Veriler AÇIKÇA tablo formatında sunulmuşsa
-   ✓ Satır ve sütun başlıkları varsa
-   ✓ Ürün-fiyat listesi TABLO HALİNDE verilmişse
-   → gorsel_tipi: "tablo"
-   → icon: "📊"
+⚠️ ALTIN KURAL: SADECE VERİLENLERİ GÖSTER!
+• Hesaplanan değerleri ASLA gösterme (cevabı vermiş olursun!)
+• Çözümün adımlarını ima etme
+• Bilinmeyenleri "?" ile işaretle
 
-6️⃣ "genel" şablonu SEÇ SADECE eğer:
-   ✓ Yukarıdaki HİÇBİR kategoriye uymuyorsa
-   ✓ Basit tek hesaplama gerektiren senaryo ise
-   → gorsel_tipi: "genel"
-   → icon: "📋"
+═══════════════════════════════════════════════════════════════
+🚗 ADIM 2A: HAREKET PROBLEMİ İSE
+═══════════════════════════════════════════════════════════════
 
-⚠️ ÖNEMLİ: "tablo" şablonunu SADECE veriler tablo formatında verilmişse kullan!
-Karşılaştırma, hareket, havuz veya yaş problemi varsa İLGİLİ şablonu seç!
+Zihninde canlandır:
+• Araçlar hangi yönde hareket ediyor? (aynı yön, karşı yön, dik)
+• Nereden başlıyorlar? (aynı nokta, farklı noktalar)
+• Hedef ne? (buluşma, yakalama, aradaki mesafe)
+• Hareket ne zaman başlıyor? (aynı anda, farklı zamanlarda)
 
-ÖNEMLİ KURALLAR:
-1. Sadece VERİLENLERİ çıkar - ÇÖZÜMÜ YAPMA!
-2. Bilinmeyenleri "?" ile işaretle
-3. Sorudaki isimleri ve değerleri aynen kullan
-4. Türkçe karakterleri düzgün kullan
-5. ozel_pisiniler içinde SEÇTİĞİN şablona ait verileri MUTLAKA doldur!
-6. Şablon seçerken ANAHTAR KELİMELERE dikkat et!
+Görsel tasarımı:
+• Yolları çiz (yatay, dikey, çapraz)
+• Araçları konumlandır (başlangıç noktaları)
+• Ok işaretleri ile yönleri göster
+• Hız ve süre bilgilerini etiketle
+• Hedef noktayı vurgula
 
-JSON ÇIKTI FORMATI:
+ANAHTAR KELİMELER: hız, km/saat, m/s, mesafe, yol, süre, otobüs, araba, tren, bisiklet, yürüme, koşma, buluşma, karşılaşma, yetişme, şehir
+
+═══════════════════════════════════════════════════════════════
+⚖️ ADIM 2B: KARŞILAŞTIRMA PROBLEMİ İSE  
+═══════════════════════════════════════════════════════════════
+
+Zihninde canlandır:
+• Kaç seçenek var? (genellikle 2)
+• Her seçeneğin özellikleri neler?
+• Sabit ve değişken maliyetler var mı?
+• Karşılaştırma kriteri ne? (maliyet, süre, miktar)
+
+Görsel tasarımı:
+• İki kartı yan yana koy
+• Her kartın başlığını yaz (Firma A, Plan X...)
+• Özellikleri alt alta listele
+• Aynı özellikleri aynı sırada yaz (karşılaştırma kolay olsun)
+• Renk kodlaması kullan (mavi vs pembe)
+
+ANAHTAR KELİMELER: firma, şirket, plan, tarife, paket, seçenek, hangisi, avantajlı, ucuz, karlı, karşılaştır
+
+═══════════════════════════════════════════════════════════════
+🏊 ADIM 2C: HAVUZ/MUSLUK PROBLEMİ İSE
+═══════════════════════════════════════════════════════════════
+
+Zihninde canlandır:
+• Havuzun/deponun kapasitesi ne?
+• Kaç musluk/boru var?
+• Hangileri dolduruyor, hangileri boşaltıyor?
+• Aynı anda mı çalışıyorlar?
+
+Görsel tasarımı:
+• Havuz/tank şeklini çiz
+• Muslukları konumlandır (üstte dolum, altta boşaltma)
+• Her musluğun hızını/süresini etiketle
+• Su akış yönünü oklarla göster
+• Kapasite bilgisini yaz
+
+ANAHTAR KELİMELER: havuz, depo, tank, musluk, boru, pompa, doldurma, boşaltma, dolum, litre, saatte
+
+═══════════════════════════════════════════════════════════════
+👨‍👩‍👧 ADIM 2D: YAŞ PROBLEMİ İSE
+═══════════════════════════════════════════════════════════════
+
+Zihninde canlandır:
+• Kaç kişi var? (anne, baba, çocuk, kardeş)
+• Hangi zaman dilimleri? (şimdi, X yıl önce, Y yıl sonra)
+• Verilen yaşlar hangi zamana ait?
+• Bilinmeyen yaşlar hangileri?
+
+Görsel tasarımı:
+• Zaman çizelgesi çiz (yatay ok)
+• Zaman noktalarını işaretle (geçmiş, şimdi, gelecek)
+• Her kişiyi avatar ile göster
+• Bilinen yaşları yaz, bilinmeyenleri "?" ile işaretle
+• Yaş ilişkilerini belirt (fark, toplam, kat)
+
+ANAHTAR KELİMELER: yaş, yaşında, yıl önce, yıl sonra, anne, baba, çocuk, kardeş, yaşlar toplamı, yaş farkı
+
+═══════════════════════════════════════════════════════════════
+📊 ADIM 2E: TABLO PROBLEMİ İSE
+═══════════════════════════════════════════════════════════════
+
+SADECE şu durumlarda tablo şablonu kullan:
+• Veriler AÇIKÇA tablo formatında sunulmuşsa
+• Birden fazla satır VE sütun varsa
+• Ürün-fiyat-miktar listesi gibi yapısal veri varsa
+
+Görsel tasarımı:
+• Sütun başlıklarını belirle
+• Satırları doldur
+• Bilinmeyenleri "?" ile işaretle
+• Toplam satırı gerekirse ekle
+
+═══════════════════════════════════════════════════════════════
+⚠️ ADIM 3: ALTIN KURALLAR
+═══════════════════════════════════════════════════════════════
+
+🚫 KESİNLİKLE YAPMA:
+• Hesaplanan değerleri gösterme (toplam maliyet, sonuç yaşı, buluşma süresi...)
+• Çözümün ara adımlarını gösterme
+• Formül veya denklem yazma
+• Cevaba ipucu verme
+
+✅ KESİNLİKLE YAP:
+• Sadece SORUDA VERİLEN bilgileri göster
+• Bilinmeyenleri "?" ile işaretle
+• Soruyu ANLAMAYI kolaylaştır, ÇÖZMEYI değil!
+• Temiz, profesyonel, anlaşılır tasarım yap
+• Doğru şablonu seç (hareket, karşılaştırma, havuz, yaş, tablo)
+
+═══════════════════════════════════════════════════════════════
+📋 JSON ÇIKTI FORMATI
+═══════════════════════════════════════════════════════════════
+
 {
   "gorsel_pisinilir": true,
+  "dusunce_sureci": "Soruyu nasıl analiz ettiğimin açıklaması",
   "gorsel_tipi": "hareket|karsilastirma|havuz|yas|tablo|genel",
-  "baslik": "Görsel başlığı (kısa ve öz)",
+  "baslik": "Kısa, açıklayıcı başlık",
   "icon": "🚗|⚖️|🏊|👨‍👩‍👧|📊|📋",
   "karakterler": [
     {"isim": "Ali", "avatar": "👨", "rol": "Sürücü"}
   ],
   "verilenler": [
-    {"etiket": "Hız", "deger": "60 km/saat", "renk": "blue"}
+    {"etiket": "Açıklayıcı etiket", "deger": "Soruda verilen değer", "renk": "blue|pink|green|orange"}
   ],
   "ozel_pisiniler": {
-    // SEÇTİĞİN ŞABLONA GÖRE DOLDUR:
-    
-    // hareket için:
+    // Seçilen şablona göre doldur
+  },
+  "soru_metni": "Sorunun kısa, net ifadesi"
+}
+
+═══════════════════════════════════════════════════════════════
+📝 ÖRNEK ANALİZLER
+═══════════════════════════════════════════════════════════════
+
+SORU: "Ali, İstanbul'dan Ankara'ya 100 km/saat hızla, Veli ise Ankara'dan İstanbul'a 80 km/saat hızla aynı anda yola çıkıyor. İki şehir arası 450 km ise kaç saat sonra buluşurlar?"
+
+DÜŞÜNCE SÜRECİ:
+"Bu bir hareket problemi. İki kişi KARŞI YÖNDE hareket ediyor.
+Ali: İstanbul'dan başlıyor, 100 km/saat, sağa doğru gidiyor.
+Veli: Ankara'dan başlıyor, 80 km/saat, sola doğru gidiyor.
+Toplam mesafe 450 km.
+Buluşma süresi HESAPLANACAK - göstermeyeceğim!
+
+Görsel: Yatay bir yol, sol uçta İstanbul (Ali), sağ uçta Ankara (Veli).
+Ortada buluşma noktası (? ile işaretli).
+Her aracın yanında hızı yazılı."
+
+JSON:
+{
+  "gorsel_pisinilir": true,
+  "dusunce_sureci": "Karşı yönde hareket problemi, iki şehir arası yol gösterilecek",
+  "gorsel_tipi": "hareket",
+  "baslik": "İstanbul - Ankara Yolculuğu",
+  "icon": "🚗",
+  "karakterler": [
+    {"isim": "Ali", "avatar": "🚗", "rol": "İstanbul'dan gidiyor"},
+    {"isim": "Veli", "avatar": "🚙", "rol": "Ankara'dan gidiyor"}
+  ],
+  "verilenler": [
+    {"etiket": "Toplam Mesafe", "deger": "450 km", "renk": "blue"},
+    {"etiket": "Ali'nin Hızı", "deger": "100 km/saat", "renk": "green"},
+    {"etiket": "Veli'nin Hızı", "deger": "80 km/saat", "renk": "orange"}
+  ],
+  "ozel_pisiniler": {
     "hareket": {
       "yollar": [{"isim": "Ana Yol", "yon": "yatay", "renk": "blue"}],
       "araclar": [
-        {"isim": "Ali", "hat": "Ana Yol", "sure": "2 saat", "saat": "09:00", "hiz": "60 km/s"}
+        {"isim": "Ali", "konum": "sol", "hiz": "100 km/saat", "yon": "sag"},
+        {"isim": "Veli", "konum": "sag", "hiz": "80 km/saat", "yon": "sol"}
       ],
-      "hedef": "Buluşma Noktası",
-      "mesafe": "120 km"
-    },
-    
-    // karsilastirma için:
+      "noktalar": [
+        {"isim": "İstanbul", "konum": "sol"},
+        {"isim": "Ankara", "konum": "sag"},
+        {"isim": "Buluşma", "konum": "orta", "bilinmeyen": true}
+      ],
+      "mesafe": "450 km"
+    }
+  },
+  "soru_metni": "Kaç saat sonra buluşurlar?"
+}
+
+---
+
+SORU: "X telefon şirketi aylık 50 TL sabit + dakikası 1 TL, Y şirketi aylık 100 TL sabit + dakikası 0.5 TL. Hangi dakikadan sonra Y şirketi daha avantajlı olur?"
+
+DÜŞÜNCE SÜRECİ:
+"Bu bir karşılaştırma problemi. İki şirket, iki farklı tarife.
+Her birinin sabit ücreti ve dakika ücreti var.
+Eşitlenme noktası HESAPLANACAK - göstermeyeceğim!
+
+Görsel: İki kart yan yana. 
+Sol kart X şirketi (mavi), sağ kart Y şirketi (pembe).
+Her kartta sabit ücret ve dakika ücreti yazılı."
+
+JSON:
+{
+  "gorsel_pisinilir": true,
+  "dusunce_sureci": "İki tarife karşılaştırması, yan yana kartlar",
+  "gorsel_tipi": "karsilastirma",
+  "baslik": "Telefon Tarifeleri",
+  "icon": "⚖️",
+  "ozel_pisiniler": {
     "karsilastirma": {
       "secenekler": [
-        {"isim": "A Firması", "ozellikler": [
-          {"etiket": "Aylık ücret", "deger": "100 TL"},
-          {"etiket": "Kullanım ücreti", "deger": "2 TL/dk"}
+        {"isim": "X Şirketi", "renk": "blue", "ozellikler": [
+          {"etiket": "Sabit Ücret", "deger": "50 TL/ay"},
+          {"etiket": "Dakika Ücreti", "deger": "1 TL/dk"}
         ]},
-        {"isim": "B Firması", "ozellikler": [
-          {"etiket": "Aylık ücret", "deger": "50 TL"},
-          {"etiket": "Kullanım ücreti", "deger": "5 TL/dk"}
+        {"isim": "Y Şirketi", "renk": "pink", "ozellikler": [
+          {"etiket": "Sabit Ücret", "deger": "100 TL/ay"},
+          {"etiket": "Dakika Ücreti", "deger": "0.5 TL/dk"}
         ]}
-      ]
-    },
-    
-    // havuz için:
-    "havuz": {
-      "havuz_hacmi": "1000 litre",
-      "musluklar": [
-        {"isim": "A Musluğu", "tip": "dolum", "sure": "5 saatte doldurur"},
-        {"isim": "B Musluğu", "tip": "bosaltma", "sure": "8 saatte boşaltır"}
-      ]
-    },
-    
-    // yas için:
-    "yas": {
-      "zaman_noktalari": ["5 yıl önce", "Şimdi", "3 yıl sonra"],
-      "kisiler": [
-        {"isim": "Baba", "avatar": "👨", "yas_simdi": "40"},
-        {"isim": "Oğul", "avatar": "👦", "yas_simdi": "?"}
-      ]
-    },
-    
-    // tablo için:
-    "tablo": {
-      "basliklar": ["Ürün", "Fiyat", "Miktar"],
-      "satirlar": [
-        ["Elma", "5 TL/kg", "3 kg"],
-        ["Armut", "8 TL/kg", "?"]
       ]
     }
   },
-  "soru_metni": "Kısa ve net soru ifadesi"
+  "soru_metni": "Hangi dakikadan sonra Y daha avantajlı?"
 }
 
-ÖRNEKLER:
+═══════════════════════════════════════════════════════════════
 
-Soru: "Bir otobüs A şehrinden B şehrine 80 km/saat hızla gidiyor. 3 saatte varırsa mesafe kaç km?"
-→ gorsel_tipi: "hareket" ✓ (otobüs + hız + mesafe = hareket)
-
-Soru: "X firması aylık 100 TL + 2 TL/dk, Y firması 200 TL sabit. 60 dk kullanımda hangisi ucuz?"
-→ gorsel_tipi: "karsilastirma" ✓ (iki firma + hangisi ucuz = karşılaştırma)
-
-Soru: "A musluğu havuzu 6 saatte, B musluğu 4 saatte dolduruyor. Birlikte kaç saatte dolar?"
-→ gorsel_tipi: "havuz" ✓ (musluk + havuz + dolum = havuz)
-
-Soru: "Baba 40 yaşında, oğul 10 yaşında. 5 yıl sonra yaşları toplamı kaç?"
-→ gorsel_tipi: "yas" ✓ (yaş + yıl sonra = yaş)
-
-Soru: "Ali 60 km/saat, Veli 80 km/saat hızla aynı anda karşı yönlerden yola çıkıyor. 2 saat sonra aralarındaki mesafe?"
-→ gorsel_tipi: "hareket" ✓ (hız + yol + mesafe = hareket, karşılaştırma DEĞİL!)
-
-Soru: "Bir mağazada şapka 25 TL, gömlek 60 TL, pantolon 90 TL. Toplam fiyat?"
-→ gorsel_tipi: "tablo" ✓ (ürün fiyat listesi = tablo)
-
-SORU:
-
-Soru: "Bir babanın yaşı oğlunun yaşının 3 katıdır. 10 yıl sonra 2 katı olacaktır. Oğul kaç yaşında?"
-→ gorsel_tipi: "yas" (çünkü yaş problemi, yıl sonra var)
-
-Soru: "Mağazada elma 5 TL, armut 8 TL, muz 6 TL. 2 kg elma, 3 kg armut alınırsa toplam?"
-→ gorsel_tipi: "tablo" (çünkü ürün listesi, fiyatlar var)
+Şimdi aşağıdaki soruyu analiz et. Önce düşün, senaryoyu zihninde canlandır, sonra JSON çıktı ver.
 
 SORU:
 """
