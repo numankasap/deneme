@@ -1,7 +1,7 @@
 # Scenario Bot Workflow
 # PISA ve senaryo tabanlı sorular için infografik görsel üretir
 # Günde 3 kez çalışır (09:00, 15:00, 21:00 UTC+3)
-# Her seansta 30 soru işler, test modunda 10 soru
+# Her seansta 50 soru işler, test modunda 10 soru
 
 name: Scenario Bot
 
@@ -20,7 +20,7 @@ on:
       batch_size:
         description: 'İşlenecek soru sayısı (1-100)'
         required: false
-        default: '30'
+        default: '50'
         type: string
   
   # Zamanlanmış çalışma (Geometri botundan 1 saat sonra)
