@@ -1,0 +1,14 @@
+# Scenario Bot Requirements
+# PISA/Senaryo görsel oluşturma botu için gerekli kütüphaneler
+
+# Supabase
+supabase>=2.0.0
+
+# Google Gemini (yeni paket)
+google-genai>=1.0.0
+
+# HTML to PNG
+playwright>=1.40.0
+
+# Resim işleme
+Pillow>=10.0.0
