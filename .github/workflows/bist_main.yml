@@ -3,8 +3,6 @@ name: BIST 100 Analiz Botu
 on:
   schedule:
     - cron: '30 6 * * 1-5'   # 09:30 TR (Piyasa açılışı) - Hafta içi
-    - cron: '0 12 * * 1-5'   # 15:00 TR (Öğleden sonra)
-    - cron: '0 15 * * 1-5'   # 18:00 TR (Piyasa kapanışı)
   workflow_dispatch:
     inputs:
       stock_count:
