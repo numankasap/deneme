@@ -1,6 +1,7 @@
 # Geometry Bot Workflow
 # Günde 3 kez çalışır (08:00, 14:00, 20:00 UTC+3)
 # Her seansta 30 geometri sorusuna görsel oluşturur
+# Test modunda 10 soru işler
 
 name: Geometry Bot
 
@@ -16,6 +17,11 @@ on:
         options:
           - 'true'
           - 'false'
+      batch_size:
+        description: 'İşlenecek soru sayısı (1-100)'
+        required: false
+        default: '30'
+        type: string
   
   # Zamanlanmış çalışma (UTC saatleri - Türkiye için +3)
   schedule:
@@ -51,10 +57,12 @@ jobs:
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TEST_MODE: ${{ github.event.inputs.test_mode || 'false' }}
+          BATCH_SIZE: ${{ github.event.inputs.batch_size || '30' }}
         run: |
           echo "🚀 Geometri Görsel Botu Başlatılıyor..."
           echo "📅 Tarih: $(date)"
           echo "🔧 Test Modu: $TEST_MODE"
+          echo "📊 Batch Boyutu: $BATCH_SIZE soru"
           python geometry_bot.py
       
       - name: 📊 Job Summary
@@ -64,5 +72,6 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- **Tarih:** $(date)" >> $GITHUB_STEP_SUMMARY
           echo "- **Test Modu:** ${{ github.event.inputs.test_mode || 'false' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Batch Boyutu:** ${{ github.event.inputs.batch_size || '30' }} soru" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Detaylar için logları kontrol edin." >> $GITHUB_STEP_SUMMARY
