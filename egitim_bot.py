@@ -1,44 +1,36 @@
 #!/usr/bin/env python3
 """
-📚 EĞİTİM GÜNDEM TAKİP BOTU v2.0 - GLOBAL EDİTION
+📚 EĞİTİM GÜNDEM TAKİP BOTU v3.0 - PISA EDİTION
 =================================================
 LGS/YKS Öğrenci ve Öğretmenler için Günlük Haber & Gündem Botu
 
-Özellikler:
-- MEB'den son haberler
-- LGS/YKS sınav takvimi ve geri sayım
-- Eğitim gündemi (Türkiye)
-- Matematik alanındaki gelişmeler
-
-🌍 GLOBAL HABERLER (v2.0):
-- 🇨🇳 Çin: AI eğitim devrimi, DeepSeek, dijital sınıflar
-- 🇯🇵 Japonya: Robotik eğitim, STEM inovasyonu
-- 🇰🇷 Güney Kore: AI müfredat, EdTech yatırımları
-- 🇫🇮 Finlandiya: Eğitim reformları, öğretmen eğitimi
-- 🇸🇬 Singapur: Smart Nation, kişiselleştirilmiş öğrenme
-- 🇷🇺 Rusya: Matematik olimpiyatları, bilim eğitimi
-- 🇮🇱 İsrail: Startup eğitimi, teknoloji entegrasyonu
-- 🇮🇳 Hindistan: EdTech unicorn'ları, dijital dönüşüm
-- 🇪🇪 Estonya: Dijital vatandaşlık, kodlama eğitimi
-
-📄 BİLİMSEL MAKALELER:
-- arXiv: AI, Makine Öğrenmesi, Eğitim Teknolojisi
-- ERIC: Eğitim araştırmaları
-- Google Scholar: Güncel akademik çalışmalar
+🆕 v3.0 YENİLİKLER:
+- PISA liderlerinden eğitim haberleri (Makao, Singapur, Estonya, Japonya, Kore...)
+- Son 48 saat filtresi - taze haberler
+- Yinelenen haber filtreleme
+- Güncellenmiş sınav tarihleri (2026)
+- Genişletilmiş akademik kaynaklar (ERIC, Semantic Scholar, OECD)
+- Uluslararası değerlendirme raporları (PISA, TIMSS)
+- Makro eğitim politikası haberleri
+- ArXiv rate limit bypass stratejisi
+- Türkiye ulusal izleme araştırmaları
 
 Geliştirici: Numan Hoca için Claude tarafından oluşturuldu
-Tarih: Aralık 2024
+Tarih: Aralık 2025
 """
 
 import os
 import requests
 import feedparser
 from datetime import datetime, timedelta
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Set
 from bs4 import BeautifulSoup
 import json
 import re
 import locale
+import hashlib
+import time
+from urllib.parse import quote_plus
 
 # Türkçe tarih formatı için
 try:
@@ -47,9 +39,9 @@ except:
     try:
         locale.setlocale(locale.LC_TIME, 'Turkish_Turkey.1254')
     except:
-        pass  # Locale ayarlanamadıysa varsayılan kullan
+        pass
 
-# Türkçe ay ve gün isimleri (locale çalışmazsa)
+# Türkçe ay ve gün isimleri
 TURKISH_MONTHS = {
     'January': 'Ocak', 'February': 'Şubat', 'March': 'Mart',
     'April': 'Nisan', 'May': 'Mayıs', 'June': 'Haziran',
@@ -89,54 +81,159 @@ except ImportError:
     genai = None
 
 # ══════════════════════════════════════════════════════════════════════════════
-# SINAV TAKVİMİ VE GERİ SAYIM
+# YİNELENEN HABER FİLTRELEME
+# ══════════════════════════════════════════════════════════════════════════════
+
+class NewsDeduplicator:
+    """Yinelenen haberleri filtrele"""
+    
+    def __init__(self):
+        self.seen_titles: Set[str] = set()
+        self.seen_hashes: Set[str] = set()
+    
+    def _normalize_title(self, title: str) -> str:
+        """Başlığı normalize et"""
+        # Küçük harf, gereksiz karakterleri kaldır
+        normalized = title.lower()
+        normalized = re.sub(r'[^\w\s]', '', normalized)
+        normalized = ' '.join(normalized.split())
+        return normalized
+    
+    def _get_hash(self, title: str) -> str:
+        """Başlık hash'i oluştur"""
+        normalized = self._normalize_title(title)
+        return hashlib.md5(normalized.encode()).hexdigest()[:10]
+    
+    def is_duplicate(self, title: str, threshold: float = 0.7) -> bool:
+        """Başlık tekrar mı kontrol et"""
+        if not title:
+            return True
+        
+        title_hash = self._get_hash(title)
+        
+        # Tam eşleşme
+        if title_hash in self.seen_hashes:
+            return True
+        
+        # Benzerlik kontrolü (basit kelime örtüşmesi)
+        normalized = self._normalize_title(title)
+        words = set(normalized.split())
+        
+        for seen in self.seen_titles:
+            seen_words = set(seen.split())
+            if len(words) > 0 and len(seen_words) > 0:
+                overlap = len(words & seen_words) / max(len(words), len(seen_words))
+                if overlap > threshold:
+                    return True
+        
+        # Yeni başlık - kaydet
+        self.seen_hashes.add(title_hash)
+        self.seen_titles.add(normalized)
+        return False
+    
+    def reset(self):
+        """Filtreyi sıfırla"""
+        self.seen_titles.clear()
+        self.seen_hashes.clear()
+
+# Global deduplicator
+deduplicator = NewsDeduplicator()
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TARİH FİLTRELEME - SON 48 SAAT
+# ══════════════════════════════════════════════════════════════════════════════
+
+def parse_date(date_str: str) -> Optional[datetime]:
+    """Farklı tarih formatlarını parse et"""
+    if not date_str:
+        return None
+    
+    formats = [
+        '%a, %d %b %Y %H:%M:%S %z',
+        '%a, %d %b %Y %H:%M:%S %Z',
+        '%Y-%m-%dT%H:%M:%S%z',
+        '%Y-%m-%dT%H:%M:%SZ',
+        '%Y-%m-%d %H:%M:%S',
+        '%d %b %Y %H:%M:%S',
+        '%Y-%m-%d',
+    ]
+    
+    for fmt in formats:
+        try:
+            return datetime.strptime(date_str.strip(), fmt)
+        except:
+            continue
+    
+    return None
+
+def is_recent(date_str: str, hours: int = 48) -> bool:
+    """Haber son X saat içinde mi?"""
+    if not date_str:
+        return True  # Tarih yoksa kabul et
+    
+    parsed = parse_date(date_str)
+    if not parsed:
+        return True
+    
+    # Timezone-aware karşılaştırma
+    now = datetime.now()
+    try:
+        if parsed.tzinfo:
+            parsed = parsed.replace(tzinfo=None)
+    except:
+        pass
+    
+    diff = now - parsed
+    return diff.total_seconds() < (hours * 3600)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SINAV TAKVİMİ VE GERİ SAYIM - GÜNCELLENMİŞ TARİHLER
 # ══════════════════════════════════════════════════════════════════════════════
 
 def get_exam_countdown() -> Dict:
     """
     LGS ve YKS sınav tarihleri ve geri sayım
-    2025 yılı tahmini tarihleri (resmi tarihler açıklandığında güncellenmeli)
+    2026 RESMİ TARİHLER
     """
     today = datetime.now()
     
-    # 2025-2026 Sınav Tarihleri (Tahmini - ÖSYM/MEB açıklamasına göre güncellenmeli)
+    # 2026 SINAV TARİHLERİ - GÜNCEL
     exams = {
-        # 2026 Sınavları
         'LGS 2026': {
-            'date': datetime(2026, 6, 7),  # Tahmini: Haziran ilk pazar
+            'date': datetime(2026, 6, 14),  # 14 Haziran 2026 Pazar
             'name': '📚 LGS (Liselere Geçiş Sınavı)',
             'description': '8. sınıf merkezi sınavı'
         },
         'TYT 2026': {
-            'date': datetime(2026, 6, 13),  # Tahmini
+            'date': datetime(2026, 6, 20),  # 20 Haziran 2026 Cumartesi
             'name': '📝 TYT (Temel Yeterlilik Testi)',
             'description': 'YKS 1. Oturum'
         },
         'AYT 2026': {
-            'date': datetime(2026, 6, 14),  # Tahmini
+            'date': datetime(2026, 6, 21),  # 21 Haziran 2026 Pazar
             'name': '📖 AYT (Alan Yeterlilik Testi)',
             'description': 'YKS 2. Oturum'
         },
         'YDT 2026': {
-            'date': datetime(2026, 6, 14),  # Tahmini
+            'date': datetime(2026, 6, 21),  # 21 Haziran 2026 Pazar (AYT ile aynı gün)
             'name': '🌍 YDT (Yabancı Dil Testi)',
             'description': 'YKS 3. Oturum'
         },
         # Yarıyıl tatili 2025-2026
         'Yarıyıl Tatili': {
-            'date': datetime(2026, 1, 19),  # Tahmini
+            'date': datetime(2026, 1, 19),
             'name': '🏖️ Yarıyıl Tatili Başlangıcı',
             'description': '2 hafta tatil'
         },
         # 2. Dönem
         '2. Dönem Başlangıcı': {
-            'date': datetime(2026, 2, 2),  # Tahmini
+            'date': datetime(2026, 2, 2),
             'name': '🏫 2. Dönem Başlangıcı',
             'description': 'Okula dönüş'
         },
         # Yaz tatili
         'Yaz Tatili': {
-            'date': datetime(2026, 6, 19),  # Tahmini
+            'date': datetime(2026, 6, 19),
             'name': '☀️ Yaz Tatili Başlangıcı',
             'description': 'Okulların kapanışı'
         }
@@ -149,7 +246,6 @@ def get_exam_countdown() -> Dict:
         days_left = (exam_date.date() - today.date()).days
         
         if days_left >= 0:
-            # Hafta ve gün hesapla
             weeks = days_left // 7
             remaining_days = days_left % 7
             
@@ -174,7 +270,6 @@ def get_exam_countdown() -> Dict:
                 'is_exam': 'Sınav' in exam_info['name'] or 'Test' in exam_info['name']
             })
     
-    # Gün sayısına göre sırala
     countdown_list = sorted(countdown_list, key=lambda x: x['days_left'])
     
     return {
@@ -187,14 +282,10 @@ def get_exam_countdown() -> Dict:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def get_meb_news() -> List[Dict]:
-    """
-    MEB'den son haberler (web scraping)
-    Kaynak: meb.gov.tr
-    """
+    """MEB'den son haberler"""
     news = []
     
     try:
-        # MEB ana sayfa haberleri
         url = "https://www.meb.gov.tr"
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
@@ -204,8 +295,6 @@ def get_meb_news() -> List[Dict]:
         if r.status_code == 200:
             soup = BeautifulSoup(r.text, 'html.parser')
             
-            # Haber başlıklarını bul
-            # MEB sitesinin yapısına göre selector'ları güncelle
             news_items = soup.find_all('a', class_='news-item') or \
                         soup.find_all('div', class_='haber') or \
                         soup.find_all('article')
@@ -216,7 +305,7 @@ def get_meb_news() -> List[Dict]:
                 if link and not link.startswith('http'):
                     link = url + link
                 
-                if title and len(title) > 20:
+                if title and len(title) > 20 and not deduplicator.is_duplicate(title):
                     news.append({
                         'title': title,
                         'source': 'MEB',
@@ -232,25 +321,18 @@ def get_meb_news() -> List[Dict]:
     return news
 
 def get_education_news_turkey() -> List[Dict]:
-    """
-    Türkiye eğitim haberleri
-    Çoklu kaynak: Haber siteleri RSS
-    """
+    """Türkiye eğitim haberleri - yinelenmesiz, güncel"""
     news = []
     
-    # Türkiye haber kaynakları (eğitim kategorisi)
     sources = [
-        # Genel haber siteleri eğitim kategorisi
         ('https://www.hurriyet.com.tr/rss/egitim', 'Hürriyet'),
         ('https://www.milliyet.com.tr/rss/rssNew/egitimRss.xml', 'Milliyet'),
         ('https://www.sabah.com.tr/rss/egitim.xml', 'Sabah'),
         ('https://www.cumhuriyet.com.tr/rss/egitim', 'Cumhuriyet'),
-        # Eğitim özel siteleri
-        ('https://www.ogretmenler.net/feed/', 'Öğretmenler.net'),
-        ('https://www.egitimhane.com/rss.xml', 'Eğitimhane'),
+        ('https://www.ntv.com.tr/egitim.rss', 'NTV'),
+        ('https://www.haberturk.com/rss/egitim.xml', 'Habertürk'),
     ]
     
-    # LGS/YKS ile ilgili anahtar kelimeler
     important_keywords = [
         'lgs', 'yks', 'tyt', 'ayt', 'ösym', 'meb', 'sınav', 'müfredat',
         'öğretmen', 'atama', 'maaş', 'tatil', 'okul', 'ders', 'not',
@@ -261,17 +343,22 @@ def get_education_news_turkey() -> List[Dict]:
     for rss_url, source in sources:
         try:
             feed = feedparser.parse(rss_url)
-            for entry in feed.entries[:5]:
+            for entry in feed.entries[:8]:
                 title = entry.get('title', '')
                 summary = entry.get('summary', '')[:200] if entry.get('summary') else ''
                 link = entry.get('link', '')
-                published = entry.get('published', '')[:20] if entry.get('published') else ''
+                published = entry.get('published', '')
                 
-                # Önemli haber mi?
+                # Tarih kontrolü - son 48 saat
+                if not is_recent(published, hours=48):
+                    continue
+                
+                # Yineleme kontrolü
+                if deduplicator.is_duplicate(title):
+                    continue
+                
                 text = (title + ' ' + summary).lower()
                 is_important = any(kw in text for kw in important_keywords)
-                
-                # LGS/YKS odaklı mı?
                 is_exam_related = any(kw in text for kw in ['lgs', 'yks', 'tyt', 'ayt', 'ösym', 'sınav'])
                 
                 news.append({
@@ -286,46 +373,40 @@ def get_education_news_turkey() -> List[Dict]:
         except Exception as e:
             continue
     
-    # Önce sınav haberleri, sonra önemli haberler
     news = sorted(news, key=lambda x: (x['is_exam_related'], x['is_important']), reverse=True)
-    
-    return news[:15]
+    return news[:12]
 
 # ══════════════════════════════════════════════════════════════════════════════
-# MATEMATİK HABERLERİ
+# MATEMATİK HABERLERİ - GÜNCELLENMİŞ
 # ══════════════════════════════════════════════════════════════════════════════
 
 def get_math_news() -> List[Dict]:
-    """
-    Matematik alanındaki son gelişmeler
-    Türkiye ve Dünya
-    """
+    """Matematik alanındaki son gelişmeler - son 48 saat"""
     news = []
     
-    # Dünya matematik haberleri kaynakları
     world_sources = [
         ('https://www.quantamagazine.org/mathematics/feed/', 'Quanta Magazine'),
         ('https://www.sciencedaily.com/rss/computers_math/mathematics.xml', 'Science Daily'),
         ('https://phys.org/rss-feed/mathematics-news/', 'Phys.org'),
-        ('https://www.ams.org/rss/mathfeed.xml', 'AMS (American Mathematical Society)'),
-    ]
-    
-    # Matematik anahtar kelimeleri
-    math_keywords = [
-        'theorem', 'proof', 'conjecture', 'algorithm', 'geometry', 'algebra',
-        'calculus', 'topology', 'number theory', 'statistics', 'probability',
-        'machine learning', 'ai', 'neural network', 'optimization',
-        'riemann', 'prime', 'fibonacci', 'euler', 'fields medal',
-        'matematik', 'teorem', 'ispat', 'geometri', 'cebir', 'istatistik'
+        ('https://www.ams.org/rss/mathfeed.xml', 'AMS'),
+        ('https://www.maa.org/rss.xml', 'MAA'),
+        ('https://plus.maths.org/content/rss.xml', 'Plus Magazine'),
     ]
     
     for rss_url, source in world_sources:
         try:
             feed = feedparser.parse(rss_url)
-            for entry in feed.entries[:3]:
+            for entry in feed.entries[:5]:
                 title = entry.get('title', '')
                 summary = entry.get('summary', '')[:300] if entry.get('summary') else ''
                 link = entry.get('link', '')
+                published = entry.get('published', '')
+                
+                if not is_recent(published, hours=72):  # Matematik için 72 saat
+                    continue
+                
+                if deduplicator.is_duplicate(title):
+                    continue
                 
                 news.append({
                     'title': title[:150],
@@ -338,93 +419,53 @@ def get_math_news() -> List[Dict]:
         except Exception as e:
             continue
     
-    return news[:10]
+    return news[:8]
 
 # ══════════════════════════════════════════════════════════════════════════════
 # YAPAY ZEKA VE EĞİTİM HABERLERİ
 # ══════════════════════════════════════════════════════════════════════════════
 
 def get_ai_education_news() -> List[Dict]:
-    """
-    Yapay zeka ve eğitim haberleri
-    EdTech gelişmeleri - Genişletilmiş kaynak listesi
-    """
+    """Yapay zeka ve eğitim haberleri - güncel"""
     news = []
     
-    # ══════════════════════════════════════════════════════════════════════
-    # ÇALIŞAN EDTECH & AI EĞİTİM HABER KAYNAKLARI
-    # ══════════════════════════════════════════════════════════════════════
-    
     sources = [
-        # === ANA KAYNAKLAR (Doğrulanmış RSS) ===
         ('https://www.edsurge.com/articles_rss', 'EdSurge', 'Ana'),
-        ('https://www.the74million.org/feed/', 'The 74 Million', 'Ana'),
+        ('https://www.the74million.org/feed/', 'The 74', 'Ana'),
         ('https://www.eschoolnews.com/feed/', 'eSchool News', 'Ana'),
         ('https://edtechmagazine.com/k12/rss.xml', 'EdTech Magazine', 'Ana'),
-        
-        # === EDTECH BLOGLAR ===
         ('https://www.techlearning.com/rss.xml', 'Tech & Learning', 'EdTech'),
-        ('https://classtechtips.com/feed/', 'Class Tech Tips', 'EdTech'),
-        ('https://www.freetech4teachers.com/feeds/posts/default', 'Free Tech 4 Teachers', 'EdTech'),
-        ('https://ditchthattextbook.com/feed/', 'Ditch That Textbook', 'EdTech'),
-        
-        # === AI & TEKNOLOJİ ===
         ('https://www.technologyreview.com/feed/', 'MIT Tech Review', 'AI'),
-        ('https://openai.com/blog/rss/', 'OpenAI', 'AI'),
-        
-        # === ÖĞRENME BİLİMİ ===
-        ('https://www.gettingsmart.com/feed/', 'Getting Smart', 'Araştırma'),
-        ('https://www.insidehighered.com/rss.xml', 'Inside Higher Ed', 'Araştırma'),
-        
-        # === KÜRESEL ===
         ('https://www.weforum.org/agenda/feed', 'World Economic Forum', 'Global'),
-        
-        # === ÖĞRETİM ===
-        ('https://www.facultyfocus.com/feed/', 'Faculty Focus', 'Öğretim'),
-        ('https://www.elearningindustry.com/feed', 'eLearning Industry', 'Öğretim'),
+        ('https://www.brookings.edu/feed/', 'Brookings', 'Policy'),
+        ('https://www.rand.org/topics/education-and-literacy.xml', 'RAND', 'Research'),
     ]
     
-    # AI/EdTech anahtar kelimeleri
     ai_keywords = [
-        # Yapay Zeka
-        'ai', 'artificial intelligence', 'machine learning', 'deep learning',
-        'chatgpt', 'gpt', 'claude', 'gemini', 'copilot',
-        'generative ai', 'genai', 'llm', 'large language model',
-        # EdTech
-        'edtech', 'education technology', 'learning platform',
+        'ai', 'artificial intelligence', 'machine learning', 'chatgpt', 'gpt',
+        'claude', 'gemini', 'generative ai', 'llm', 'edtech', 'education technology',
         'adaptive learning', 'personalized learning', 'intelligent tutoring',
-        'online learning', 'digital learning', 'hybrid learning',
-        # Platformlar
-        'khan academy', 'khanmigo', 'duolingo', 'coursera',
-        'google classroom', 'canvas', 'kahoot', 'quizlet',
-        # Eğitim Uygulamaları
-        'ai tutor', 'ai teacher', 'ai grading', 'ai assessment',
-        'automated feedback', 'learning analytics',
-        # Trendler
-        'future of education', 'digital transformation',
-        'ai literacy', 'computational thinking',
-        # Türkçe
-        'yapay zeka', 'eğitim teknolojisi'
-    ]
-    
-    # Yüksek öncelikli
-    high_priority_keywords = [
-        'chatgpt', 'ai tutor', 'ai teacher', 'khanmigo', 'generative ai',
-        'ai classroom', 'ai education', 'ai literacy', 'personalized learning ai'
+        'ai tutor', 'ai teacher', 'ai assessment', 'learning analytics',
+        'future of education', 'digital transformation', 'ai literacy'
     ]
     
     for rss_url, source, category in sources:
         try:
             feed = feedparser.parse(rss_url)
-            for entry in feed.entries[:4]:
+            for entry in feed.entries[:6]:
                 title = entry.get('title', '')
-                summary = entry.get('summary', '')[:300] if entry.get('summary') else ''
+                summary = entry.get('summary', '')[:200] if entry.get('summary') else ''
                 link = entry.get('link', '')
+                published = entry.get('published', '')
                 
-                # AI ile ilgili mi kontrol et
+                if not is_recent(published, hours=48):
+                    continue
+                
+                if deduplicator.is_duplicate(title):
+                    continue
+                
                 text = (title + ' ' + summary).lower()
                 is_ai_related = any(kw in text for kw in ai_keywords)
-                is_high_priority = any(kw in text for kw in high_priority_keywords)
                 
                 if is_ai_related:
                     news.append({
@@ -434,281 +475,264 @@ def get_ai_education_news() -> List[Dict]:
                         'category': category,
                         'link': link,
                         'is_ai_related': True,
-                        'is_high_priority': is_high_priority,
                         'needs_translation': True
                     })
         except Exception as e:
-            print(f"RSS hatası ({source}): {e}")
             continue
     
-    # Önce yüksek öncelikli
-    news = sorted(news, key=lambda x: (x.get('is_high_priority', False)), reverse=True)
-    
-    return news[:12]
+    return news[:10]
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 🌍 GLOBAL EĞİTİM HABERLERİ - ÜLKE BAZLI
+# 🏆 PISA LİDERLERİNDEN EĞİTİM HABERLERİ
 # ══════════════════════════════════════════════════════════════════════════════
 
-def get_global_education_news() -> Dict[str, List[Dict]]:
+def get_pisa_leaders_news() -> Dict[str, List[Dict]]:
     """
-    Dünya genelinde eğitim, AI ve matematik alanında öncü ülkelerden haberler
-    Her ülke için özel kaynaklar ve anahtar kelimeler
+    PISA 2022'de en başarılı ülkelerden eğitim haberleri
+    Makro/politika düzeyinde haberler öncelikli
     """
     
-    # Ülke bazlı haber kaynakları
-    country_sources = {
-        # 🇨🇳 ÇİN - AI ve EdTech Devrimi
-        'china': {
-            'flag': '🇨🇳',
-            'name': 'Çin',
-            'focus': 'AI Eğitim Devrimi',
-            'sources': [
-                ('https://news.cgtn.com/rss/education.xml', 'CGTN Education'),
-                ('https://www.globaltimes.cn/rss/outbrain.xml', 'Global Times'),
-                ('https://www.sixthtone.com/rss/news', 'Sixth Tone'),
-            ],
-            'keywords': ['china education', 'chinese school', 'gaokao', 'deepseek', 
-                        'chinese ai', 'beijing education', 'shanghai school',
-                        'smart classroom china', 'ai pilot school', 'chinese student',
-                        'ministry of education china', 'tsinghua', 'peking university'],
-            'priority_keywords': ['deepseek', 'chinese ai education', 'gaokao reform',
-                                 'ai classroom china', 'smart education china']
-        },
-        
-        # 🇯🇵 JAPONYA - Robotik ve STEM
-        'japan': {
-            'flag': '🇯🇵',
-            'name': 'Japonya',
-            'focus': 'Robotik & STEM İnovasyonu',
-            'sources': [
-                ('https://www.japantimes.co.jp/feed/', 'Japan Times'),
-                ('https://japantoday.com/feed', 'Japan Today'),
-                ('https://english.kyodonews.net/rss/all.xml', 'Kyodo News'),
-            ],
-            'keywords': ['japan education', 'japanese school', 'juku', 'robotics education',
-                        'stem japan', 'tokyo university', 'japanese student',
-                        'programming education japan', 'ai japan', 'digital textbook japan'],
-            'priority_keywords': ['japan ai education', 'robotics school japan', 
-                                 'japanese stem', 'mext education']
-        },
-        
-        # 🇰🇷 GÜNEY KORE - AI Müfredat & EdTech
-        'korea': {
-            'flag': '🇰🇷',
-            'name': 'Güney Kore',
-            'focus': 'AI Müfredat & EdTech',
-            'sources': [
-                ('https://koreajoongangdaily.joins.com/section/rss/education', 'Korea JoongAng'),
-                ('https://en.yna.co.kr/RSS/news.xml', 'Yonhap News'),
-                ('https://www.koreaherald.com/rss/023.xml', 'Korea Herald'),
-            ],
-            'keywords': ['korea education', 'korean school', 'suneung', 'csat korea',
-                        'korean ai', 'seoul education', 'hagwon', 'korean student',
-                        'digital textbook korea', 'ai tutor korea', 'edtech korea'],
-            'priority_keywords': ['korea ai curriculum', 'korean ai education',
-                                 'keris education', 'korean digital textbook']
-        },
-        
-        # 🇫🇮 FİNLANDİYA - Eğitim Reformu
-        'finland': {
-            'flag': '🇫🇮',
-            'name': 'Finlandiya',
-            'focus': 'Eğitim Reformu & Öğretmen Eğitimi',
-            'sources': [
-                ('https://www.helsinkitimes.fi/feed.rss', 'Helsinki Times'),
-                ('https://yle.fi/rss/uutiset.rss', 'YLE News'),
-            ],
-            'keywords': ['finland education', 'finnish school', 'pisa finland',
-                        'teacher training finland', 'helsinki university',
-                        'finnish student', 'no homework finland', 'play-based learning'],
-            'priority_keywords': ['finnish education reform', 'pisa results finland',
-                                 'teacher education finland']
-        },
-        
-        # 🇸🇬 SİNGAPUR - Smart Nation & Kişiselleştirilmiş Öğrenme
+    # PISA 2022 Top Performers (resimden)
+    pisa_leaders = {
         'singapore': {
             'flag': '🇸🇬',
             'name': 'Singapur',
-            'focus': 'Smart Nation & Kişiselleştirilmiş Öğrenme',
+            'rank': '#1-2 PISA',
             'sources': [
-                ('https://www.straitstimes.com/rss/singapore', 'Straits Times'),
+                ('https://www.straitstimes.com/singapore/education', 'Straits Times'),
                 ('https://www.channelnewsasia.com/rss/latest_news.xml', 'CNA'),
             ],
-            'keywords': ['singapore education', 'singapore school', 'moe singapore',
-                        'smart nation', 'singapore ai', 'nus', 'ntu',
-                        'adaptive learning singapore', 'psle', 'o level singapore'],
-            'priority_keywords': ['singapore ai education', 'smart nation education',
-                                 'singapore digital learning', 'nie singapore']
+            'keywords': ['moe singapore', 'singapore curriculum', 'singapore education policy',
+                        'psle', 'singapore school', 'nie singapore', 'smart nation education']
         },
-        
-        # 🇷🇺 RUSYA - Matematik & Bilim Olimpiyatları  
-        'russia': {
-            'flag': '🇷🇺',
-            'name': 'Rusya',
-            'focus': 'Matematik Olimpiyatları & Bilim Eğitimi',
+        'macao': {
+            'flag': '🇲🇴',
+            'name': 'Makao',
+            'rank': '#1 PISA Mat',
             'sources': [
-                ('https://tass.com/rss/v2.xml', 'TASS'),
-                ('https://sputnikglobe.com/export/rss2/archive/index.xml', 'Sputnik'),
+                ('https://www.macaonews.org/feed/', 'Macau News'),
             ],
-            'keywords': ['russia education', 'russian school', 'math olympiad russia',
-                        'russian mathematics', 'moscow university', 'msu',
-                        'unified state exam', 'ege russia', 'russian science'],
-            'priority_keywords': ['russian math olympiad', 'imo russia',
-                                 'russian mathematics education']
+            'keywords': ['macao education', 'macau school', 'macao curriculum']
         },
-        
-        # 🇮🇱 İSRAİL - Startup & Teknoloji Eğitimi
-        'israel': {
-            'flag': '🇮🇱',
-            'name': 'İsrail',
-            'focus': 'Startup Ekosistemi & Teknoloji Eğitimi',
+        'japan': {
+            'flag': '🇯🇵',
+            'name': 'Japonya',
+            'rank': '#4-5 PISA',
             'sources': [
-                ('https://www.timesofisrael.com/feed/', 'Times of Israel'),
-                ('https://www.jpost.com/rss/rssfeedseducation.aspx', 'Jerusalem Post'),
+                ('https://www.japantimes.co.jp/feed/', 'Japan Times'),
+                ('https://japantoday.com/feed', 'Japan Today'),
             ],
-            'keywords': ['israel education', 'israeli school', 'technion',
-                        'hebrew university', 'startup nation education',
-                        'israeli tech', 'coding education israel', 'cyber education'],
-            'priority_keywords': ['israel tech education', 'israeli startup education',
-                                 'cybersecurity education israel']
+            'keywords': ['japan education reform', 'mext', 'japanese curriculum',
+                        'juku', 'stem japan', 'robotics education japan']
         },
-        
-        # 🇮🇳 HİNDİSTAN - EdTech Unicorn'ları
-        'india': {
-            'flag': '🇮🇳',
-            'name': 'Hindistan',
-            'focus': 'EdTech Unicorn & Dijital Dönüşüm',
+        'korea': {
+            'flag': '🇰🇷',
+            'name': 'Güney Kore',
+            'rank': '#6 PISA',
             'sources': [
-                ('https://indianexpress.com/section/education/feed/', 'Indian Express'),
-                ('https://timesofindia.indiatimes.com/rssfeeds/913168846.cms', 'Times of India'),
+                ('https://koreajoongangdaily.joins.com/section/rss/education', 'Korea JoongAng'),
+                ('https://en.yna.co.kr/RSS/news.xml', 'Yonhap'),
             ],
-            'keywords': ['india education', 'indian school', 'iit', 'neet',
-                        'jee exam', 'byju', 'unacademy', 'vedantu',
-                        'indian edtech', 'digital india education', 'nep 2020'],
-            'priority_keywords': ['india edtech', 'indian ai education',
-                                 'nep education', 'digital classroom india']
+            'keywords': ['korea education policy', 'suneung', 'korean curriculum',
+                        'hagwon reform', 'keris', 'digital textbook korea']
         },
-        
-        # 🇪🇪 ESTONYA - Dijital Vatandaşlık & Kodlama
         'estonia': {
             'flag': '🇪🇪',
             'name': 'Estonya',
-            'focus': 'Dijital Vatandaşlık & Kodlama Eğitimi',
+            'rank': '#3 PISA Fen',
             'sources': [
                 ('https://news.err.ee/rss', 'ERR News'),
             ],
-            'keywords': ['estonia education', 'estonian school', 'e-estonia',
-                        'digital citizenship', 'progettiger', 'coding education estonia',
-                        'tartu university', 'tallinn tech'],
-            'priority_keywords': ['estonia digital education', 'e-estonia education',
-                                 'progettiger coding']
+            'keywords': ['estonia education', 'estonian school', 'digital education estonia',
+                        'coding education', 'e-estonia education']
+        },
+        'hong_kong': {
+            'flag': '🇭🇰',
+            'name': 'Hong Kong',
+            'rank': '#5 PISA',
+            'sources': [
+                ('https://www.scmp.com/rss/91/feed', 'SCMP'),
+            ],
+            'keywords': ['hong kong education', 'dse exam', 'hk curriculum',
+                        'education bureau hong kong']
+        },
+        'chinese_taipei': {
+            'flag': '🇹🇼',
+            'name': 'Tayvan',
+            'rank': '#8 PISA',
+            'sources': [
+                ('https://focustaiwan.tw/rss', 'Focus Taiwan'),
+            ],
+            'keywords': ['taiwan education', 'taiwanese school', 'gsat exam',
+                        'taiwan curriculum', 'moe taiwan']
+        },
+        'finland': {
+            'flag': '🇫🇮',
+            'name': 'Finlandiya',
+            'rank': '#12 PISA',
+            'sources': [
+                ('https://yle.fi/rss/uutiset.rss', 'YLE'),
+            ],
+            'keywords': ['finland education', 'finnish school', 'teacher training finland',
+                        'no homework finland', 'finnish curriculum']
+        },
+        'canada': {
+            'flag': '🇨🇦',
+            'name': 'Kanada',
+            'rank': '#9 PISA',
+            'sources': [
+                ('https://www.cbc.ca/cmlink/rss-canada', 'CBC'),
+            ],
+            'keywords': ['canada education policy', 'canadian curriculum',
+                        'provincial education', 'canada school']
+        },
+        'ireland': {
+            'flag': '🇮🇪',
+            'name': 'İrlanda',
+            'rank': '#7 PISA Oku',
+            'sources': [
+                ('https://www.irishtimes.com/cmlink/news-1.1319192', 'Irish Times'),
+            ],
+            'keywords': ['ireland education', 'irish curriculum', 'leaving cert',
+                        'irish school']
         },
     }
     
-    global_news = {}
+    all_news = {}
     
-    # Genel haber kaynakları (ülke bazlı filtreleme için)
-    general_sources = [
-        ('https://www.weforum.org/agenda/feed', 'World Economic Forum'),
-        ('https://www.brookings.edu/feed/', 'Brookings'),
-        ('https://www.rand.org/pubs/rss.xml', 'RAND'),
-        ('https://internationalednews.com/feed/', 'International Ed News'),
-    ]
-    
-    for country_code, config in country_sources.items():
+    for country_code, country_info in pisa_leaders.items():
         country_news = []
         
-        # Ülke spesifik kaynakları tara
-        for rss_url, source_name in config['sources']:
+        for source_url, source_name in country_info['sources']:
             try:
-                feed = feedparser.parse(rss_url)
+                feed = feedparser.parse(source_url)
                 for entry in feed.entries[:8]:
                     title = entry.get('title', '')
-                    summary = entry.get('summary', '')[:400] if entry.get('summary') else ''
                     link = entry.get('link', '')
+                    published = entry.get('published', '')
+                    summary = entry.get('summary', '')[:200] if entry.get('summary') else ''
                     
-                    # Eğitim ile ilgili mi kontrol et
+                    if not is_recent(published, hours=72):
+                        continue
+                    
+                    if deduplicator.is_duplicate(title):
+                        continue
+                    
                     text = (title + ' ' + summary).lower()
                     
-                    # Ülke anahtar kelimelerini kontrol et
-                    is_relevant = any(kw in text for kw in config['keywords'])
-                    is_priority = any(kw in text for kw in config['priority_keywords'])
+                    # Eğitim ile ilgili mi? (makro seviye)
+                    education_keywords = [
+                        'education', 'school', 'curriculum', 'student', 'teacher',
+                        'university', 'exam', 'learning', 'policy', 'reform',
+                        'ministry', 'assessment', 'pisa', 'timss'
+                    ] + country_info['keywords']
                     
-                    # Genel eğitim kelimeleri
-                    education_keywords = ['education', 'school', 'student', 'teacher',
-                                         'university', 'learning', 'curriculum', 'exam',
-                                         'ai', 'digital', 'stem', 'math', 'science']
+                    # Mikro haberleri filtrele
+                    micro_keywords = [
+                        'individual student', 'local school', 'single teacher',
+                        'graduation ceremony', 'school trip', 'sports day'
+                    ]
+                    
                     is_education = any(kw in text for kw in education_keywords)
+                    is_micro = any(kw in text for kw in micro_keywords)
                     
-                    if is_relevant or (is_education and config['name'].lower() in text):
+                    if is_education and not is_micro:
                         country_news.append({
                             'title': title[:150],
-                            'summary': summary[:200],
                             'source': source_name,
                             'link': link,
-                            'country': config['name'],
-                            'flag': config['flag'],
-                            'focus': config['focus'],
-                            'is_priority': is_priority,
+                            'country': country_info['name'],
+                            'flag': country_info['flag'],
+                            'rank': country_info['rank'],
                             'needs_translation': True
                         })
             except Exception as e:
-                print(f"Global RSS hatası ({source_name}): {e}")
                 continue
         
-        # Genel kaynaklardan da bu ülkeye ait haberleri çek
-        for rss_url, source_name in general_sources:
-            try:
-                feed = feedparser.parse(rss_url)
-                for entry in feed.entries[:5]:
-                    title = entry.get('title', '')
-                    summary = entry.get('summary', '')[:400] if entry.get('summary') else ''
-                    link = entry.get('link', '')
-                    
-                    text = (title + ' ' + summary).lower()
-                    
-                    # Bu ülkeyle ilgili mi?
-                    country_mentioned = any(kw in text for kw in config['keywords'][:5])
-                    
-                    if country_mentioned:
-                        country_news.append({
-                            'title': title[:150],
-                            'summary': summary[:200],
-                            'source': source_name,
-                            'link': link,
-                            'country': config['name'],
-                            'flag': config['flag'],
-                            'focus': config['focus'],
-                            'is_priority': False,
-                            'needs_translation': True
-                        })
-            except:
-                continue
-        
-        # Öncelikli haberleri öne al ve en fazla 3 haber tut
-        country_news = sorted(country_news, key=lambda x: x.get('is_priority', False), reverse=True)
-        global_news[country_code] = country_news[:3]
+        if country_news:
+            all_news[country_code] = country_news[:3]
     
-    return global_news
+    return all_news
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 📄 BİLİMSEL MAKALELER - arXiv & Akademik Kaynaklar
+# 🌍 DÜNYADAN MAKRO EĞİTİM HABERLERİ
 # ══════════════════════════════════════════════════════════════════════════════
 
-def get_arxiv_papers() -> List[Dict]:
+def get_global_macro_education_news() -> List[Dict]:
     """
-    arXiv'den AI, Makine Öğrenmesi ve Eğitim Teknolojisi makaleleri
+    Global eğitim politikası ve reform haberleri
+    Mikro değil makro seviye
+    """
+    news = []
+    
+    # Uluslararası kuruluşlar
+    global_sources = [
+        ('https://www.unesco.org/en/rss.xml', 'UNESCO', 'Uluslararası'),
+        ('https://blogs.worldbank.org/education/rss.xml', 'World Bank Education', 'Uluslararası'),
+        ('https://www.oecd-ilibrary.org/rss/content/subject/education.xml', 'OECD', 'Uluslararası'),
+        ('https://www.weforum.org/agenda/feed', 'World Economic Forum', 'Global'),
+        ('https://www.brookings.edu/topic/education/feed/', 'Brookings', 'Policy'),
+        ('https://www.theguardian.com/education/rss', 'Guardian Education', 'UK'),
+        ('https://www.nytimes.com/svc/collections/v1/publish/www.nytimes.com/section/education/rss.xml', 'NYT Education', 'US'),
+    ]
+    
+    macro_keywords = [
+        'education policy', 'education reform', 'curriculum reform',
+        'national assessment', 'pisa', 'timss', 'international comparison',
+        'education budget', 'teacher shortage', 'education crisis',
+        'ai in education', 'digital transformation', 'education inequality',
+        'higher education', 'vocational training', 'lifelong learning',
+        'education minister', 'education law', 'education system'
+    ]
+    
+    for rss_url, source, category in global_sources:
+        try:
+            feed = feedparser.parse(rss_url)
+            for entry in feed.entries[:6]:
+                title = entry.get('title', '')
+                link = entry.get('link', '')
+                published = entry.get('published', '')
+                summary = entry.get('summary', '')[:200] if entry.get('summary') else ''
+                
+                if not is_recent(published, hours=72):
+                    continue
+                
+                if deduplicator.is_duplicate(title):
+                    continue
+                
+                text = (title + ' ' + summary).lower()
+                is_macro = any(kw in text for kw in macro_keywords)
+                
+                if is_macro:
+                    news.append({
+                        'title': title[:150],
+                        'source': source,
+                        'category': category,
+                        'link': link,
+                        'needs_translation': True
+                    })
+        except Exception as e:
+            continue
+    
+    return news[:8]
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 📚 BİLİMSEL MAKALELER - GENİŞLETİLMİŞ KAYNAKLAR
+# ══════════════════════════════════════════════════════════════════════════════
+
+def get_arxiv_papers_safe() -> List[Dict]:
+    """
+    arXiv'den makaleler - RSS ile (API key gerektirmez)
+    Rate limit için bekleme süreli
     """
     papers = []
     
-    # arXiv kategorileri ve RSS URL'leri
+    # arXiv RSS kategorileri - eğitim odaklı
     arxiv_categories = [
+        ('http://export.arxiv.org/rss/cs.CY', 'cs.CY', 'Bilgisayar & Toplum'),  # Education papers here
         ('http://export.arxiv.org/rss/cs.AI', 'cs.AI', 'Yapay Zeka'),
         ('http://export.arxiv.org/rss/cs.CL', 'cs.CL', 'Doğal Dil İşleme'),
         ('http://export.arxiv.org/rss/cs.LG', 'cs.LG', 'Makine Öğrenmesi'),
-        ('http://export.arxiv.org/rss/cs.CY', 'cs.CY', 'Bilgisayar ve Toplum'),
-        ('http://export.arxiv.org/rss/stat.ML', 'stat.ML', 'İstatistiksel ML'),
     ]
     
     # Eğitim ile ilgili anahtar kelimeler
@@ -716,18 +740,20 @@ def get_arxiv_papers() -> List[Dict]:
         'education', 'learning', 'student', 'teacher', 'classroom',
         'tutoring', 'assessment', 'curriculum', 'pedagogy', 'school',
         'adaptive learning', 'intelligent tutoring', 'educational',
-        'e-learning', 'mooc', 'personalized learning'
+        'e-learning', 'mooc', 'personalized learning', 'teaching'
     ]
     
     for rss_url, category, category_name in arxiv_categories:
         try:
             feed = feedparser.parse(rss_url)
             
-            for entry in feed.entries[:10]:
+            for entry in feed.entries[:8]:
                 title = entry.get('title', '').replace('\n', ' ')
                 summary = entry.get('summary', '')[:500] if entry.get('summary') else ''
                 link = entry.get('link', '')
-                authors = ', '.join([a.get('name', '') for a in entry.get('authors', [])[:3]])[:100]
+                
+                if not title or deduplicator.is_duplicate(title):
+                    continue
                 
                 # Eğitim ile ilgili mi kontrol et
                 text = (title + ' ' + summary).lower()
@@ -736,7 +762,6 @@ def get_arxiv_papers() -> List[Dict]:
                 papers.append({
                     'title': title[:200],
                     'summary': summary[:300],
-                    'authors': authors,
                     'link': link,
                     'category': category_name,
                     'arxiv_cat': category,
@@ -744,46 +769,153 @@ def get_arxiv_papers() -> List[Dict]:
                     'source': 'arXiv',
                     'needs_translation': True
                 })
+            
+            time.sleep(2)  # Rate limit için bekleme
+            
         except Exception as e:
-            print(f"arXiv hatası ({category}): {e}")
+            print(f"arXiv RSS hatası ({category}): {e}")
             continue
     
     # Eğitim ile ilgili olanları öne al
     papers = sorted(papers, key=lambda x: x.get('is_education_related', False), reverse=True)
     
-    return papers[:10]
+    return papers[:8]
 
-def get_research_papers() -> List[Dict]:
+def get_eric_papers() -> List[Dict]:
     """
-    Akademik araştırma makaleleri - çeşitli kaynaklardan
+    ERIC benzeri kaynaklar - RSS ile (API key gerektirmez)
+    Eğitim araştırma dergileri
     """
     papers = []
     
-    # Akademik kaynaklar
+    # Eğitim araştırma dergileri RSS (ERIC yerine)
     sources = [
-        # Nature Education
-        ('http://feeds.nature.com/srep/rss/current', 'Nature Scientific Reports'),
-        # Science
-        ('https://www.science.org/rss/news_current.xml', 'Science News'),
-        # PLOS ONE Education
-        ('https://journals.plos.org/plosone/feed/atom', 'PLOS ONE'),
-        # Frontiers in Education
-        ('https://www.frontiersin.org/journals/education/rss', 'Frontiers in Education'),
+        ('https://bera-journals.onlinelibrary.wiley.com/feed/14678535/most-recent', 'British Journal of Educational Technology'),
+        ('https://www.tandfonline.com/feed/rss/cjem20', 'Journal of Education for Teaching'),
+        ('https://link.springer.com/search.rss?facet-content-type=Article&facet-journal-id=10648&channel-name=Educational+Psychology+Review', 'Educational Psychology Review'),
+        ('https://journals.sagepub.com/action/showFeed?ui=0&mi=ehikzz&ai=2b4&jc=rera&type=etoc&feed=rss', 'Review of Educational Research'),
     ]
     
     education_keywords = [
-        'education', 'learning', 'student', 'teacher', 'school',
-        'cognitive', 'pedagogy', 'instruction', 'assessment',
-        'mathematics', 'stem', 'science education', 'ai', 'technology'
+        'education', 'learning', 'student', 'teacher', 'assessment',
+        'curriculum', 'pedagogy', 'instruction', 'classroom', 'school',
+        'achievement', 'performance', 'technology', 'digital', 'online'
     ]
     
     for rss_url, source_name in sources:
         try:
             feed = feedparser.parse(rss_url)
-            for entry in feed.entries[:8]:
+            
+            for entry in feed.entries[:5]:
+                title = entry.get('title', '')
+                summary = entry.get('summary', '')[:300] if entry.get('summary') else ''
+                link = entry.get('link', '')
+                
+                if not title or deduplicator.is_duplicate(title):
+                    continue
+                
+                text = (title + ' ' + summary).lower()
+                is_relevant = any(kw in text for kw in education_keywords)
+                
+                if is_relevant:
+                    papers.append({
+                        'title': title[:200],
+                        'summary': summary,
+                        'link': link,
+                        'source': source_name,
+                        'category': 'Eğitim Araştırması',
+                        'needs_translation': True
+                    })
+        except Exception as e:
+            print(f"Eğitim dergisi RSS hatası ({source_name}): {e}")
+            continue
+    
+    return papers[:5]
+
+def get_semantic_scholar_papers() -> List[Dict]:
+    """
+    AI & Eğitim makaleleri - RSS kaynakları ile (API key gerektirmez)
+    """
+    papers = []
+    
+    # AI ve Eğitim odaklı RSS kaynakları
+    sources = [
+        ('https://www.jair.org/index.php/jair/gateway/plugin/WebFeedGatewayPlugin/rss2', 'Journal of AI Research'),
+        ('https://ieeexplore.ieee.org/rss/TOC42.XML', 'IEEE Transactions on Learning Technologies'),
+        ('https://educationaltechnologyjournal.springeropen.com/articles/most-recent/rss.xml', 'Educational Technology Research'),
+        ('https://aied.pub/index.php/IJAIED/gateway/plugin/WebFeedGatewayPlugin/rss2', 'Int. Journal of AI in Education'),
+    ]
+    
+    ai_education_keywords = [
+        'artificial intelligence', 'machine learning', 'deep learning',
+        'intelligent tutoring', 'adaptive learning', 'personalized',
+        'educational data mining', 'learning analytics', 'chatbot',
+        'natural language', 'computer vision', 'neural network'
+    ]
+    
+    for rss_url, source_name in sources:
+        try:
+            feed = feedparser.parse(rss_url)
+            
+            for entry in feed.entries[:4]:
+                title = entry.get('title', '')
+                summary = entry.get('summary', '')[:300] if entry.get('summary') else ''
+                link = entry.get('link', '')
+                
+                if not title or deduplicator.is_duplicate(title):
+                    continue
+                
+                text = (title + ' ' + summary).lower()
+                is_relevant = any(kw in text for kw in ai_education_keywords)
+                
+                if is_relevant:
+                    papers.append({
+                        'title': title[:200],
+                        'summary': summary,
+                        'link': link,
+                        'source': source_name,
+                        'category': 'AI & Eğitim',
+                        'needs_translation': True
+                    })
+        except Exception as e:
+            print(f"AI Education RSS hatası ({source_name}): {e}")
+            continue
+    
+    return papers[:5]
+
+def get_research_papers() -> List[Dict]:
+    """Akademik araştırma makaleleri - çeşitli kaynaklardan"""
+    papers = []
+    
+    sources = [
+        ('http://feeds.nature.com/srep/rss/current', 'Nature Scientific Reports'),
+        ('https://www.science.org/rss/news_current.xml', 'Science News'),
+        ('https://journals.plos.org/plosone/feed/atom', 'PLOS ONE'),
+        ('https://www.frontiersin.org/journals/education/rss', 'Frontiers in Education'),
+        ('https://www.tandfonline.com/feed/rss/cede20', 'Educational Research'),
+    ]
+    
+    education_keywords = [
+        'education', 'learning', 'student', 'teacher', 'school',
+        'cognitive', 'pedagogy', 'instruction', 'assessment',
+        'mathematics', 'stem', 'science education', 'ai', 'technology',
+        'pisa', 'timss', 'achievement', 'performance'
+    ]
+    
+    for rss_url, source_name in sources:
+        try:
+            feed = feedparser.parse(rss_url)
+            for entry in feed.entries[:6]:
                 title = entry.get('title', '')
                 summary = entry.get('summary', '')[:400] if entry.get('summary') else ''
                 link = entry.get('link', '')
+                published = entry.get('published', '')
+                
+                if not is_recent(published, hours=168):  # 1 hafta
+                    continue
+                
+                if deduplicator.is_duplicate(title):
+                    continue
                 
                 text = (title + ' ' + summary).lower()
                 is_relevant = any(kw in text for kw in education_keywords)
@@ -797,142 +929,490 @@ def get_research_papers() -> List[Dict]:
                         'needs_translation': True
                     })
         except Exception as e:
-            print(f"Research RSS hatası ({source_name}): {e}")
             continue
     
     return papers[:6]
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 📊 ULUSLARARASI DEĞERLENDİRME RAPORLARI (PISA, TIMSS)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def get_international_assessment_news() -> List[Dict]:
+    """
+    PISA, TIMSS ve uluslararası değerlendirme haberleri - RSS tabanlı
+    """
+    news = []
+    
+    # OECD Eğitim RSS
+    oecd_sources = [
+        ('https://www.oecd.org/education/rss/', 'OECD Education'),
+        ('https://oecdedutoday.com/feed/', 'OECD Education Today'),
+    ]
+    
+    pisa_timss_keywords = [
+        'pisa', 'timss', 'pirls', 'talis', 'international assessment',
+        'student achievement', 'education ranking', 'oecd education',
+        'learning outcomes', 'education performance', 'education comparison'
+    ]
+    
+    for rss_url, source in oecd_sources:
+        try:
+            feed = feedparser.parse(rss_url)
+            
+            for entry in feed.entries[:6]:
+                title = entry.get('title', '')
+                link = entry.get('link', '')
+                summary = entry.get('summary', '')[:200] if entry.get('summary') else ''
+                
+                if not title or deduplicator.is_duplicate(title):
+                    continue
+                
+                text = (title + ' ' + summary).lower()
+                is_relevant = any(kw in text for kw in pisa_timss_keywords)
+                
+                if is_relevant:
+                    news.append({
+                        'title': title[:150],
+                        'source': source,
+                        'link': link,
+                        'type': 'Uluslararası Değerlendirme',
+                        'needs_translation': True
+                    })
+        except Exception as e:
+            print(f"OECD RSS hatası ({source}): {e}")
+            continue
+    
+    # Eğitim karşılaştırma haberleri
+    comparison_sources = [
+        ('https://www.brookings.edu/topic/global-education/feed/', 'Brookings Global Education'),
+        ('https://gemreportunesco.wordpress.com/feed/', 'UNESCO GEM Report'),
+    ]
+    
+    for rss_url, source in comparison_sources:
+        try:
+            feed = feedparser.parse(rss_url)
+            
+            for entry in feed.entries[:4]:
+                title = entry.get('title', '')
+                link = entry.get('link', '')
+                
+                if not title or deduplicator.is_duplicate(title):
+                    continue
+                
+                news.append({
+                    'title': title[:150],
+                    'source': source,
+                    'link': link,
+                    'type': 'Global Eğitim',
+                    'needs_translation': True
+                })
+        except:
+            continue
+    
+    return news[:6]
+
+def get_turkey_assessment_research() -> List[Dict]:
+    """
+    Türkiye ulusal izleme ve değerlendirme araştırmaları - RSS tabanlı
+    """
+    research = []
+    
+    # Türkiye akademik dergileri RSS
+    sources = [
+        ('https://dergipark.org.tr/tr/pub/egam/rss', 'Eğitimde ve Psikolojide Ölçme'),
+        ('https://dergipark.org.tr/tr/pub/kefdergi/rss', 'Kastamonu Eğitim'),
+        ('https://dergipark.org.tr/tr/pub/aod/rss', 'Anadolu Öğretmen'),
+        ('https://dergipark.org.tr/tr/pub/ted/rss', 'Türk Eğitim Bilimleri'),
+    ]
+    
+    keywords = [
+        'pisa', 'timss', 'abide', 'lgs', 'yks', 'ölçme', 'değerlendirme',
+        'başarı', 'performans', 'matematik', 'fen', 'okuma', 'ulusal'
+    ]
+    
+    for rss_url, source in sources:
+        try:
+            feed = feedparser.parse(rss_url)
+            for entry in feed.entries[:5]:
+                title = entry.get('title', '')
+                link = entry.get('link', '')
+                
+                if not title or deduplicator.is_duplicate(title):
+                    continue
+                
+                text = title.lower()
+                is_relevant = any(kw in text for kw in keywords)
+                
+                if is_relevant:
+                    research.append({
+                        'title': title[:150],
+                        'source': source,
+                        'link': link,
+                        'type': 'Türkiye Araştırma'
+                    })
+        except Exception as e:
+            continue
+    
+    # Sabit önemli kaynaklar
+    static_sources = [
+        {
+            'title': 'ABİDE - MEB Akademik Becerilerin İzlenmesi ve Değerlendirilmesi',
+            'source': 'MEB',
+            'link': 'https://abide.meb.gov.tr',
+            'type': 'Ulusal İzleme'
+        },
+        {
+            'title': 'TEDMEM Eğitim Değerlendirme Raporları',
+            'source': 'TEDMEM',
+            'link': 'https://tedmem.org',
+            'type': 'Araştırma Merkezi'
+        },
+        {
+            'title': 'ERG Eğitim İzleme Raporu',
+            'source': 'Eğitim Reformu Girişimi',
+            'link': 'https://www.egitimreformugirisimi.org',
+            'type': 'İzleme Raporu'
+        }
+    ]
+    
+    # Statik kaynakları da ekle (yineleme yoksa)
+    for item in static_sources:
+        if not deduplicator.is_duplicate(item['title']):
+            research.append(item)
+    
+    return research[:6]
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 📖 EĞİTİM DERGİ VE KİTAPLARI
+# ══════════════════════════════════════════════════════════════════════════════
+
+def get_education_journals() -> List[Dict]:
+    """
+    Eğitim dergileri ve yeni kitaplar
+    """
+    journals = []
+    
+    # Önemli eğitim dergileri RSS
+    sources = [
+        ('https://journals.sagepub.com/action/showFeed?ui=0&mi=ehikzz&ai=2b4&jc=rera&type=etoc&feed=rss', 'Review of Educational Research'),
+        ('https://www.tandfonline.com/feed/rss/tedp20', 'Educational Psychologist'),
+        ('https://www.journals.elsevier.com/computers-and-education/rss', 'Computers & Education'),
+        ('https://link.springer.com/search.rss?facet-content-type=Article&facet-journal-id=11423&channel-name=Educational+Technology+Research+and+Development', 'ETR&D'),
+    ]
+    
+    for rss_url, source in sources:
+        try:
+            feed = feedparser.parse(rss_url)
+            for entry in feed.entries[:3]:
+                title = entry.get('title', '')
+                link = entry.get('link', '')
+                
+                if title and not deduplicator.is_duplicate(title):
+                    journals.append({
+                        'title': title[:150],
+                        'source': source,
+                        'link': link,
+                        'type': 'Dergi Makalesi',
+                        'needs_translation': True
+                    })
+        except:
+            continue
+    
+    return journals[:6]
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ÖĞRENCİ GÜNDEMİ - DİNAMİK (Gerçek Trend Veriler)
 # ══════════════════════════════════════════════════════════════════════════════
 
 def get_student_trending_topics() -> List[Dict]:
     """
-    Öğrencilerin gündemindeki konular
-    Sık sorulan sorular ve güncel konular
+    Öğrencilerin gerçekten konuştuğu konular
+    Kaynaklar: Ekşi Sözlük, Reddit, Öğrenci Forumları, Twitter/X trendleri
     """
     trending = []
     
-    # Ekşi Sözlük'ten eğitim başlıkları çekmeye çalış
+    # Eğitim ile ilgili anahtar kelimeler
+    education_keywords = [
+        'lgs', 'yks', 'tyt', 'ayt', 'ösym', 'sınav', 'okul', 'ders',
+        'öğretmen', 'öğrenci', 'üniversite', 'lise', 'matematik',
+        'fizik', 'kimya', 'biyoloji', 'türkçe', 'tarih', 'coğrafya',
+        'müfredat', 'meb', 'eğitim', 'kpss', 'ales', 'yds', 'dgs',
+        'sınıf', 'not', 'karne', 'tatil', 'burs', 'yurt', 'kredi',
+        'deneme', 'soru', 'konu', 'tercih', 'puan', 'sıralama',
+        'dershane', 'kurs', 'ödev', 'proje', 'staj', 'mezuniyet'
+    ]
+    
+    # 1. EKŞİ SÖZLÜK - Gündem
+    print("   📱 Ekşi Sözlük taranıyor...")
     try:
-        url = "https://eksisozluk.com/basliklar/gundem"
+        urls = [
+            "https://eksisozluk.com/basliklar/gundem",
+            "https://eksisozluk.com/basliklar/debe",  # Dünün en beğenilen entryleri
+        ]
+        
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+        }
+        
+        for url in urls:
+            try:
+                r = requests.get(url, headers=headers, timeout=10)
+                if r.status_code == 200:
+                    soup = BeautifulSoup(r.text, 'html.parser')
+                    
+                    # Başlık listesini bul
+                    topic_links = soup.select('ul.topic-list li a') or soup.select('a.topic-title')
+                    
+                    for link in topic_links[:30]:
+                        title = link.get_text(strip=True)
+                        href = link.get('href', '')
+                        
+                        # Entry sayısını bul
+                        small = link.find('small')
+                        entry_count = small.get_text(strip=True) if small else ''
+                        
+                        if title and len(title) > 3 and len(title) < 100:
+                            # Eğitim ile ilgili mi?
+                            if any(kw in title.lower() for kw in education_keywords):
+                                if not any(t['topic'].lower() == title.lower() for t in trending):
+                                    trending.append({
+                                        'topic': title[:80],
+                                        'source': 'Ekşi Sözlük',
+                                        'entry_count': entry_count,
+                                        'category': 'Gündem',
+                                        'link': f"https://eksisozluk.com{href}" if href.startswith('/') else href
+                                    })
+                time.sleep(0.5)
+            except:
+                continue
+    except Exception as e:
+        print(f"   ⚠️ Ekşi Sözlük hatası: {e}")
+    
+    # 2. REDDIT - r/Turkey, r/KGBTR (öğrenci paylaşımları)
+    print("   📱 Reddit taranıyor...")
+    try:
+        subreddits = [
+            'https://www.reddit.com/r/Turkey/hot.json',
+            'https://www.reddit.com/r/KGBTR/hot.json',
+        ]
+        
+        headers = {
+            'User-Agent': 'EducationBot/3.0 (Educational News Aggregator)'
+        }
+        
+        for subreddit_url in subreddits:
+            try:
+                r = requests.get(subreddit_url, headers=headers, timeout=10)
+                if r.status_code == 200:
+                    data = r.json()
+                    posts = data.get('data', {}).get('children', [])
+                    
+                    for post in posts[:25]:
+                        post_data = post.get('data', {})
+                        title = post_data.get('title', '')
+                        score = post_data.get('score', 0)
+                        permalink = post_data.get('permalink', '')
+                        
+                        if title and any(kw in title.lower() for kw in education_keywords):
+                            if not any(t['topic'].lower() == title.lower()[:50] for t in trending):
+                                trending.append({
+                                    'topic': title[:80],
+                                    'source': 'Reddit',
+                                    'score': f"⬆️ {score}",
+                                    'category': 'Sosyal Medya',
+                                    'link': f"https://reddit.com{permalink}"
+                                })
+                time.sleep(0.5)
+            except:
+                continue
+    except Exception as e:
+        print(f"   ⚠️ Reddit hatası: {e}")
+    
+    # 3. ÖĞRENCİ FORUMLARI
+    print("   📱 Öğrenci forumları taranıyor...")
+    try:
+        forums = [
+            ('https://www.memurlar.net/haber/egitim/rss/', 'Memurlar.net'),
+            ('https://www.kamubiz.com/feed/', 'KamuBiz'),
+        ]
+        
+        for forum_url, forum_name in forums:
+            try:
+                feed = feedparser.parse(forum_url)
+                for entry in feed.entries[:10]:
+                    title = entry.get('title', '')
+                    link = entry.get('link', '')
+                    
+                    if title and any(kw in title.lower() for kw in education_keywords):
+                        if not any(t['topic'].lower() == title.lower()[:50] for t in trending):
+                            trending.append({
+                                'topic': title[:80],
+                                'source': forum_name,
+                                'category': 'Forum',
+                                'link': link
+                            })
+            except:
+                continue
+    except Exception as e:
+        print(f"   ⚠️ Forum hatası: {e}")
+    
+    # 4. TWITTER/X TRENDLERİ - Eğitim hashtagleri
+    print("   📱 Twitter trendleri taranıyor...")
+    try:
+        # Nitter instance'ları (Twitter alternatifi - API gerektirmez)
+        nitter_urls = [
+            'https://nitter.poast.org/search?f=tweets&q=%23LGS',
+            'https://nitter.poast.org/search?f=tweets&q=%23YKS',
+            'https://nitter.poast.org/search?f=tweets&q=%23TYT',
+        ]
+        
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         }
         
-        r = requests.get(url, headers=headers, timeout=10)
-        if r.status_code == 200:
-            soup = BeautifulSoup(r.text, 'html.parser')
-            
-            # Eğitim ile ilgili anahtar kelimeler
-            education_keywords = [
-                'lgs', 'yks', 'tyt', 'ayt', 'ösym', 'sınav', 'okul', 'ders',
-                'öğretmen', 'öğrenci', 'üniversite', 'lise', 'matematik',
-                'fizik', 'kimya', 'biyoloji', 'türkçe', 'tarih', 'coğrafya',
-                'müfredat', 'meb', 'eğitim', 'kpss', 'ales', 'yds', 'dgs',
-                'sınıf', 'not', 'karne', 'tatil', 'burs', 'yurt', 'kredi'
-            ]
-            
-            # Başlıkları bul - farklı selector'lar dene
-            topic_links = soup.select('ul.topic-list a') or soup.select('a[href*="/"]')
-            
-            for link in topic_links[:50]:
-                title = link.get_text(strip=True)
-                href = link.get('href', '')
-                
-                # Sadece metin içeren ve eğitimle ilgili olanları al
-                if title and len(title) > 5 and len(title) < 100:
-                    # # işareti veya garip karakterler içermiyorsa
-                    if '#' not in title and 'tüm kanallar' not in title.lower():
-                        if any(kw in title.lower() for kw in education_keywords):
-                            # Entry sayısını bul
-                            small = link.find('small')
-                            count = small.get_text(strip=True) if small else ''
-                            
-                            trending.append({
-                                'topic': title[:80],
-                                'source': 'Ekşi Sözlük',
-                                'entry_count': count,
-                                'category': 'Gündem'
-                            })
-                            
-                            if len(trending) >= 6:
-                                break
+        for nitter_url in nitter_urls[:2]:
+            try:
+                r = requests.get(nitter_url, headers=headers, timeout=8)
+                if r.status_code == 200:
+                    soup = BeautifulSoup(r.text, 'html.parser')
+                    tweets = soup.select('.tweet-content') or soup.select('.timeline-item')
+                    
+                    for tweet in tweets[:5]:
+                        text = tweet.get_text(strip=True)[:100]
+                        if text and len(text) > 20:
+                            if not any(t['topic'].lower() == text.lower()[:40] for t in trending):
+                                trending.append({
+                                    'topic': text[:80],
+                                    'source': 'Twitter/X',
+                                    'category': 'Sosyal Medya'
+                                })
+                time.sleep(0.5)
+            except:
+                continue
     except Exception as e:
-        print(f"Trending topics hatası: {e}")
+        print(f"   ⚠️ Twitter hatası: {e}")
     
-    # Eğer yeterli veri gelmezse, güncel ve sık sorulan konuları ekle
-    if len(trending) < 5:
-        # Dinamik tarih hesapla
-        from datetime import datetime
-        today = datetime.now()
-        current_month = today.strftime('%B')
-        current_year = today.year
-        
-        # Mevsime göre güncel konular
-        month = today.month
-        
-        # Dönem bazlı konular
-        if month in [9, 10, 11]:  # Güz dönemi
-            seasonal_topics = [
-                {'topic': f'{current_year}-{current_year+1} müfredat değişiklikleri', 'category': 'Müfredat'},
-                {'topic': '1. dönem sınav tarihleri', 'category': 'Sınav'},
-                {'topic': 'Yeni eğitim öğretim yılı değişiklikleri', 'category': 'Güncel'},
-            ]
-        elif month in [12, 1]:  # Kış - yarıyıl
-            seasonal_topics = [
-                {'topic': 'Yarıyıl tatili ne zaman başlıyor?', 'category': 'Tatil'},
-                {'topic': '1. dönem karne notları', 'category': 'Not'},
-                {'topic': 'Yarıyıl tatilinde nasıl çalışmalı?', 'category': 'Çalışma'},
-            ]
-        elif month in [2, 3, 4, 5]:  # Bahar - sınav hazırlık
-            seasonal_topics = [
-                {'topic': 'LGS son tekrar stratejileri', 'category': 'LGS'},
-                {'topic': 'YKS motivasyon nasıl korunur?', 'category': 'YKS'},
-                {'topic': 'Deneme sınavı değerlendirme', 'category': 'Deneme'},
-            ]
-        else:  # Yaz
-            seasonal_topics = [
-                {'topic': 'YKS tercih robotu nasıl kullanılır?', 'category': 'Tercih'},
-                {'topic': 'Üniversite tercih stratejileri', 'category': 'Tercih'},
-                {'topic': 'Yaz tatilinde verimli çalışma', 'category': 'Çalışma'},
-            ]
-        
-        # Sabit popüler konular
-        common_topics = [
-            {'topic': '2026 LGS ne zaman yapılacak?', 'category': 'Sınav Takvimi'},
-            {'topic': '2026 YKS başvuru tarihleri', 'category': 'Sınav Takvimi'},
-            {'topic': 'Beceri temelli sorular nasıl çözülür?', 'category': 'Soru Çözümü'},
-            {'topic': 'TYT Matematik konu listesi ve ağırlıkları', 'category': 'Konu'},
-            {'topic': 'LGS paragraf soruları taktikleri', 'category': 'Taktik'},
-            {'topic': 'Pomodoro tekniği ile verimli çalışma', 'category': 'Çalışma'},
-            {'topic': 'Deneme sınavı analizi nasıl yapılır?', 'category': 'Analiz'},
-            {'topic': 'Sınav kaygısı ile başa çıkma', 'category': 'Motivasyon'},
+    # 5. YOUTUBE - Eğitim trendleri
+    print("   📱 YouTube trendleri taranıyor...")
+    try:
+        # YouTube RSS - Popüler eğitim kanalları
+        youtube_channels = [
+            ('https://www.youtube.com/feeds/videos.xml?channel_id=UCvMZ2d5r47nGVNPzI6hGX8A', 'Tonguç Akademi'),
+            ('https://www.youtube.com/feeds/videos.xml?channel_id=UC6JYy4gZQaoNLbXxBn4cFjg', 'Hocalara Geldik'),
         ]
         
-        # Mevsimsel + sabit konuları birleştir
-        all_topics = seasonal_topics + common_topics
-        
-        # Mevcut trending'e ekle
-        for topic in all_topics:
-            if len(trending) < 8:
-                # Tekrar kontrolü
-                if not any(t['topic'] == topic['topic'] for t in trending):
-                    topic['source'] = 'Sık Sorulan'
-                    trending.append(topic)
+        for channel_url, channel_name in youtube_channels:
+            try:
+                feed = feedparser.parse(channel_url)
+                for entry in feed.entries[:3]:
+                    title = entry.get('title', '')
+                    link = entry.get('link', '')
+                    
+                    if title:
+                        if not any(t['topic'].lower() == title.lower()[:40] for t in trending):
+                            trending.append({
+                                'topic': title[:80],
+                                'source': f'YouTube - {channel_name}',
+                                'category': 'Video',
+                                'link': link
+                            })
+            except:
+                continue
+    except Exception as e:
+        print(f"   ⚠️ YouTube hatası: {e}")
     
-    return trending[:8]
+    # 6. GOOGLE TRENDS - Türkiye eğitim aramaları
+    print("   📱 Google Trends kontrol ediliyor...")
+    try:
+        # Google Trends RSS (varsa)
+        trends_url = "https://trends.google.com/trends/trendingsearches/daily/rss?geo=TR"
+        feed = feedparser.parse(trends_url)
+        
+        for entry in feed.entries[:20]:
+            title = entry.get('title', '')
+            
+            if title and any(kw in title.lower() for kw in education_keywords):
+                if not any(t['topic'].lower() == title.lower() for t in trending):
+                    trending.append({
+                        'topic': title[:80],
+                        'source': 'Google Trends',
+                        'category': 'Arama Trendi'
+                    })
+    except Exception as e:
+        print(f"   ⚠️ Google Trends hatası: {e}")
+    
+    # 7. DONANIM HABER / TEKNOLOJİ FORUMLARI (Öğrenci paylaşımları)
+    print("   📱 Teknoloji forumları taranıyor...")
+    try:
+        tech_forums = [
+            ('https://forum.donanimhaber.com/rss.ashx?CategoryID=35', 'Donanım Haber'),
+        ]
+        
+        for forum_url, forum_name in tech_forums:
+            try:
+                feed = feedparser.parse(forum_url)
+                for entry in feed.entries[:10]:
+                    title = entry.get('title', '')
+                    link = entry.get('link', '')
+                    
+                    if title and any(kw in title.lower() for kw in education_keywords):
+                        if not any(t['topic'].lower() == title.lower()[:40] for t in trending):
+                            trending.append({
+                                'topic': title[:80],
+                                'source': forum_name,
+                                'category': 'Forum',
+                                'link': link
+                            })
+            except:
+                continue
+    except Exception as e:
+        print(f"   ⚠️ Forum hatası: {e}")
+    
+    # Sonuçları sırala - kaynak çeşitliliğine göre
+    # Her kaynaktan en fazla 2 tane al
+    final_trending = []
+    source_counts = {}
+    
+    for item in trending:
+        source = item.get('source', 'Diğer')
+        if source not in source_counts:
+            source_counts[source] = 0
+        
+        if source_counts[source] < 2:
+            final_trending.append(item)
+            source_counts[source] += 1
+        
+        if len(final_trending) >= 10:
+            break
+    
+    # Eğer yeterli veri gelmezse fallback
+    if len(final_trending) < 3:
+        print("   ⚠️ Yeterli trend bulunamadı, alternatif konular ekleniyor...")
+        today = datetime.now()
+        
+        fallback_topics = [
+            {'topic': f'LGS 2026 hazırlık stratejileri', 'source': 'Öneri', 'category': 'LGS'},
+            {'topic': f'YKS tercih döneminde dikkat edilecekler', 'source': 'Öneri', 'category': 'YKS'},
+            {'topic': 'Sınav kaygısı ile başa çıkma', 'source': 'Öneri', 'category': 'Motivasyon'},
+        ]
+        
+        for topic in fallback_topics:
+            if len(final_trending) < 8:
+                final_trending.append(topic)
+    
+    return final_trending[:10]
 
 # ══════════════════════════════════════════════════════════════════════════════
-# GÜNÜN MOTİVASYON MESAJI
+# MOTİVASYON MESAJI
 # ══════════════════════════════════════════════════════════════════════════════
 
 def get_daily_motivation() -> Dict:
-    """
-    Günün motivasyon mesajı ve çalışma önerisi
-    Gemini API ile dinamik üretim
-    """
+    """Günün motivasyon mesajı"""
     today = datetime.now()
     day_of_week = today.strftime('%A')
     
-    # Haftanın gününe göre farklı temalar
     themes = {
         'Monday': 'Hafta başı enerjisi',
         'Tuesday': 'Hedef belirleme',
@@ -945,26 +1425,25 @@ def get_daily_motivation() -> Dict:
     
     theme = themes.get(day_of_week, 'Başarı')
     
-    # Gemini ile motivasyon mesajı üret
     if GEMINI_KEY and genai:
         try:
             client = genai.Client(api_key=GEMINI_KEY)
             
+            # Sınava kalan gün hesapla
+            lgs_date = datetime(2026, 6, 14)
+            days_left = (lgs_date.date() - today.date()).days
+            
             prompt = f"""LGS veya YKS'ye hazırlanan bir öğrenci için kısa ve motive edici bir mesaj yaz.
 
 Tema: {theme}
-Gün: {day_of_week}
+LGS'ye kalan gün: {days_left}
 
 Kurallar:
-1. Maksimum 2-3 cümle olsun
-2. Samimi ve cesaretlendirici ol
-3. Somut bir çalışma önerisi içersin
+1. Maksimum 2-3 cümle
+2. Samimi ve cesaretlendirici
+3. Somut çalışma önerisi içersin
 4. Emoji kullan
-5. Türkçe yaz
-
-Örnek format:
-💪 [Motivasyon mesajı]
-📚 Bugünkü öneri: [Somut çalışma önerisi]"""
+5. Türkçe yaz"""
 
             response = client.models.generate_content(
                 model="gemini-2.0-flash",
@@ -977,20 +1456,18 @@ Kurallar:
                 'generated': True
             }
         except Exception as e:
-            print(f"Motivasyon mesajı hatası: {e}")
+            print(f"Motivasyon hatası: {e}")
     
-    # Varsayılan mesajlar
-    default_messages = [
-        "💪 Her gün bir adım daha ileri! Bugün de elinden gelenin en iyisini yap.\n📚 Bugünkü öneri: 25 dakika odaklanarak çalış, 5 dakika mola ver.",
-        "🌟 Başarı, her gün yapılan küçük adımların toplamıdır.\n📚 Bugünkü öneri: Zayıf olduğun bir konuyu tekrar et.",
-        "🎯 Hedefe odaklan, engellere değil. Sen başarabilirsin!\n📚 Bugünkü öneri: Bugün en az 20 soru çöz.",
-        "⭐ Dünden daha iyi olmak yeterli. Kendini geçmişle kıyasla!\n📚 Bugünkü öneri: Dün çözdüğün yanlışları tekrar incele.",
-        "🚀 Çalışmak şansı yaratır. Bugün de üretken bir gün olsun!\n📚 Bugünkü öneri: Yeni bir konu öğren, not al."
+    # Varsayılan
+    import random
+    messages = [
+        "💪 Her gün bir adım daha ileri! Bugün de elinden gelenin en iyisini yap.\n📚 Öneri: 25 dakika odaklanarak çalış.",
+        "🌟 Başarı, her gün yapılan küçük adımların toplamıdır.\n📚 Öneri: Zayıf bir konuyu tekrar et.",
+        "🎯 Hedefe odaklan! Sen başarabilirsin!\n📚 Öneri: Bugün en az 20 soru çöz.",
     ]
     
-    import random
     return {
-        'message': random.choice(default_messages),
+        'message': random.choice(messages),
         'theme': theme,
         'generated': False
     }
@@ -1000,39 +1477,18 @@ Kurallar:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def translate_to_turkish(text: str, is_headline: bool = True) -> str:
-    """
-    Gemini API ile İngilizce metni Türkçeye çevir
-    """
+    """Gemini ile çeviri"""
     if not text or not GEMINI_KEY or not genai:
         return text
     
     try:
         client = genai.Client(api_key=GEMINI_KEY)
         
-        if is_headline:
-            prompt = f"""Aşağıdaki eğitim/bilim haber başlığını Türkçeye çevir.
-
-Kurallar:
-1. Tam ve eksiksiz çeviri yap
-2. Anlaşılır ve akıcı Türkçe kullan
-3. Teknik terimleri olduğu gibi bırak: AI, Machine Learning, EdTech, STEM, PISA vb.
-4. Kurum isimlerini çevirme: Khan Academy, MIT, UNESCO vb.
-5. Sadece çeviriyi yaz
+        prompt = f"""Aşağıdaki haber başlığını Türkçeye çevir.
+Teknik terimleri (AI, PISA, STEM, OECD) olduğu gibi bırak.
+Sadece çeviriyi yaz.
 
 İngilizce: {text}
-
-Türkçe:"""
-        else:
-            prompt = f"""Aşağıdaki eğitim/bilim haberini Türkçeye çevir.
-
-Kurallar:
-1. Tam ve detaylı çeviri yap
-2. Anlaşılır Türkçe kullan
-3. Teknik terimleri olduğu gibi bırak
-4. Sadece çeviriyi yaz
-
-İngilizce: {text}
-
 Türkçe:"""
         
         response = client.models.generate_content(
@@ -1045,111 +1501,61 @@ Türkçe:"""
             translated = translated.split(":", 1)[-1].strip()
         
         return translated if translated else text
-    except Exception as e:
-        print(f"Çeviri hatası: {e}")
+    except:
         return text
 
 # ══════════════════════════════════════════════════════════════════════════════
-# GÜNÜN ÖZETİ (AI DESTEKLİ)
+# GÜNÜN ÖZETİ (AI)
 # ══════════════════════════════════════════════════════════════════════════════
 
 def generate_daily_summary(all_news: Dict) -> str:
-    """
-    Gemini ile kapsamlı günlük analiz ve özet oluştur
-    Tüm haberleri yorumlayarak öğretmen ve öğrencilere değerli içgörüler sunar
-    """
+    """Gemini ile günlük analiz"""
     if not GEMINI_KEY or not genai:
         return ""
     
     try:
         client = genai.Client(api_key=GEMINI_KEY)
         
-        # Haberleri kategorize et
         news_text = ""
         
-        # Türkiye haberleri
-        news_text += "=== TÜRKİYE EĞİTİM GÜNDEMİ ===\n"
-        if all_news.get('meb_news'):
-            for n in all_news['meb_news'][:3]:
-                news_text += f"- {n['title']}\n"
-        if all_news.get('education_news'):
-            for n in all_news['education_news'][:4]:
+        # Haberleri topla
+        if all_news.get('turkey_news'):
+            news_text += "=== TÜRKİYE ===\n"
+            for n in all_news['turkey_news'][:5]:
                 news_text += f"- {n['title']}\n"
         
-        # AI ve EdTech haberleri
-        news_text += "\n=== YAPAY ZEKA & EĞİTİM TEKNOLOJİSİ ===\n"
         if all_news.get('ai_news'):
-            for n in all_news['ai_news'][:5]:
-                news_text += f"- {n['title']} ({n.get('source', '')})\n"
-        
-        # Matematik haberleri
-        news_text += "\n=== MATEMATİK GELİŞMELERİ ===\n"
-        if all_news.get('math_news'):
-            for n in all_news['math_news'][:3]:
+            news_text += "\n=== AI & EDTECH ===\n"
+            for n in all_news['ai_news'][:4]:
                 news_text += f"- {n['title']}\n"
         
-        # Global haberler - ülke bazlı
-        news_text += "\n=== DÜNYADAN EĞİTİM HABERLERİ ===\n"
-        if all_news.get('global_news'):
-            country_names = {
-                'china': 'Çin', 'japan': 'Japonya', 'korea': 'Güney Kore',
-                'finland': 'Finlandiya', 'singapore': 'Singapur', 'russia': 'Rusya',
-                'israel': 'İsrail', 'india': 'Hindistan', 'estonia': 'Estonya'
-            }
-            for country_code, news_list in all_news['global_news'].items():
-                country_name = country_names.get(country_code, country_code)
-                for n in news_list[:2]:
-                    news_text += f"- [{country_name}] {n['title']}\n"
+        if all_news.get('pisa_news'):
+            news_text += "\n=== PISA ÜLKELERİ ===\n"
+            for country, items in all_news['pisa_news'].items():
+                for n in items[:2]:
+                    news_text += f"- [{n['country']}] {n['title']}\n"
         
-        # Bilimsel makaleler
-        news_text += "\n=== BİLİMSEL MAKALELER ===\n"
-        if all_news.get('arxiv_papers'):
-            for p in all_news['arxiv_papers'][:4]:
-                edu_tag = "[EĞİTİM]" if p.get('is_education_related') else "[AI/ML]"
-                news_text += f"- {edu_tag} {p['title'][:100]}\n"
+        if all_news.get('papers'):
+            news_text += "\n=== ARAŞTIRMALAR ===\n"
+            for p in all_news['papers'][:3]:
+                news_text += f"- {p['title']}\n"
         
-        prompt = f"""Sen deneyimli bir eğitim analisti ve danışmanısın. Aşağıdaki güncel eğitim haberlerini analiz ederek öğretmenler ve öğrenciler için kapsamlı bir günlük brifing hazırla.
+        prompt = f"""Deneyimli bir eğitim analisti olarak aşağıdaki haberleri analiz et:
 
 {news_text}
 
-GÖREV: Yukarıdaki haberleri analiz ederek aşağıdaki formatta bir rapor yaz:
+GÖREV: Öğretmen ve öğrenciler için kısa bir günlük brifing hazırla:
 
-📊 GÜNÜN ANALİZİ
+🇹🇷 TÜRKİYE'DE BUGÜN: (2-3 madde)
+🤖 AI & TEKNOLOJİ: (2 madde)
+🌍 DÜNYADAN: (2 madde - PISA ülkelerinden dersler)
+💡 PRATİK ÖNERİ: (1 madde)
 
-🇹🇷 TÜRKİYE'DE BUGÜN:
-• [Türkiye'deki en önemli 2-3 gelişmeyi analiz et]
-• [Bu gelişmelerin öğretmen ve öğrencilere etkisini açıkla]
-• [Varsa sınav veya müfredat ile ilgili önemli notları belirt]
-
-🤖 YAPAY ZEKA & TEKNOLOJİ TRENDLERİ:
-• [AI ve EdTech haberlerinden önemli gelişmeleri yorumla]
-• [Bu teknolojilerin eğitime nasıl entegre edilebileceğini açıkla]
-• [Öğretmenlerin dikkat etmesi gereken noktaları belirt]
-
-🌍 DÜNYADAN DERSLER:
-• [Farklı ülkelerden gelen haberleri karşılaştır]
-• [Türkiye için çıkarılabilecek dersleri belirt]
-• [Global trendlerin Türk eğitim sistemine olası etkilerini yorumla]
-
-🔬 BİLİM & ARAŞTIRMA:
-• [Akademik makalelerden öne çıkan bulguları özetle]
-• [Bu araştırmaların pratik uygulamalarını açıkla]
-
-💡 ÖĞRETMENLERE TAVSİYELER:
-• [Günün haberlerinden yola çıkarak 2-3 pratik öneri ver]
-
-📚 ÖĞRENCİLERE NOT:
-• [Öğrencilerin bilmesi gereken 1-2 önemli nokta]
-
-KURALLAR:
-1. Her madde 1-2 cümle olsun, özlü ama bilgilendirici
-2. Haberleri sadece özetleme, YORUMLA ve BAĞLAM ekle
-3. Türkçe yaz, akıcı ve profesyonel bir dil kullan
-4. Spekülasyon yapma, haberlere dayalı analiz yap
-5. Emoji kullan ama aşırıya kaçma
-6. Toplam 300-400 kelime civarında tut
-
-Analiz:"""
+Kurallar:
+- Her madde 1 cümle
+- Haberleri yorumla, sadece özetleme
+- Türkçe, akıcı dil
+- Toplam 200 kelime"""
 
         response = client.models.generate_content(
             model="gemini-2.0-flash",
@@ -1158,7 +1564,7 @@ Analiz:"""
         
         return response.text.strip()
     except Exception as e:
-        print(f"Özet oluşturma hatası: {e}")
+        print(f"Özet hatası: {e}")
         return ""
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1166,21 +1572,23 @@ Analiz:"""
 # ══════════════════════════════════════════════════════════════════════════════
 
 def generate_report() -> str:
-    """
-    Günlük eğitim raporu oluştur
-    """
+    """Günlük eğitim raporu"""
+    
+    # Her raporda deduplicator'ı sıfırla
+    deduplicator.reset()
+    
     report = []
+    today = datetime.now()
     
     # Başlık
-    today = datetime.now()
     report.append("═" * 50)
-    report.append("📚 EĞİTİM GÜNDEM RAPORU")
+    report.append("📚 EĞİTİM GÜNDEM RAPORU v3.0")
     report.append(f"📅 {format_turkish_date(today, include_day=True)}")
     report.append("═" * 50)
     report.append("")
     
-    # 1. SINAV TAKVİMİ VE GERİ SAYIM
-    print("📅 Sınav takvimi hazırlanıyor...")
+    # 1. SINAV TAKVİMİ
+    print("📅 Sınav takvimi...")
     countdown = get_exam_countdown()
     
     report.append("━" * 50)
@@ -1195,309 +1603,244 @@ def generate_report() -> str:
     
     report.append("")
     
-    # 2. MEB HABERLERİ
-    print("📰 MEB haberleri çekiliyor...")
+    # 2. TÜRKİYE EĞİTİM GÜNDEMİ
+    print("🇹🇷 Türkiye haberleri...")
     meb_news = get_meb_news()
-    education_news = get_education_news_turkey()
+    turkey_news = get_education_news_turkey()
     
     report.append("━" * 50)
-    report.append("🏛 MEB & TÜRKİYE EĞİTİM GÜNDEMİ")
+    report.append("🏛️ MEB & TÜRKİYE EĞİTİM GÜNDEMİ")
     report.append("━" * 50)
     
-    # Önce MEB haberleri
-    if meb_news:
-        report.append("\n📢 MEB'DEN:")
-        for news in meb_news[:3]:
-            prefix = "🔴" if news.get('is_important') else "•"
-            title = news['title'][:80]
-            link = news.get('link', '')
-            
-            if link:
-                report.append(f"{prefix} {title}")
-                report.append(f"   🔗 {link}")
-            else:
-                report.append(f"{prefix} {title}")
-    
-    # Sonra genel eğitim haberleri
-    if education_news:
-        report.append("\n📰 GÜNDEM:")
-        for news in education_news[:5]:
-            prefix = "🔴" if news.get('is_exam_related') else "📌" if news.get('is_important') else "•"
-            title = news['title'][:80]
-            link = news.get('link', '')
-            source = news['source']
-            
-            if link:
-                report.append(f"{prefix} {title}")
-                report.append(f"   📍 {source} | 🔗 {link}")
-            else:
-                report.append(f"{prefix} {title}")
-                report.append(f"   📍 {source}")
+    all_turkey = meb_news + turkey_news
+    shown = 0
+    for news in all_turkey[:8]:
+        if shown >= 6:
+            break
+        icon = "🔴" if news.get('is_exam_related') else "📰"
+        report.append(f"\n{icon} {news['title']}")
+        report.append(f"   📍 {news['source']} | 🔗 {news.get('link', '')[:60]}...")
+        shown += 1
     
     report.append("")
     
-    # 3. YAPAY ZEKA VE EĞİTİM
-    print("🤖 Yapay zeka haberleri çekiliyor...")
+    # 3. YAPAY ZEKA & EĞİTİM TEKNOLOJİSİ
+    print("🤖 AI haberleri...")
     ai_news = get_ai_education_news()
     
     report.append("━" * 50)
     report.append("🤖 YAPAY ZEKA & EĞİTİM TEKNOLOJİSİ")
     report.append("━" * 50)
     
-    if ai_news:
-        # Önce yüksek öncelikli haberler
-        high_priority = [n for n in ai_news if n.get('is_high_priority')]
-        regular = [n for n in ai_news if not n.get('is_high_priority')]
+    translate_count = 0
+    for news in ai_news[:5]:
+        if news.get('needs_translation') and translate_count < 3:
+            title_tr = translate_to_turkish(news['title'])
+            translate_count += 1
+            time.sleep(0.3)
+        else:
+            title_tr = news['title']
         
-        translate_count = 0
-        
-        # Kritik AI haberleri
-        if high_priority:
-            report.append("\n🔥 ÖNE ÇIKAN GELİŞMELER:")
-            for news in high_priority[:3]:
-                if news.get('needs_translation') and translate_count < 5:
-                    title_tr = translate_to_turkish(news['title'], is_headline=True)
-                    translate_count += 1
-                    import time
-                    time.sleep(0.3)
-                else:
-                    title_tr = news['title']
-                
-                link = news.get('link', '')
-                report.append(f"\n🚀 {title_tr}")
-                if link:
-                    report.append(f"   📍 {news['source']} [{news.get('category', '')}]")
-                    report.append(f"   🔗 {link}")
-                else:
-                    report.append(f"   📍 {news['source']} [{news.get('category', '')}]")
-        
-        # Diğer haberler - kategoriye göre grupla
-        if regular:
-            # Kategorilere ayır
-            categories = {}
-            for news in regular[:10]:
-                cat = news.get('category', 'Diğer')
-                if cat not in categories:
-                    categories[cat] = []
-                categories[cat].append(news)
-            
-            # Her kategoriden max 2 haber göster
-            category_emojis = {
-                'Ana': '📰', 'EdTech': '💻', 'AI': '🧠', 
-                'Araştırma': '🔬', 'Global': '🌍', 'Öğretim': '📚',
-                'STEM': '🔢', 'TR': '🇹🇷', 'Diğer': '📌'
-            }
-            
-            for cat, items in categories.items():
-                if items and len(items) > 0:
-                    emoji = category_emojis.get(cat, '📌')
-                    report.append(f"\n{emoji} {cat.upper()}:")
-                    
-                    for news in items[:2]:
-                        if news.get('needs_translation') and translate_count < 8:
-                            title_tr = translate_to_turkish(news['title'], is_headline=True)
-                            translate_count += 1
-                            import time
-                            time.sleep(0.3)
-                        else:
-                            title_tr = news['title']
-                        
-                        link = news.get('link', '')
-                        report.append(f"• {title_tr[:100]}")
-                        if link:
-                            report.append(f"  📍 {news['source']} | 🔗 {link}")
-                        else:
-                            report.append(f"  📍 {news['source']}")
-    else:
-        report.append("\n• Henüz yeni haber yok")
+        report.append(f"\n🔹 {title_tr[:90]}")
+        report.append(f"   📍 {news['source']} | 🔗 {news.get('link', '')[:50]}...")
     
     report.append("")
     
-    # 4. MATEMATİK HABERLERİ
-    print("➕ Matematik haberleri çekiliyor...")
+    # 4. MATEMATİK DÜNYASINDAN
+    print("➕ Matematik haberleri...")
     math_news = get_math_news()
     
     report.append("━" * 50)
     report.append("➕ MATEMATİK DÜNYASINDAN")
     report.append("━" * 50)
     
-    if math_news:
-        translate_count = 0
-        for news in math_news[:5]:
-            # İlk 4 haberi çevir
-            if news.get('needs_translation') and translate_count < 4:
-                title_tr = translate_to_turkish(news['title'], is_headline=True)
+    for news in math_news[:4]:
+        if news.get('needs_translation') and translate_count < 5:
+            title_tr = translate_to_turkish(news['title'])
+            translate_count += 1
+            time.sleep(0.3)
+        else:
+            title_tr = news['title']
+        
+        report.append(f"\n📐 {title_tr[:90]}")
+        report.append(f"   📍 {news['source']}")
+        if news.get('link'):
+            report.append(f"   🔗 {news['link'][:60]}...")
+    
+    report.append("")
+    
+    # 5. PISA LİDERLERİNDEN
+    print("🏆 PISA liderleri haberleri...")
+    pisa_news = get_pisa_leaders_news()
+    
+    report.append("━" * 50)
+    report.append("🏆 PISA LİDERLERİNDEN EĞİTİM HABERLERİ")
+    report.append("━" * 50)
+    
+    for country_code, news_list in pisa_news.items():
+        for news in news_list[:2]:
+            if translate_count < 8:
+                title_tr = translate_to_turkish(news['title'])
                 translate_count += 1
-                import time
                 time.sleep(0.3)
             else:
                 title_tr = news['title']
             
-            link = news.get('link', '')
-            report.append(f"\n🔬 {title_tr}")
-            if link:
-                report.append(f"   📍 {news['source']} ({news.get('region', 'Dünya')})")
-                report.append(f"   🔗 {link}")
-            else:
-                report.append(f"   📍 {news['source']} ({news.get('region', 'Dünya')})")
-    else:
-        report.append("• Henüz yeni haber yok")
+            report.append(f"\n{news['flag']} {news['country']} ({news['rank']})")
+            report.append(f"   {title_tr[:85]}")
+            report.append(f"   📍 {news['source']} | 🔗 {news.get('link', '')[:50]}...")
     
     report.append("")
     
-    # 5. 🌍 GLOBAL EĞİTİM HABERLERİ
-    print("🌍 Global eğitim haberleri çekiliyor...")
-    global_news = get_global_education_news()
+    # 6. GLOBAL MAKRO HABERLER
+    print("🌍 Global haberler...")
+    global_news = get_global_macro_education_news()
     
     report.append("━" * 50)
-    report.append("🌍 DÜNYADAN EĞİTİM HABERLERİ")
+    report.append("🌍 DÜNYADAN EĞİTİM POLİTİKALARI")
     report.append("━" * 50)
     
-    # Çeviri sayacı
-    translate_count = 0
-    max_translations = 10  # Global haberler için maksimum çeviri
-    
-    # Ülkeleri grupla
-    country_groups = {
-        'ai_leaders': ['china', 'korea', 'japan'],  # AI'da öncü
-        'education_leaders': ['finland', 'singapore', 'estonia'],  # Eğitimde öncü
-        'other': ['russia', 'israel', 'india']  # Matematik, Startup, EdTech
-    }
-    
-    group_titles = {
-        'ai_leaders': '🤖 AI & TEKNOLOJİ ÖNCÜLERİ',
-        'education_leaders': '📚 EĞİTİM ÖNCÜLERİ',
-        'other': '🔬 BİLİM & İNOVASYON'
-    }
-    
-    for group_key, countries in country_groups.items():
-        group_has_news = False
-        group_report = []
+    for news in global_news[:4]:
+        if translate_count < 10:
+            title_tr = translate_to_turkish(news['title'])
+            translate_count += 1
+            time.sleep(0.3)
+        else:
+            title_tr = news['title']
         
-        for country_code in countries:
-            if country_code in global_news and global_news[country_code]:
-                if not group_has_news:
-                    group_report.append(f"\n{group_titles[group_key]}:")
-                    group_has_news = True
-                
-                for news in global_news[country_code][:2]:
-                    # Çeviri
-                    if news.get('needs_translation') and translate_count < max_translations:
-                        title_tr = translate_to_turkish(news['title'], is_headline=True)
-                        translate_count += 1
-                        import time
-                        time.sleep(0.3)
-                    else:
-                        title_tr = news['title']
-                    
-                    flag = news.get('flag', '🌐')
-                    country = news.get('country', '')
-                    link = news.get('link', '')
-                    
-                    group_report.append(f"\n{flag} {title_tr[:90]}")
-                    if link:
-                        group_report.append(f"   📍 {news['source']} ({country})")
-                        group_report.append(f"   🔗 {link}")
-                    else:
-                        group_report.append(f"   📍 {news['source']} ({country})")
-        
-        if group_has_news:
-            report.extend(group_report)
-    
-    # Eğer hiç global haber yoksa
-    if not any(global_news.get(c) for c in global_news):
-        report.append("\n• Şu an yeni global haber yok")
+        report.append(f"\n🔸 {title_tr[:90]}")
+        report.append(f"   📍 {news['source']} ({news.get('category', '')})")
     
     report.append("")
     
-    # 6. 📄 BİLİMSEL MAKALELER
-    print("📄 Bilimsel makaleler çekiliyor...")
-    arxiv_papers = get_arxiv_papers()
+    # 7. BİLİMSEL MAKALELER
+    print("📄 Bilimsel makaleler...")
+    arxiv_papers = get_arxiv_papers_safe()
+    eric_papers = get_eric_papers()
     research_papers = get_research_papers()
     
     report.append("━" * 50)
     report.append("📄 BİLİMSEL MAKALELER & ARAŞTIRMALAR")
     report.append("━" * 50)
     
-    # arXiv makaleleri
-    translate_count = 0
+    # arXiv
     if arxiv_papers:
-        # Eğitim ile ilgili olanları öne al
-        edu_papers = [p for p in arxiv_papers if p.get('is_education_related')]
-        other_papers = [p for p in arxiv_papers if not p.get('is_education_related')]
-        
-        if edu_papers:
-            report.append("\n🎓 EĞİTİM & AI (arXiv):")
-            for paper in edu_papers[:3]:
-                if paper.get('needs_translation') and translate_count < 4:
-                    title_tr = translate_to_turkish(paper['title'], is_headline=True)
-                    translate_count += 1
-                    import time
-                    time.sleep(0.3)
-                else:
-                    title_tr = paper['title']
-                
-                report.append(f"\n📑 {title_tr[:100]}")
-                report.append(f"   📂 {paper.get('category', 'AI')} | arXiv")
-                if paper.get('link'):
-                    report.append(f"   🔗 {paper['link']}")
-        
-        if other_papers:
-            report.append("\n🧠 YAPAY ZEKA & ML (arXiv):")
-            for paper in other_papers[:2]:
-                if paper.get('needs_translation') and translate_count < 6:
-                    title_tr = translate_to_turkish(paper['title'], is_headline=True)
-                    translate_count += 1
-                    import time
-                    time.sleep(0.3)
-                else:
-                    title_tr = paper['title']
-                
-                report.append(f"\n📑 {title_tr[:100]}")
-                report.append(f"   📂 {paper.get('category', 'ML')} | arXiv")
-                if paper.get('link'):
-                    report.append(f"   🔗 {paper['link']}")
-    
-    # Diğer akademik makaleler
-    if research_papers:
-        report.append("\n📚 AKADEMİK ARAŞTIRMALAR:")
-        for paper in research_papers[:2]:
-            if paper.get('needs_translation') and translate_count < 8:
-                title_tr = translate_to_turkish(paper['title'], is_headline=True)
+        report.append("\n🎓 arXiv - EĞİTİM & AI:")
+        for paper in arxiv_papers[:3]:
+            if translate_count < 12:
+                title_tr = translate_to_turkish(paper['title'])
                 translate_count += 1
-                import time
                 time.sleep(0.3)
             else:
                 title_tr = paper['title']
-            
-            report.append(f"\n📖 {title_tr[:100]}")
-            report.append(f"   📍 {paper['source']}")
+            report.append(f"\n📑 {title_tr[:100]}")
             if paper.get('link'):
                 report.append(f"   🔗 {paper['link']}")
     
-    if not arxiv_papers and not research_papers:
-        report.append("\n• Henüz yeni makale yok")
+    # ERIC
+    if eric_papers:
+        report.append("\n📚 ERIC - EĞİTİM ARAŞTIRMALARI:")
+        for paper in eric_papers[:2]:
+            if translate_count < 14:
+                title_tr = translate_to_turkish(paper['title'])
+                translate_count += 1
+                time.sleep(0.3)
+            else:
+                title_tr = paper['title']
+            report.append(f"\n📖 {title_tr[:100]}")
+            if paper.get('link'):
+                report.append(f"   🔗 {paper['link']}")
+    
+    # Diğer
+    if research_papers:
+        report.append("\n🔬 AKADEMİK DERGİLER:")
+        for paper in research_papers[:2]:
+            if translate_count < 16:
+                title_tr = translate_to_turkish(paper['title'])
+                translate_count += 1
+                time.sleep(0.3)
+            else:
+                title_tr = paper['title']
+            report.append(f"\n📖 {title_tr[:100]}")
+            report.append(f"   📍 {paper['source']}")
     
     report.append("")
     
-    # 7. ÖĞRENCİ GÜNDEMİ
-    print("🔥 Öğrenci gündemi hazırlanıyor...")
+    # 8. ULUSLARARASI DEĞERLENDİRME
+    print("📊 Uluslararası değerlendirme...")
+    assessment_news = get_international_assessment_news()
+    turkey_research = get_turkey_assessment_research()
+    
+    report.append("━" * 50)
+    report.append("📊 ULUSLARARASI DEĞERLENDİRME (PISA/TIMSS)")
+    report.append("━" * 50)
+    
+    if assessment_news:
+        for item in assessment_news[:3]:
+            report.append(f"\n📈 {item['title'][:90]}")
+            report.append(f"   📍 {item['source']} ({item.get('type', '')})")
+    
+    if turkey_research:
+        report.append("\n🇹🇷 TÜRKİYE ULUSAL İZLEME:")
+        for item in turkey_research[:2]:
+            report.append(f"\n📋 {item['title'][:90]}")
+            report.append(f"   📍 {item['source']}")
+    
+    report.append("")
+    
+    # 9. ÖĞRENCİ GÜNDEMİ
+    print("🔥 Öğrenci gündemi (sosyal medya, forumlar)...")
     trending = get_student_trending_topics()
     
     report.append("━" * 50)
-    report.append("🔥 ÖĞRENCİ GÜNDEMİ (Sık Sorulanlar)")
+    report.append("🔥 ÖĞRENCİ GÜNDEMİ (Trend Konular)")
     report.append("━" * 50)
     
     if trending:
-        for topic in trending[:6]:
+        for topic in trending[:8]:
+            source = topic.get('source', '')
             category = topic.get('category', '')
-            category_str = f" [{category}]" if category else ""
-            report.append(f"• {topic['topic']}{category_str}")
+            score = topic.get('score', '')
+            entry_count = topic.get('entry_count', '')
+            link = topic.get('link', '')
+            
+            # Kaynak ikonu
+            source_icon = {
+                'Ekşi Sözlük': '📗',
+                'Reddit': '🔴',
+                'Twitter/X': '🐦',
+                'YouTube': '▶️',
+                'Google Trends': '📈',
+                'Forum': '💬',
+            }.get(topic.get('source', '').split(' - ')[0], '📌')
+            
+            line = f"\n{source_icon} {topic['topic']}"
+            
+            # Meta bilgiler
+            meta = []
+            if source:
+                meta.append(source)
+            if entry_count:
+                meta.append(f"{entry_count} entry")
+            if score:
+                meta.append(score)
+            if category:
+                meta.append(f"[{category}]")
+            
+            if meta:
+                report.append(line)
+                report.append(f"   📍 {' | '.join(meta)}")
+                if link:
+                    report.append(f"   🔗 {link[:60]}...")
+            else:
+                report.append(line)
+    else:
+        report.append("\n• Şu an aktif trend konusu bulunamadı")
     
     report.append("")
     
-    # 8. GÜNÜN MOTİVASYONU
-    print("💪 Motivasyon mesajı hazırlanıyor...")
+    # 10. MOTİVASYON
+    print("💪 Motivasyon...")
     motivation = get_daily_motivation()
     
     report.append("━" * 50)
@@ -1507,21 +1850,19 @@ def generate_report() -> str:
     report.append(motivation['message'])
     report.append("")
     
-    # 9. GÜNÜN ÖZETİ (AI)
-    print("📝 Günün özeti oluşturuluyor...")
-    all_news = {
-        'meb_news': meb_news,
-        'education_news': education_news,
+    # 11. GÜNÜN ÖZETİ
+    print("📝 Günün özeti...")
+    all_news_data = {
+        'turkey_news': meb_news + turkey_news,
         'ai_news': ai_news,
-        'math_news': math_news,
-        'global_news': global_news,
-        'arxiv_papers': arxiv_papers
+        'pisa_news': pisa_news,
+        'papers': arxiv_papers + eric_papers + research_papers
     }
-    summary = generate_daily_summary(all_news)
+    summary = generate_daily_summary(all_news_data)
     
     if summary:
         report.append("━" * 50)
-        report.append("📊 GÜNÜN ANALİZİ & DEĞERLENDİRME")
+        report.append("📊 GÜNÜN ANALİZİ")
         report.append("━" * 50)
         report.append("")
         report.append(summary)
@@ -1531,8 +1872,7 @@ def generate_report() -> str:
     report.append("═" * 50)
     report.append("📚 İyi çalışmalar! Başarılar dileriz. 🌟")
     report.append("═" * 50)
-    report.append("")
-    report.append(f"⏰ Rapor oluşturma: {datetime.now().strftime('%H:%M:%S')}")
+    report.append(f"⏰ Rapor: {datetime.now().strftime('%H:%M:%S')}")
     
     return '\n'.join(report)
 
@@ -1541,15 +1881,12 @@ def generate_report() -> str:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def send_telegram_message(message: str) -> bool:
-    """
-    Telegram'a mesaj gönder
-    """
+    """Telegram'a mesaj gönder"""
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
         print("⚠️ Telegram ayarları eksik!")
         return False
     
     try:
-        # Mesajı parçalara böl (Telegram 4096 karakter limiti)
         max_length = 4000
         parts = []
         
@@ -1570,7 +1907,6 @@ def send_telegram_message(message: str) -> bool:
             if current_part:
                 parts.append(current_part.strip())
         
-        # Her parçayı gönder
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
         
         for i, part in enumerate(parts):
@@ -1584,19 +1920,17 @@ def send_telegram_message(message: str) -> bool:
             response = requests.post(url, json=payload, timeout=30)
             
             if response.status_code != 200:
-                print(f"❌ Telegram hatası (parça {i+1}): {response.text}")
+                print(f"❌ Telegram hatası: {response.text}")
                 return False
             
-            # Rate limit için bekle
             if i < len(parts) - 1:
-                import time
                 time.sleep(1)
         
         print(f"✅ Telegram'a {len(parts)} parça gönderildi")
         return True
         
     except Exception as e:
-        print(f"❌ Telegram gönderim hatası: {e}")
+        print(f"❌ Telegram hatası: {e}")
         return False
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1604,28 +1938,22 @@ def send_telegram_message(message: str) -> bool:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def main():
-    """
-    Ana program
-    """
+    """Ana program"""
     print("=" * 50)
-    print("📚 EĞİTİM GÜNDEM TAKİP BOTU v1.0")
+    print("📚 EĞİTİM GÜNDEM TAKİP BOTU v3.0 - PISA Edition")
     print("=" * 50)
     print("")
     
-    # Rapor oluştur
     report = generate_report()
-    
-    # Konsola yazdır
     print("\n" + report)
     
-    # Telegram'a gönder
     if TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
         print("\n📤 Telegram'a gönderiliyor...")
         send_telegram_message(report)
     else:
-        print("\n⚠️ Telegram ayarları yapılmamış. Sadece konsola yazdırıldı.")
+        print("\n⚠️ Telegram ayarları yapılmamış.")
     
-    print("\n✅ Bot çalışması tamamlandı!")
+    print("\n✅ Bot tamamlandı!")
 
 if __name__ == "__main__":
     main()
