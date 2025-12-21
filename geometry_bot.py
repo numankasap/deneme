@@ -237,20 +237,39 @@ GÖREV: Verilen geometri sorusunu analiz et ve çizim için gerekli bilgileri JS
 
 ⚠️ ÇOK ÖNEMLİ - ÇİZİM YAPMAMA KURALLARI:
 Aşağıdaki durumlarda KESİNLİKLE "cizim_pisinilir": false olmalı:
-1. Şeklin tipi/boyutu SORUDA VERİLMEYİP HESAPLANMASI GEREKİYORSA → ÇİZME!
-   Örnek: "Köşegen sayısı köşe sayısının 2 katı olan çokgen" - kaç köşeli olduğu bilinmiyor, hesaplanacak
-2. Tamamen FORMÜLe dayalı problemlerse → ÇİZME!
-   Örnek: "n köşeli çokgenin köşegen sayısı", "çemberin çevresi formülü"
-3. Çizim CEVABI DOĞRUDAN VERİYORSA → ÇİZME!
-   Örnek: Hesaplanması gereken değerler (dış dikdörtgen boyutları gibi) görselde görünürse
-4. Grafikler için VERİ NOKTASI veya DOĞRU DENKLEMİ yoksa → ÇİZME!
-   Örnek: "Birikim grafiği" ama başlangıç değerleri, artış miktarları verilmemişse
 
-✅ ÇİZİM YAPILACAK DURUMLAR:
-- Soruda SOMUT boyutlar verilmişse (8m x 12m havuz gibi)
+1. HACİM/KAPASİTE HESAPLAMA SORULARI → ÇİZME!
+   - "prizma", "kutu", "kap", "depo", "tank", "silindir hacmi" varsa
+   - "hacim", "kapasite", "litre", "cm³", "m³" kelimesi geçiyorsa
+   - "x cm kenar uzunluğu", "yükseklik h cm" gibi DEĞİŞKEN varsa
+   → Bu tür sorular HACİM HESAPLAMA, geometri çizimi DEĞİL!
+
+2. SENARYO/HİKAYE bazlı matematik problemleri → ÇİZME!
+   - "Ali ve Veli", "Yusuf ve Mustafa", "şirket", "mağaza" gibi hikayeler
+   - "kutu taşıma", "maliyet hesaplama", "yakıt tasarrufu"
+   - Bunlar CEBİRSEL hesaplama soruları!
+
+3. BİRDEN FAZLA 3D CİSİM KARŞILAŞTIRMASI → ÇİZME!
+   - "Kare prizma ve dikdörtgenler prizması"
+   - "Yusuf'un kutusu... Mustafa'nın kutusu..."
+   - İki farklı 3D cismi karşılaştırmak çizimle gösterilemez!
+
+4. Şeklin boyutu HESAPLANMASI GEREKİYORSA → ÇİZME!
+   - "Köşegen sayısı köşe sayısının 2 katı" - kaç köşeli bilinmiyor
+   - "Alanı 48 cm² olan üçgenin yüksekliği" - yükseklik hesaplanacak
+
+5. DEĞİŞKEN İÇEREN problemler → ÇİZME!
+   - "x cm", "a metre", "n tane" gibi değişkenler varsa
+   - Somut sayısal değerler yerine harf/değişken kullanılmışsa
+
+6. Grafikler için VERİ NOKTASI yoksa → ÇİZME!
+
+✅ ÇİZİM YAPILACAK DURUMLAR (tüm şartlar sağlanmalı):
+- Soruda SOMUT, SABİT SAYISAL boyutlar verilmişse (8m x 12m gibi)
+- Değişken YOK, sadece SAYI değerler varsa
+- TEK BİR basit şekil tanımlanmışsa
 - Koordinatlar açıkça verilmişse: A(1,2), B(3,4)
-- Şekil tipi ve özellikleri belirtilmişse
-- Açı ölçüleri, kenar uzunlukları verilmişse
+- Açı ölçüleri SABİT SAYI olarak verilmişse (60°, 90° gibi)
 
 ⚠️ SADECE VERİLENLERİ ÇİZ:
 - Havuz 8x12m, güvenlik 2m → Sadece havuzu ve 2m genişliği göster
@@ -259,9 +278,9 @@ Aşağıdaki durumlarda KESİNLİKLE "cizim_pisinilir": false olmalı:
 
 KRİTİK KURAL - ÇİZİM KARARI:
 Aşağıdaki durumlarda "cizim_pisinilir": true:
-- Soruda üçgen, dörtgen, çember ile SOMUT ölçüler verilmişse → ÇİZ
-- Soruda A, B, C köşeleri ve koordinatları/uzunlukları verilmişse → ÇİZ
-- Geometrik şekil ÇİZİLEBİLİR somut verilerle tanımlanmışsa → ÇİZ
+- Soruda üçgen, dörtgen, çember ile SOMUT SABİT ölçüler verilmişse → ÇİZ
+- Soruda A, B, C köşeleri ve SABİT koordinatları/uzunlukları verilmişse → ÇİZ
+- Değişken (x, a, n) İÇERMEYEN somut verilerle tanımlanmışsa → ÇİZ
 
 ⚠️ BİRDEN FAZLA ŞEKİL:
 Soruda birden fazla geometrik şekil varsa (örn: havuz + güvenlik alanı):
@@ -274,6 +293,7 @@ Soruda birden fazla geometrik şekil varsa (örn: havuz + güvenlik alanı):
 2. Bilinmeyenleri "?" ile işaretle
 3. Eğer şeklin boyutu/tipi hesaplanması gerekiyorsa → ÇİZME!
 4. Koordinat düzleminde grafik çizilecekse, mutlaka çizilecek DOĞRU veya NOKTALAR olmalı
+5. "x cm", "h metre" gibi DEĞİŞKEN varsa → ÇİZME!
 
 DESTEKLENEN ŞEKİL TİPLERİ:
 - ucgen: Üçgen (genel, dik, ikizkenar, eşkenar)
@@ -356,29 +376,38 @@ JSON ÇIKTI FORMATI (BİRDEN FAZLA ŞEKİL - ÖNEMLİ!):
 
 ÖRNEK - BİRLEŞİK ŞEKİL:
 Soru: "Dikdörtgen (12x7 m) ve üstüne bitişik yamuk (üst kenar 8m). Bahçenin toplam alanı?"
-→ sekil_tipi: "birlesik"
-→ sekiller dizisine dikdörtgen ve yamuk ayrı ayrı eklenir
-→ Ortak kenarlar aynı noktaları paylaşır (D ve C)
-
-ÖRNEK - ÇİZİM YAPILMAYACAK:
-Soru: "Bir dışbükey çokgenin köşegen sayısı, köşe sayısının 2 katına eşittir. Kaç köşeli?"
-→ cizim_pisinilir: false
-→ neden: "Çokgenin köşe sayısı verilmemiş, hesaplanması gereken değer. Şekil çizilemez."
-
-Soru: "n köşeli çokgende köşegen sayısı formülü n(n-3)/2'dir. 5 köşeli için?"
-→ cizim_pisinilir: false
-→ neden: "Formül bazlı soru, somut şekil çizimi gerekmez."
-
-ÖRNEK - SADECE VERİLENLERİ ÇİZ:
-Soru: "8x12m havuz etrafına 2m güvenlik alanı. Güvenlik alanının alanı?"
 → cizim_pisinilir: true
-→ İç dikdörtgen (havuz): 8m x 12m - bu VERİLMİŞ, ÇİZ
-→ Güvenlik genişliği: 2m - bu VERİLMİŞ, ÇİZ
-→ Dış dikdörtgen: 12m x 16m - bu HESAPLANAN, ÇİZME!
+→ sekil_tipi: "birlesik"
+
+ÖRNEK - ÇİZİM YAPILMAYACAK (HACİM/PRİZMA):
+Soru: "Yusuf kare prizma kutu (x cm kenar, 50 cm yükseklik), Mustafa dikdörtgen prizma kutu kullanıyor. Hacim farkı?"
+→ cizim_pisinilir: false
+→ neden: "Hacim hesaplama sorusu, değişken (x cm) içeriyor, 3D karşılaştırma çizilemez."
+
+Soru: "Bir kutunun hacmi 1000 cm³. Kenar uzunlukları?"
+→ cizim_pisinilir: false
+→ neden: "Hacim hesaplama sorusu, kenarlar bilinmiyor."
+
+ÖRNEK - ÇİZİM YAPILMAYACAK (DEĞİŞKEN):
+Soru: "Kenar uzunluğu x cm olan karenin alanı"
+→ cizim_pisinilir: false
+→ neden: "Değişken (x) içeriyor, somut boyut yok."
+
+ÖRNEK - ÇİZİM YAPILMAYACAK (FORMÜL):
+Soru: "Bir dışbükey çokgenin köşegen sayısı, köşe sayısının 2 katına eşittir."
+→ cizim_pisinilir: false
+→ neden: "Çokgenin köşe sayısı hesaplanacak, şekil çizilemez."
+
+ÖRNEK - ÇİZİM YAPILACAK (SOMUT DEĞERLER):
+Soru: "ABC üçgeninde AB=6 cm, BC=8 cm, açı B=90°. AC uzunluğu?"
+→ cizim_pisinilir: true
+→ sekil_tipi: "ucgen", alt_tip: "dik"
+→ Somut sayısal değerler var, değişken yok!
 
 NOT: 
-- Şeklin boyutu/tipi hesaplanması gerekiyorsa ÇİZME!
-- Sadece somut verilerle tanımlanan şekilleri çiz
+- "x cm", "h metre" gibi DEĞİŞKEN varsa → ÇİZME!
+- "prizma hacmi", "kutu kapasitesi" → ÇİZME!
+- Sadece SABİT SAYISAL değerlerle tanımlanan şekilleri çiz
 - Koordinatlar -15 ile 15 arasında olsun
 
 SORU:
