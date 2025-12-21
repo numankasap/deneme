@@ -1,0 +1,68 @@
+# Geometry Bot Workflow
+# Günde 3 kez çalışır (08:00, 14:00, 20:00 UTC+3)
+# Her seansta 30 geometri sorusuna görsel oluşturur
+
+name: Geometry Bot
+
+on:
+  # Manuel tetikleme
+  workflow_dispatch:
+    inputs:
+      test_mode:
+        description: 'Test modu (10 soru)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+  
+  # Zamanlanmış çalışma (UTC saatleri - Türkiye için +3)
+  schedule:
+    # 05:00 UTC = 08:00 TR
+    - cron: '0 5 * * *'
+    # 11:00 UTC = 14:00 TR
+    - cron: '0 11 * * *'
+    # 17:00 UTC = 20:00 TR
+    - cron: '0 17 * * *'
+
+jobs:
+  generate-geometry-visuals:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: 📦 Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r geometry_requirements.txt
+      
+      - name: 🎨 Run Geometry Bot
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TEST_MODE: ${{ github.event.inputs.test_mode || 'false' }}
+        run: |
+          echo "🚀 Geometri Görsel Botu Başlatılıyor..."
+          echo "📅 Tarih: $(date)"
+          echo "🔧 Test Modu: $TEST_MODE"
+          python geometry_bot.py
+      
+      - name: 📊 Job Summary
+        if: always()
+        run: |
+          echo "## 🎨 Geometri Bot Çalışması Tamamlandı" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tarih:** $(date)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Test Modu:** ${{ github.event.inputs.test_mode || 'false' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Detaylar için logları kontrol edin." >> $GITHUB_STEP_SUMMARY
