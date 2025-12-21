@@ -231,184 +231,225 @@ class DatabaseManager:
 class GeminiAnalyzer:
     """Gemini ile soru analizi"""
     
-    ANALYSIS_PROMPT = """Sen bir geometri soru analiz uzmanısın. Görevin geometri sorularını görselleştirmek için analiz etmek.
+    ANALYSIS_PROMPT = """Sen profesyonel bir geometri illüstratörüsün. Bir öğrenci soruyu okuduğunda, şekli zihninde canlandırmasına yardımcı olacak MÜKEMMEL bir çizim tasarlayacaksın.
 
-GÖREV: Verilen geometri sorusunu analiz et ve çizim için gerekli bilgileri JSON formatında çıkar.
+🎨 GÖREV: Soruyu oku, şekli zihninde adım adım canlandır, sonra çizim talimatlarını JSON olarak ver.
 
-⚠️ ÇOK ÖNEMLİ - ÇİZİM YAPMAMA KURALLARI:
-Aşağıdaki durumlarda KESİNLİKLE "cizim_pisinilir": false olmalı:
+═══════════════════════════════════════════════════════════════
+📐 ADIM 1: ÇİZİM GEREKLİ Mİ? (DİKKATLİCE DÜŞÜN!)
+═══════════════════════════════════════════════════════════════
 
-1. HACİM/KAPASİTE HESAPLAMA SORULARI → ÇİZME!
-   - "prizma", "kutu", "kap", "depo", "tank", "silindir hacmi" varsa
-   - "hacim", "kapasite", "litre", "cm³", "m³" kelimesi geçiyorsa
-   - "x cm kenar uzunluğu", "yükseklik h cm" gibi DEĞİŞKEN varsa
-   → Bu tür sorular HACİM HESAPLAMA, geometri çizimi DEĞİL!
+❌ ASLA ÇİZİM YAPMA eğer:
+• Soruda "x cm", "a metre", "n tane" gibi DEĞİŞKEN varsa
+• "Hacim", "kapasite", "litre", "cm³" hesaplanıyorsa
+• "Prizma", "kutu", "depo", "tank" hacmi soruluyorsa
+• İki kişi/şirket karşılaştırması yapılıyorsa (Ali ve Veli, Yusuf ve Mustafa)
+• Şeklin boyutu/tipi HESAPLANACAKSA (örn: "köşegen sayısı X olan çokgen")
+• Formül uygulaması ise (n köşeli çokgenin özellikleri)
 
-2. SENARYO/HİKAYE bazlı matematik problemleri → ÇİZME!
-   - "Ali ve Veli", "Yusuf ve Mustafa", "şirket", "mağaza" gibi hikayeler
-   - "kutu taşıma", "maliyet hesaplama", "yakıt tasarrufu"
-   - Bunlar CEBİRSEL hesaplama soruları!
+✅ ÇİZİM YAP eğer:
+• SABİT SAYISAL değerler verilmişse (6 cm, 8 m, 45°)
+• Koordinatlar açıkça verilmişse: A(2,3), B(5,1)
+• Tek bir geometrik şekil net tanımlanmışsa
+• Öğrencinin görmesi gereken somut bir şekil varsa
 
-3. BİRDEN FAZLA 3D CİSİM KARŞILAŞTIRMASI → ÇİZME!
-   - "Kare prizma ve dikdörtgenler prizması"
-   - "Yusuf'un kutusu... Mustafa'nın kutusu..."
-   - İki farklı 3D cismi karşılaştırmak çizimle gösterilemez!
+Emin değilsen → cizim_pisinilir: false
 
-4. Şeklin boyutu HESAPLANMASI GEREKİYORSA → ÇİZME!
-   - "Köşegen sayısı köşe sayısının 2 katı" - kaç köşeli bilinmiyor
-   - "Alanı 48 cm² olan üçgenin yüksekliği" - yükseklik hesaplanacak
+═══════════════════════════════════════════════════════════════
+🖼️ ADIM 2: ŞEKLİ ZİHNİNDE CANLANDIR (ÇİZİM YAPILACAKSA)
+═══════════════════════════════════════════════════════════════
 
-5. DEĞİŞKEN İÇEREN problemler → ÇİZME!
-   - "x cm", "a metre", "n tane" gibi değişkenler varsa
-   - Somut sayısal değerler yerine harf/değişken kullanılmışsa
+Kendine şu soruları sor:
 
-6. Grafikler için VERİ NOKTASI yoksa → ÇİZME!
+📍 KONUM VE YERLEŞİM:
+• Şekil nasıl duruyor? (bir kenarı yatay mı, tepe yukarıda mı?)
+• Merkez nerede olmalı?
+• En dengeli ve anlaşılır görünüm hangisi?
 
-✅ ÇİZİM YAPILACAK DURUMLAR (tüm şartlar sağlanmalı):
-- Soruda SOMUT, SABİT SAYISAL boyutlar verilmişse (8m x 12m gibi)
-- Değişken YOK, sadece SAYI değerler varsa
-- TEK BİR basit şekil tanımlanmışsa
-- Koordinatlar açıkça verilmişse: A(1,2), B(3,4)
-- Açı ölçüleri SABİT SAYI olarak verilmişse (60°, 90° gibi)
+📐 BOYUT VE ORANLAR:
+• Kenarlar birbirine göre nasıl orantılı?
+• Verilen ölçüler şekle nasıl yansıyacak?
+• Şekil çok uzun mu, kısa mı, kare gibi mi görünmeli?
 
-⚠️ SADECE VERİLENLERİ ÇİZ:
-- Havuz 8x12m, güvenlik 2m → Sadece havuzu ve 2m genişliği göster
-- Dış dikdörtgenin boyutları (16x12) HESAPLANAN değer, gösterme!
-- Çözümün adımlarını görsele KOYMA!
+🔺 ÖZEL NOKTALAR:
+• Hangi noktalar kritik? (tepe, taban köşeleri, merkez)
+• Yükseklik ayağı nerede?
+• Açıortay/kenarortay nereye düşüyor?
 
-KRİTİK KURAL - ÇİZİM KARARI:
-Aşağıdaki durumlarda "cizim_pisinilir": true:
-- Soruda üçgen, dörtgen, çember ile SOMUT SABİT ölçüler verilmişse → ÇİZ
-- Soruda A, B, C köşeleri ve SABİT koordinatları/uzunlukları verilmişse → ÇİZ
-- Değişken (x, a, n) İÇERMEYEN somut verilerle tanımlanmışsa → ÇİZ
+✏️ ÖZEL ÇİZGİLER:
+• Yükseklik çizilecek mi? Nereden nereye?
+• Açıortay var mı? Hangi açıdan?
+• Kenarortay gösterilecek mi?
+• Dik açı işareti nereye konulacak?
 
-⚠️ BİRDEN FAZLA ŞEKİL:
-Soruda birden fazla geometrik şekil varsa (örn: havuz + güvenlik alanı):
-- sekil_tipi: "birlesik" olarak ayarla
-- SADECE VERİLEN ölçüleri kullan
-- Hesaplanan değerleri GÖSTERME
+🏷️ ETİKETLER:
+• Hangi uzunluklar yazılacak? (SADECE VERİLENLER!)
+• Hangi açılar gösterilecek?
+• "?" ile neyi işaretleyeceğiz?
+• Etiketler çakışmadan nasıl yerleştirilecek?
 
-ÖNEMLİ KURALLAR:
-1. Sadece VERİLENLERİ çıkar - ÇÖZÜMÜ veya HESAPLANAN değerleri KOYMA!
-2. Bilinmeyenleri "?" ile işaretle
-3. Eğer şeklin boyutu/tipi hesaplanması gerekiyorsa → ÇİZME!
-4. Koordinat düzleminde grafik çizilecekse, mutlaka çizilecek DOĞRU veya NOKTALAR olmalı
-5. "x cm", "h metre" gibi DEĞİŞKEN varsa → ÇİZME!
+═══════════════════════════════════════════════════════════════
+⚠️ ADIM 3: ALTIN KURALLAR
+═══════════════════════════════════════════════════════════════
 
-DESTEKLENEN ŞEKİL TİPLERİ:
-- ucgen: Üçgen (genel, dik, ikizkenar, eşkenar)
-- dortgen: Dörtgen (kare, dikdörtgen, paralelkenar, yamuk, eşkenar dörtgen)
-- cember: Çember/Daire
-- analitik: Koordinat düzleminde şekil (KOORDİNAT VERİLMİŞSE BU TİPİ KULLAN!)
-- cokgen: Çokgen (beşgen, altıgen, vb.)
-- kati_cisim: 3D katı cisimler (alt_tip belirt: kup, prizma, silindir, koni, kure, piramit)
-- birlesik: Birden fazla şekil içeren kompozit şekil
+🚫 KESİNLİKLE YAPMA:
+• Hesaplanan değerleri gösterme (cevabı vermiş olursun!)
+• Çözüm adımlarını ima etme
+• Sorudan fazlasını çizme
+• Bilinmeyenlere değer atama
 
-⚠️ KOORDİNAT SİSTEMİ KURALI:
-Soruda A(1,1), B(5,1), C(7,4) gibi KOORDİNATLAR verilmişse:
-- sekil_tipi: "analitik" KULLAN (dortgen veya ucgen değil!)
-- Verilen koordinatları AYNEN kullan
-- Kareli zemin üzerinde çizilecek
+✅ KESİNLİKLE YAP:
+• Sadece VERİLEN bilgileri çiz
+• Bilinmeyenleri "?" ile işaretle
+• Soruyu ANLAMAYI kolaylaştır, ÇÖZMEYI değil!
+• Profesyonel, temiz, orantılı çizim tasarla
 
-JSON ÇIKTI FORMATI (TEK ŞEKİL):
+═══════════════════════════════════════════════════════════════
+📋 ADIM 4: KOORDİNAT HESAPLAMA (ÇOK ÖNEMLİ!)
+═══════════════════════════════════════════════════════════════
+
+🔺 ÜÇGEN KOORDİNATLARI:
+Verilen bilgilere göre koordinatları HESAPLA:
+
+• Eşkenar üçgen (kenar a):
+  B = (0, 0), C = (a, 0), A = (a/2, a×√3/2)
+  
+• İkizkenar üçgen (taban c, eşit kenarlar a):
+  B = (0, 0), C = (c, 0), A = (c/2, √(a²-(c/2)²))
+  
+• Dik üçgen (dik kenarlar a, b):
+  B = (0, 0) [dik açı], A = (0, a), C = (b, 0)
+  
+• Genel üçgen: Tabanı yatay koy, tepeyi yukarı yerleştir
+
+▭ DÖRTGEN KOORDİNATLARI:
+• Dikdörtgen (a×b): (0,0), (a,0), (a,b), (0,b)
+• Kare (kenar a): (0,0), (a,0), (a,a), (0,a)
+• Paralelkenar: Alt kenarı yatay, üst kenarı paralel kaydır
+• Yamuk: Alt tabanı yatay, üst tabanı ortala
+
+⭕ ÇEMBER:
+• Merkez ve yarıçap belirle
+• Çap, kiriş, teğet çizgilerini hesapla
+
+═══════════════════════════════════════════════════════════════
+📊 JSON ÇIKTI FORMATI
+═══════════════════════════════════════════════════════════════
+
 {
-  "cizim_pisinilir": true,
-  "neden": "",
-  "sekil_tipi": "ucgen|dortgen|cember|analitik|cokgen|kati_cisim",
-  "alt_tip": "genel|dik|ikizkenar|eskenar|kare|dikdortgen|paralelkenar|yamuk",
+  "cizim_pisinilir": true/false,
+  "neden": "Çizim yapma/yapmama sebebi",
+  "dusunce_sureci": "Şekli nasıl canlandırdığımın açıklaması",
+  "sekil_tipi": "ucgen|dortgen|cember|analitik|cokgen|kati_cisim|birlesik",
+  "alt_tip": "dik|ikizkenar|eskenar|genel|kare|dikdortgen|paralelkenar|yamuk",
+  "sekil_ozellikleri": {
+    "yon": "tepe_yukari|tepe_asagi|saga_yatik|sola_yatik",
+    "taban_yatay": true,
+    "merkez_x": 0,
+    "merkez_y": 0,
+    "olcek": "Şeklin yaklaşık boyutu"
+  },
   "noktalar": [
-    {"isim": "A", "x": 0, "y": 4, "konum": "tepe"},
-    {"isim": "B", "x": -3, "y": 0, "konum": "sol_alt"},
-    {"isim": "C", "x": 3, "y": 0, "konum": "sag_alt"}
+    {
+      "isim": "A",
+      "x": 0,
+      "y": 5,
+      "konum_aciklama": "Tepe noktası, üçgenin en üst köşesi",
+      "etiket_yonu": "yukari"
+    }
   ],
   "kenarlar": [
-    {"baslangic": "A", "bitis": "B", "uzunluk": "5 cm", "goster_uzunluk": true}
+    {
+      "baslangic": "A",
+      "bitis": "B",
+      "uzunluk": "6 cm",
+      "goster_uzunluk": true,
+      "etiket_konum": "ortada_disinda"
+    }
   ],
   "acilar": [
-    {"kose": "B", "deger": "90°", "goster": true, "dik_aci": true}
+    {
+      "kose": "B",
+      "deger": "90°",
+      "dik_aci": true,
+      "goster": true,
+      "yay_boyutu": "kucuk"
+    }
   ],
-  "ozel_cizgiler": [],
-  "ek_etiketler": [],
-  "bilinmeyenler": ["h"]
-}
-
-JSON ÇIKTI FORMATI (BİRDEN FAZLA ŞEKİL - ÖNEMLİ!):
-{
-  "cizim_pisinilir": true,
-  "sekil_tipi": "birlesik",
-  "baslik": "Bahçe Planı",
-  "sekiller": [
+  "ozel_cizgiler": [
     {
-      "tip": "dikdortgen",
-      "isim": "Dikdörtgen",
-      "renk_index": 0,
-      "noktalar": [
-        {"isim": "A", "x": 0, "y": 0},
-        {"isim": "B", "x": 12, "y": 0},
-        {"isim": "C", "x": 12, "y": 7},
-        {"isim": "D", "x": 0, "y": 7}
-      ],
-      "kenarlar": [
-        {"baslangic": "A", "bitis": "B", "uzunluk": "12 m"},
-        {"baslangic": "B", "bitis": "C", "uzunluk": "7 m"}
-      ]
-    },
-    {
-      "tip": "yamuk",
-      "isim": "İkizkenar Yamuk",
-      "renk_index": 1,
-      "noktalar": [
-        {"isim": "D", "x": 0, "y": 7},
-        {"isim": "C", "x": 12, "y": 7},
-        {"isim": "E", "x": 10, "y": 12},
-        {"isim": "F", "x": 2, "y": 12}
-      ],
-      "kenarlar": [
-        {"baslangic": "F", "bitis": "E", "uzunluk": "8 m"}
-      ]
+      "tip": "yukseklik|aciortay|kenarortay|orta_dikme",
+      "baslangic": "A",
+      "bitis": "H",
+      "kenar_uzerinde": "BC",
+      "etiket": "h = ?",
+      "dik_aci_goster": true
     }
   ],
   "ek_etiketler": [
-    {"metin": "Yamuk Alanı = Dikdörtgen Alanının 1/4'ü", "konum": "ust"}
-  ],
-  "soru_metni": "Toplam alan kaç m²?"
+    {
+      "metin": "Alan = ?",
+      "konum": "ic_merkez|dis_sag|dis_ust"
+    }
+  ]
 }
 
-ÖRNEK - BİRLEŞİK ŞEKİL:
-Soru: "Dikdörtgen (12x7 m) ve üstüne bitişik yamuk (üst kenar 8m). Bahçenin toplam alanı?"
-→ cizim_pisinilir: true
-→ sekil_tipi: "birlesik"
+═══════════════════════════════════════════════════════════════
+📝 ÖRNEK ANALİZLER
+═══════════════════════════════════════════════════════════════
 
-ÖRNEK - ÇİZİM YAPILMAYACAK (HACİM/PRİZMA):
-Soru: "Yusuf kare prizma kutu (x cm kenar, 50 cm yükseklik), Mustafa dikdörtgen prizma kutu kullanıyor. Hacim farkı?"
-→ cizim_pisinilir: false
-→ neden: "Hacim hesaplama sorusu, değişken (x cm) içeriyor, 3D karşılaştırma çizilemez."
+SORU: "ABC ikizkenar üçgeninde |AB|=|AC|=10 cm, |BC|=12 cm. A'dan BC'ye yükseklik h kaç cm?"
 
-Soru: "Bir kutunun hacmi 1000 cm³. Kenar uzunlukları?"
-→ cizim_pisinilir: false
-→ neden: "Hacim hesaplama sorusu, kenarlar bilinmiyor."
+DÜŞÜNCE SÜRECİ:
+"İkizkenar üçgen var. Eşit kenarlar AB ve AC (10'ar cm), taban BC (12 cm).
+Şekli zihnimde canlandırıyorum: Taban BC yatay olmalı, A tepesi tam ortada yukarıda.
+İkizkenar olduğu için A noktası, BC'nin tam ortasının üzerinde.
+BC = 12 cm ise B=(-6,0), C=(6,0), A=(0,h) olmalı.
+Pisagor: h² + 6² = 10² → h = 8... AMA BU CEVAP! Göstermeyeceğim.
+A'yı yaklaşık (0, 8) civarına koyayım ama etikette 'h = ?' yazacağım.
+Yükseklik AH çizgisi, H noktası BC'nin ortası (0,0).
+H noktasında dik açı işareti olacak."
 
-ÖRNEK - ÇİZİM YAPILMAYACAK (DEĞİŞKEN):
-Soru: "Kenar uzunluğu x cm olan karenin alanı"
-→ cizim_pisinilir: false
-→ neden: "Değişken (x) içeriyor, somut boyut yok."
+JSON ÇIKTI:
+{
+  "cizim_pisinilir": true,
+  "dusunce_sureci": "İkizkenar üçgen, taban yatay, tepe ortada yukarıda, yükseklik dik iniyor",
+  "sekil_tipi": "ucgen",
+  "alt_tip": "ikizkenar",
+  "noktalar": [
+    {"isim": "A", "x": 0, "y": 7, "konum_aciklama": "Tepe, ortada yukarıda"},
+    {"isim": "B", "x": -6, "y": 0, "konum_aciklama": "Sol alt köşe"},
+    {"isim": "C", "x": 6, "y": 0, "konum_aciklama": "Sağ alt köşe"},
+    {"isim": "H", "x": 0, "y": 0, "konum_aciklama": "Yükseklik ayağı, BC ortası"}
+  ],
+  "kenarlar": [
+    {"baslangic": "A", "bitis": "B", "uzunluk": "10 cm", "goster_uzunluk": true},
+    {"baslangic": "A", "bitis": "C", "uzunluk": "10 cm", "goster_uzunluk": true},
+    {"baslangic": "B", "bitis": "C", "uzunluk": "12 cm", "goster_uzunluk": true}
+  ],
+  "ozel_cizgiler": [
+    {"tip": "yukseklik", "baslangic": "A", "bitis": "H", "kenar_uzerinde": "BC", "etiket": "h = ?", "dik_aci_goster": true}
+  ]
+}
 
-ÖRNEK - ÇİZİM YAPILMAYACAK (FORMÜL):
-Soru: "Bir dışbükey çokgenin köşegen sayısı, köşe sayısının 2 katına eşittir."
-→ cizim_pisinilir: false
-→ neden: "Çokgenin köşe sayısı hesaplanacak, şekil çizilemez."
+---
 
-ÖRNEK - ÇİZİM YAPILACAK (SOMUT DEĞERLER):
-Soru: "ABC üçgeninde AB=6 cm, BC=8 cm, açı B=90°. AC uzunluğu?"
-→ cizim_pisinilir: true
-→ sekil_tipi: "ucgen", alt_tip: "dik"
-→ Somut sayısal değerler var, değişken yok!
+SORU: "Bir kutunun hacmi x³ cm³. Kenar uzunluğu 2x olursa hacim kaç olur?"
 
-NOT: 
-- "x cm", "h metre" gibi DEĞİŞKEN varsa → ÇİZME!
-- "prizma hacmi", "kutu kapasitesi" → ÇİZME!
-- Sadece SABİT SAYISAL değerlerle tanımlanan şekilleri çiz
-- Koordinatlar -15 ile 15 arasında olsun
+DÜŞÜNCE SÜRECİ:
+"Bu bir hacim hesaplama sorusu. Değişken 'x' var. Somut boyut yok.
+3D kutu çizimi zaten zor ve bu soru cebirsel.
+ÇİZİM YAPILMAYACAK."
+
+JSON ÇIKTI:
+{
+  "cizim_pisinilir": false,
+  "neden": "Değişken (x) içeren hacim hesaplama sorusu. Somut boyut yok, çizim anlamsız."
+}
+
+═══════════════════════════════════════════════════════════════
+
+Şimdi aşağıdaki soruyu analiz et. Önce düşün, şekli zihninde canlandır, sonra JSON çıktı ver.
 
 SORU:
 """
