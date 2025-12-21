@@ -3,8 +3,8 @@ name: Eğitim Gündem Botu
 on:
   schedule:
     # Her gün sabah 07:00 ve akşam 18:00 (Türkiye saati UTC+3)
-    - cron: '0 4 * * *'   # 07:00 TR
-    - cron: '0 15 * * *'  # 18:00 TR
+    - cron: '0 5 * * *'   # 08:00 TR
+  
   workflow_dispatch:  # Manuel çalıştırma
 
 jobs:
