@@ -252,6 +252,12 @@ DESTEKLENEN ŞEKİL TİPLERİ:
 - cember: Çember/Daire
 - analitik: Koordinat düzleminde nokta/doğru
 - cokgen: Çokgen (beşgen, altıgen, vb.)
+- kati_cisim: 3D katı cisimler (alt_tip belirt: kup, prizma, silindir, koni, kure, piramit)
+
+ÖNEMLİ: Katı cisimler için:
+- Soruda küp, prizma, silindir, koni, küre, piramit geçiyorsa → sekil_tipi: "kati_cisim"
+- alt_tip alanına cisim türünü yaz: "kup", "prizma", "silindir", "koni", "kure", "piramit"
+- Boyutları kenarlar listesinde belirt (uzunluk, genişlik, yükseklik, yarıçap vb.)
 
 JSON ÇIKTI FORMATI:
 {
@@ -369,6 +375,7 @@ class GeometryRenderer:
         """Analiz sonucuna göre görsel oluştur"""
         try:
             sekil_tipi = analysis.get('sekil_tipi', 'ucgen')
+            alt_tip = analysis.get('alt_tip', 'genel')
             
             if sekil_tipi == 'ucgen':
                 return self._render_triangle(analysis)
@@ -380,12 +387,16 @@ class GeometryRenderer:
                 return self._render_analytic(analysis)
             elif sekil_tipi == 'cokgen':
                 return self._render_polygon(analysis)
+            elif sekil_tipi == 'kati_cisim' or alt_tip in ['prizma', 'piramit', 'silindir', 'koni', 'kure', 'kup']:
+                return self._render_3d_solid(analysis)
             else:
                 logger.warning(f"Bilinmeyen şekil tipi: {sekil_tipi}")
-                return self._render_triangle(analysis)  # Varsayılan
+                return self._render_triangle(analysis)
                 
         except Exception as e:
             logger.error(f"Çizim hatası: {e}")
+            import traceback
+            traceback.print_exc()
             return None
     
     def _create_figure(self) -> tuple:
@@ -534,18 +545,26 @@ class GeometryRenderer:
                        fontweight='bold', ha='center', va='center')
     
     def _render_triangle(self, analysis: Dict) -> bytes:
-        """Üçgen çiz"""
+        """Üçgen çiz - tek veya çoklu üçgen desteği"""
         fig, ax = self._create_figure()
         
         coords = self._get_point_coords(analysis)
         noktalar = list(coords.keys())
+        
+        # Ek etiketleri kontrol et - birden fazla üçgen var mı?
+        ek_etiketler = analysis.get('ek_etiketler', [])
+        coklu_ucgen = any('üçgen' in str(e.get('metin', '')).lower() for e in ek_etiketler)
         
         if len(noktalar) < 3:
             logger.warning("Üçgen için en az 3 nokta gerekli")
             plt.close(fig)
             return None
         
-        # İlk 3 noktayı al
+        # Birden fazla üçgen varsa yan yana çiz
+        if len(noktalar) >= 6 or coklu_ucgen:
+            return self._render_multiple_triangles(analysis)
+        
+        # Tek üçgen çizimi
         A, B, C = noktalar[0], noktalar[1], noktalar[2]
         pA, pB, pC = coords[A], coords[B], coords[C]
         
@@ -568,7 +587,6 @@ class GeometryRenderer:
         for aci in analysis.get('acilar', []):
             kose = aci.get('kose')
             if kose in coords and aci.get('goster', True):
-                # Köşenin diğer iki noktasını bul
                 diger = [n for n in [A, B, C] if n != kose]
                 if len(diger) >= 2:
                     if aci.get('dik_aci', False):
@@ -584,16 +602,13 @@ class GeometryRenderer:
             bas = ozel.get('baslangic')
             
             if bas in coords:
-                # Bitiş koordinatı
                 if 'bitis_koordinat' in ozel:
                     bit_coord = tuple(ozel['bitis_koordinat'])
                 elif ozel.get('bitis') in coords:
                     bit_coord = coords[ozel['bitis']]
                 else:
-                    # Yükseklik için hesapla
                     kenar = ozel.get('kenar_uzerinde', '')
                     if len(kenar) == 2 and kenar[0] in coords and kenar[1] in coords:
-                        # Sympy ile yükseklik ayağını hesapla
                         p_bas = Point(coords[bas])
                         p_k1 = Point(coords[kenar[0]])
                         p_k2 = Point(coords[kenar[1]])
@@ -607,36 +622,41 @@ class GeometryRenderer:
                     else:
                         continue
                 
-                # Çizgi çiz
                 renk = Config.COLORS['highlight'] if tip == 'yukseklik' else Config.COLORS['auxiliary']
                 stil = '-' if tip == 'yukseklik' else '--'
                 self._draw_line(ax, coords[bas], bit_coord, color=renk, linestyle=stil, linewidth=2)
                 
-                # Etiket
                 etiket = ozel.get('etiket', '')
                 if etiket:
                     self._draw_length_label(ax, coords[bas], bit_coord, etiket, color=renk)
                 
-                # Dik açı işareti (yükseklik için)
                 if tip == 'yukseklik':
-                    # En yakın köşeyi bul
                     kenar = ozel.get('kenar_uzerinde', '')
                     if len(kenar) == 2:
                         self._draw_right_angle(ax, bit_coord, coords[bas], coords[kenar[0]])
                 
-                # Bitiş noktası
                 bit_isim = ozel.get('bitis', 'H')
                 if bit_isim not in coords:
                     self._draw_point(ax, bit_coord[0], bit_coord[1], bit_isim, 
                                    color=renk, size=60, offset=(5, -15))
         
-        # Ana noktalar
-        point_colors = [Config.COLORS['highlight'], '#16a34a', '#2563eb']
-        offsets = [(0, 10), (-15, -10), (10, -10)]
-        
+        # Ana noktalar - daha iyi offset hesaplama
         for i, (isim, coord) in enumerate([(A, pA), (B, pB), (C, pC)]):
+            # Üçgenin merkezini hesapla
+            center_x = (pA[0] + pB[0] + pC[0]) / 3
+            center_y = (pA[1] + pB[1] + pC[1]) / 3
+            
+            # Noktadan merkeze vektör (ters yönde offset)
+            dx = coord[0] - center_x
+            dy = coord[1] - center_y
+            norm = np.sqrt(dx**2 + dy**2)
+            if norm > 0:
+                offset = (int(dx/norm * 15), int(dy/norm * 15))
+            else:
+                offset = (5, 5)
+            
+            point_colors = [Config.COLORS['highlight'], '#16a34a', '#2563eb']
             color = point_colors[i % len(point_colors)]
-            offset = offsets[i % len(offsets)]
             self._draw_point(ax, coord[0], coord[1], isim, color=color, offset=offset)
         
         # Ek etiketler
@@ -644,16 +664,15 @@ class GeometryRenderer:
             metin = ek.get('metin', '')
             konum = ek.get('konum', 'sag_ust')
             
-            # Konum belirleme
             xlim = ax.get_xlim()
             ylim = ax.get_ylim()
             
             if konum == 'sag_ust':
                 x, y = xlim[1] * 0.7, ylim[1] * 0.9
             elif konum == 'sol_ust':
-                x, y = xlim[0] * 0.7, ylim[1] * 0.9
+                x, y = xlim[0] + (xlim[1]-xlim[0]) * 0.2, ylim[1] * 0.9
             else:
-                x, y = 0, ylim[1] * 0.9
+                x, y = (xlim[0] + xlim[1]) / 2, ylim[1] * 0.9
             
             ax.annotate(metin, (x, y), fontsize=12, fontweight='bold',
                        color=Config.COLORS['text'],
@@ -662,8 +681,115 @@ class GeometryRenderer:
         
         return self._finalize_figure(fig, ax)
     
+    def _render_multiple_triangles(self, analysis: Dict) -> bytes:
+        """Birden fazla üçgen çiz (yan yana)"""
+        fig, ax = self._create_figure()
+        
+        coords = self._get_point_coords(analysis)
+        ek_etiketler = analysis.get('ek_etiketler', [])
+        
+        # Üçgen isimlerini bul
+        ucgen_isimleri = []
+        for ek in ek_etiketler:
+            metin = ek.get('metin', '')
+            if 'üçgen' in metin.lower():
+                ucgen_isimleri.append(metin)
+        
+        if len(ucgen_isimleri) < 2:
+            ucgen_isimleri = ['Üçgen 1', 'Üçgen 2']
+        
+        # İki üçgen için koordinatlar
+        # Sol üçgen
+        offset1 = -4
+        t1_coords = {
+            'A1': (offset1 + 2, 4),
+            'B1': (offset1, 0),
+            'C1': (offset1 + 4, 0)
+        }
+        
+        # Sağ üçgen
+        offset2 = 4
+        t2_coords = {
+            'A2': (offset2 + 2, 4),
+            'B2': (offset2, 0),
+            'C2': (offset2 + 4, 0)
+        }
+        
+        colors = [Config.COLORS['primary'], Config.COLORS['secondary']]
+        
+        # Kenar bilgilerini ayır
+        kenarlar = analysis.get('kenarlar', [])
+        
+        # Sol üçgen çiz
+        t1 = patches.Polygon([t1_coords['A1'], t1_coords['B1'], t1_coords['C1']], 
+                            fill=True, facecolor=colors[0], alpha=0.1,
+                            edgecolor=colors[0], linewidth=2.5)
+        ax.add_patch(t1)
+        
+        # Sağ üçgen çiz
+        t2 = patches.Polygon([t2_coords['A2'], t2_coords['B2'], t2_coords['C2']], 
+                            fill=True, facecolor=colors[1], alpha=0.1,
+                            edgecolor=colors[1], linewidth=2.5)
+        ax.add_patch(t2)
+        
+        # Üçgen başlıkları
+        ax.annotate(ucgen_isimleri[0], (offset1 + 2, 5), fontsize=11, fontweight='bold',
+                   color=colors[0], ha='center',
+                   bbox=dict(boxstyle='round,pad=0.3', facecolor='white', edgecolor=colors[0]))
+        
+        ax.annotate(ucgen_isimleri[1], (offset2 + 2, 5), fontsize=11, fontweight='bold',
+                   color=colors[1], ha='center',
+                   bbox=dict(boxstyle='round,pad=0.3', facecolor='white', edgecolor=colors[1]))
+        
+        # Kenar uzunlukları - ilk yarısı sol üçgene, ikinci yarısı sağ üçgene
+        mid = len(kenarlar) // 2 if len(kenarlar) > 1 else len(kenarlar)
+        
+        # Sol üçgen kenarları
+        if mid > 0 and kenarlar:
+            # Taban
+            uzunluk = kenarlar[0].get('uzunluk', '')
+            if uzunluk:
+                self._draw_length_label(ax, t1_coords['B1'], t1_coords['C1'], uzunluk, color=colors[0])
+        
+        if mid > 1 and len(kenarlar) > 1:
+            # Yükseklik
+            uzunluk = kenarlar[1].get('uzunluk', '')
+            if uzunluk:
+                # Yükseklik çiz
+                h_foot = (offset1 + 2, 0)
+                self._draw_line(ax, t1_coords['A1'], h_foot, color=Config.COLORS['highlight'], linewidth=2)
+                self._draw_length_label(ax, t1_coords['A1'], h_foot, uzunluk, color=Config.COLORS['highlight'])
+                self._draw_right_angle(ax, h_foot, t1_coords['A1'], t1_coords['B1'], size=0.3)
+        
+        # Sağ üçgen kenarları
+        if len(kenarlar) > mid:
+            uzunluk = kenarlar[mid].get('uzunluk', '') if len(kenarlar) > mid else ''
+            if uzunluk:
+                self._draw_length_label(ax, t2_coords['B2'], t2_coords['C2'], uzunluk, color=colors[1])
+        
+        # Sağ üçgen yüksekliği (bilinmeyen)
+        h_foot2 = (offset2 + 2, 0)
+        self._draw_line(ax, t2_coords['A2'], h_foot2, color=Config.COLORS['highlight'], 
+                       linewidth=2, linestyle='--')
+        self._draw_length_label(ax, t2_coords['A2'], h_foot2, 'h = ?', color=Config.COLORS['unknown'])
+        self._draw_right_angle(ax, h_foot2, t2_coords['A2'], t2_coords['B2'], size=0.3, 
+                              color=Config.COLORS['highlight'])
+        
+        # Noktalar
+        for isim, coord in t1_coords.items():
+            self._draw_point(ax, coord[0], coord[1], isim[0], color=colors[0], size=60)
+        
+        for isim, coord in t2_coords.items():
+            self._draw_point(ax, coord[0], coord[1], isim[0], color=colors[1], size=60)
+        
+        # H noktaları
+        self._draw_point(ax, offset1 + 2, 0, 'H', color=Config.COLORS['highlight'], size=50, offset=(5, -15))
+        self._draw_point(ax, offset2 + 2, 0, 'H', color=Config.COLORS['highlight'], size=50, offset=(5, -15))
+        
+        return self._finalize_figure(fig, ax)
+    
     def _render_quadrilateral(self, analysis: Dict) -> bytes:
-        """Dörtgen çiz"""
+        """Dörtgen çiz - geliştirilmiş açı gösterimi"""
         fig, ax = self._create_figure()
         
         coords = self._get_point_coords(analysis)
@@ -671,7 +797,6 @@ class GeometryRenderer:
         
         if len(noktalar) < 4:
             logger.warning("Dörtgen için en az 4 nokta gerekli")
-            # 4'ten az varsa üçgen olarak çiz
             if len(noktalar) >= 3:
                 return self._render_triangle(analysis)
             plt.close(fig)
@@ -682,7 +807,7 @@ class GeometryRenderer:
         
         # Dörtgen çiz
         quad = patches.Polygon(points, fill=True,
-                              facecolor=Config.COLORS['secondary'], alpha=0.1,
+                              facecolor=Config.COLORS['secondary'], alpha=0.15,
                               edgecolor=Config.COLORS['secondary'], linewidth=2.5)
         ax.add_patch(quad)
         
@@ -696,32 +821,86 @@ class GeometryRenderer:
                     self._draw_length_label(ax, coords[bas], coords[bit], uzunluk,
                                           color=Config.COLORS['secondary'])
         
-        # Açılar
+        # Açılar - geliştirilmiş konumlandırma
         for aci in analysis.get('acilar', []):
             kose = aci.get('kose')
             if kose in coords and aci.get('goster', True):
-                # Köşenin komşu noktalarını bul
                 idx = noktalar.index(kose)
                 onceki = noktalar[(idx - 1) % 4]
                 sonraki = noktalar[(idx + 1) % 4]
                 
                 if aci.get('dik_aci', False):
                     self._draw_right_angle(ax, coords[kose], coords[onceki], coords[sonraki],
-                                          color=Config.COLORS['secondary'])
+                                          color=Config.COLORS['secondary'], size=0.5)
                 else:
                     deger = aci.get('deger', '')
-                    self._draw_angle_arc(ax, coords[kose], coords[onceki], coords[sonraki],
-                                        label=deger, color=Config.COLORS['angle'])
+                    # Açı yayı çiz - daha büyük radius
+                    self._draw_angle_arc_improved(ax, coords[kose], coords[onceki], coords[sonraki],
+                                                 radius=0.7, label=deger)
         
-        # Noktalar
+        # Noktalar - merkeze göre offset hesapla
+        center_x = sum(p[0] for p in points) / 4
+        center_y = sum(p[1] for p in points) / 4
+        
         for i, isim in enumerate(noktalar[:4]):
             coord = coords[isim]
-            offset_options = [(0, 10), (-15, 5), (0, -15), (15, 5)]
+            # Merkezden uzağa doğru offset
+            dx = coord[0] - center_x
+            dy = coord[1] - center_y
+            norm = np.sqrt(dx**2 + dy**2)
+            if norm > 0:
+                offset = (int(dx/norm * 18), int(dy/norm * 18))
+            else:
+                offset = (10, 10)
+            
             self._draw_point(ax, coord[0], coord[1], isim,
-                           color=Config.COLORS['secondary'],
-                           offset=offset_options[i % 4])
+                           color=Config.COLORS['secondary'], offset=offset)
         
         return self._finalize_figure(fig, ax)
+    
+    def _draw_angle_arc_improved(self, ax, vertex: tuple, p1: tuple, p2: tuple,
+                                  radius: float = 0.6, color: str = None, label: str = None):
+        """Geliştirilmiş açı yayı - etiket köşeye yakın"""
+        color = color or Config.COLORS['angle']
+        
+        vx, vy = vertex
+        
+        # Açıları hesapla
+        angle1 = np.degrees(np.arctan2(p1[1] - vy, p1[0] - vx))
+        angle2 = np.degrees(np.arctan2(p2[1] - vy, p2[0] - vx))
+        
+        # Açıları normalize et
+        if angle1 < 0:
+            angle1 += 360
+        if angle2 < 0:
+            angle2 += 360
+        
+        # Küçük açıyı bul
+        diff = abs(angle2 - angle1)
+        if diff > 180:
+            diff = 360 - diff
+            if angle1 < angle2:
+                angle1, angle2 = angle2, angle1
+        else:
+            if angle1 > angle2:
+                angle1, angle2 = angle2, angle1
+        
+        arc = Arc((vx, vy), radius*2, radius*2, angle=0,
+                 theta1=angle1, theta2=angle2, color=color, linewidth=2.5, zorder=4)
+        ax.add_patch(arc)
+        
+        if label:
+            # Etiket açının ortasında, köşeye yakın
+            mid_angle = np.radians((angle1 + angle2) / 2)
+            # Radius'un biraz dışında
+            label_radius = radius * 1.8
+            lx = vx + label_radius * np.cos(mid_angle)
+            ly = vy + label_radius * np.sin(mid_angle)
+            
+            ax.annotate(label, (lx, ly), fontsize=12, color=color,
+                       fontweight='bold', ha='center', va='center',
+                       bbox=dict(boxstyle='round,pad=0.2', facecolor='white',
+                                edgecolor=color, alpha=0.9))
     
     def _render_circle(self, analysis: Dict) -> bytes:
         """Çember/Daire çiz"""
@@ -862,6 +1041,378 @@ class GeometryRenderer:
                 uzunluk = kenar.get('uzunluk', '')
                 if uzunluk:
                     self._draw_length_label(ax, coords[bas], coords[bit], uzunluk)
+        
+        return self._finalize_figure(fig, ax)
+    
+    def _render_3d_solid(self, analysis: Dict) -> bytes:
+        """3D katı cisim çiz (izometrik görünüm)"""
+        fig, ax = self._create_figure()
+        
+        alt_tip = analysis.get('alt_tip', 'kup').lower()
+        
+        # İzometrik açılar
+        iso_angle = np.radians(30)  # 30 derece
+        
+        if alt_tip in ['kup', 'küp', 'kare_prizma']:
+            return self._render_cube(analysis, fig, ax)
+        elif alt_tip in ['dikdortgen_prizma', 'prizma']:
+            return self._render_rectangular_prism(analysis, fig, ax)
+        elif alt_tip in ['silindir', 'cylinder']:
+            return self._render_cylinder(analysis, fig, ax)
+        elif alt_tip in ['koni', 'cone']:
+            return self._render_cone(analysis, fig, ax)
+        elif alt_tip in ['kure', 'küre', 'sphere']:
+            return self._render_sphere(analysis, fig, ax)
+        elif alt_tip in ['piramit', 'pyramid']:
+            return self._render_pyramid(analysis, fig, ax)
+        else:
+            # Varsayılan: dikdörtgen prizma
+            return self._render_rectangular_prism(analysis, fig, ax)
+    
+    def _render_cube(self, analysis: Dict, fig, ax) -> bytes:
+        """Küp çiz - izometrik"""
+        # Küp boyutu
+        kenarlar = analysis.get('kenarlar', [])
+        a = 4  # Varsayılan kenar
+        if kenarlar:
+            try:
+                a_str = kenarlar[0].get('uzunluk', '4')
+                a = float(''.join(c for c in a_str if c.isdigit() or c == '.') or '4')
+                a = min(a, 6)  # Maksimum 6 birim
+            except:
+                a = 4
+        
+        # İzometrik dönüşüm
+        def iso(x, y, z):
+            iso_x = (x - y) * np.cos(np.radians(30))
+            iso_y = (x + y) * np.sin(np.radians(30)) + z
+            return iso_x, iso_y
+        
+        # Küp köşeleri
+        vertices = {
+            'A': iso(0, 0, 0),      # Ön-sol-alt
+            'B': iso(a, 0, 0),      # Ön-sağ-alt
+            'C': iso(a, a, 0),      # Arka-sağ-alt
+            'D': iso(0, a, 0),      # Arka-sol-alt
+            'E': iso(0, 0, a),      # Ön-sol-üst
+            'F': iso(a, 0, a),      # Ön-sağ-üst
+            'G': iso(a, a, a),      # Arka-sağ-üst
+            'H': iso(0, a, a),      # Arka-sol-üst
+        }
+        
+        # Arka yüzeyler (önce çiz, silik)
+        back_faces = [
+            [vertices['D'], vertices['C'], vertices['G'], vertices['H']],  # Arka yüz
+            [vertices['A'], vertices['D'], vertices['H'], vertices['E']],  # Sol yüz
+            [vertices['E'], vertices['F'], vertices['G'], vertices['H']],  # Üst yüz
+        ]
+        
+        for face in back_faces:
+            poly = patches.Polygon(face, fill=True, facecolor='#e0f2fe', 
+                                  edgecolor='#0284c7', linewidth=1.5, alpha=0.5)
+            ax.add_patch(poly)
+        
+        # Ön yüzeyler (sonra çiz, belirgin)
+        front_faces = [
+            [vertices['A'], vertices['B'], vertices['F'], vertices['E']],  # Ön yüz
+            [vertices['B'], vertices['C'], vertices['G'], vertices['F']],  # Sağ yüz
+            [vertices['A'], vertices['B'], vertices['C'], vertices['D']],  # Alt yüz
+        ]
+        
+        colors = ['#dbeafe', '#bfdbfe', '#93c5fd']
+        for i, face in enumerate(front_faces):
+            poly = patches.Polygon(face, fill=True, facecolor=colors[i % 3], 
+                                  edgecolor='#1d4ed8', linewidth=2, alpha=0.8)
+            ax.add_patch(poly)
+        
+        # Görünür kenarlar (kalın)
+        visible_edges = [
+            ('A', 'B'), ('B', 'C'), ('B', 'F'),
+            ('A', 'E'), ('E', 'F'), ('F', 'G'),
+            ('E', 'H'), ('A', 'D')
+        ]
+        
+        for v1, v2 in visible_edges:
+            ax.plot([vertices[v1][0], vertices[v2][0]], 
+                   [vertices[v1][1], vertices[v2][1]], 
+                   color='#1d4ed8', linewidth=2.5, zorder=5)
+        
+        # Gizli kenarlar (kesikli)
+        hidden_edges = [
+            ('D', 'C'), ('D', 'H'), ('C', 'G'), ('H', 'G')
+        ]
+        
+        for v1, v2 in hidden_edges:
+            ax.plot([vertices[v1][0], vertices[v2][0]], 
+                   [vertices[v1][1], vertices[v2][1]], 
+                   color='#64748b', linewidth=1, linestyle='--', zorder=3)
+        
+        # Köşe noktaları ve etiketleri
+        visible_vertices = ['A', 'B', 'C', 'E', 'F', 'G']
+        for v in visible_vertices:
+            ax.scatter([vertices[v][0]], [vertices[v][1]], c='#1d4ed8', s=50, zorder=6)
+            
+            # Etiket offset
+            if v in ['E', 'F', 'G', 'H']:
+                offset = (3, 8)
+            else:
+                offset = (3, -12)
+            
+            ax.annotate(v, vertices[v], xytext=offset, textcoords='offset points',
+                       fontsize=12, fontweight='bold', color='#1d4ed8')
+        
+        # Kenar uzunluğu etiketi
+        kenar_str = kenarlar[0].get('uzunluk', f'{a} cm') if kenarlar else f'{a} cm'
+        mid_x = (vertices['A'][0] + vertices['B'][0]) / 2
+        mid_y = (vertices['A'][1] + vertices['B'][1]) / 2 - 0.5
+        ax.annotate(kenar_str, (mid_x, mid_y), fontsize=11, fontweight='bold',
+                   color='#1e40af', ha='center',
+                   bbox=dict(boxstyle='round,pad=0.3', facecolor='white', edgecolor='#3b82f6'))
+        
+        ax.set_aspect('equal')
+        ax.axis('off')
+        
+        return self._finalize_figure(fig, ax)
+    
+    def _render_rectangular_prism(self, analysis: Dict, fig, ax) -> bytes:
+        """Dikdörtgenler prizması çiz"""
+        kenarlar = analysis.get('kenarlar', [])
+        
+        # Boyutlar
+        a, b, c = 5, 3, 4  # Varsayılan
+        
+        if len(kenarlar) >= 3:
+            try:
+                dims = []
+                for k in kenarlar[:3]:
+                    val_str = k.get('uzunluk', '4')
+                    val = float(''.join(ch for ch in val_str if ch.isdigit() or ch == '.') or '4')
+                    dims.append(min(val, 6))
+                a, b, c = dims[0], dims[1], dims[2]
+            except:
+                pass
+        
+        def iso(x, y, z):
+            iso_x = (x - y) * np.cos(np.radians(30))
+            iso_y = (x + y) * np.sin(np.radians(30)) + z
+            return iso_x, iso_y
+        
+        vertices = {
+            'A': iso(0, 0, 0), 'B': iso(a, 0, 0), 'C': iso(a, b, 0), 'D': iso(0, b, 0),
+            'E': iso(0, 0, c), 'F': iso(a, 0, c), 'G': iso(a, b, c), 'H': iso(0, b, c),
+        }
+        
+        # Yüzeyler
+        faces = [
+            ([vertices['A'], vertices['B'], vertices['F'], vertices['E']], '#dbeafe'),
+            ([vertices['B'], vertices['C'], vertices['G'], vertices['F']], '#bfdbfe'),
+            ([vertices['E'], vertices['F'], vertices['G'], vertices['H']], '#93c5fd'),
+        ]
+        
+        for face, color in faces:
+            poly = patches.Polygon(face, fill=True, facecolor=color, 
+                                  edgecolor='#1d4ed8', linewidth=2, alpha=0.8)
+            ax.add_patch(poly)
+        
+        # Gizli kenarlar
+        for v1, v2 in [('D', 'C'), ('D', 'H'), ('D', 'A')]:
+            ax.plot([vertices[v1][0], vertices[v2][0]], 
+                   [vertices[v1][1], vertices[v2][1]], 
+                   color='#94a3b8', linewidth=1, linestyle='--')
+        
+        # Boyut etiketleri
+        labels = [
+            (vertices['A'], vertices['B'], f'{a} cm'),
+            (vertices['B'], vertices['C'], f'{b} cm'),
+            (vertices['A'], vertices['E'], f'{c} cm'),
+        ]
+        
+        for p1, p2, label in labels:
+            mx, my = (p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2
+            ax.annotate(label, (mx, my), fontsize=10, fontweight='bold',
+                       color='#1e40af', ha='center',
+                       bbox=dict(boxstyle='round,pad=0.2', facecolor='white', edgecolor='#3b82f6', alpha=0.9))
+        
+        ax.set_aspect('equal')
+        ax.axis('off')
+        
+        return self._finalize_figure(fig, ax)
+    
+    def _render_cylinder(self, analysis: Dict, fig, ax) -> bytes:
+        """Silindir çiz"""
+        kenarlar = analysis.get('kenarlar', [])
+        
+        r, h = 2, 4  # Varsayılan yarıçap ve yükseklik
+        
+        # Elips parametreleri (üstten bakış için)
+        theta = np.linspace(0, 2*np.pi, 100)
+        
+        # Alt elips
+        x_bottom = r * np.cos(theta)
+        y_bottom = r * 0.3 * np.sin(theta)  # Perspektif için sıkıştırılmış
+        
+        # Üst elips
+        x_top = x_bottom
+        y_top = y_bottom + h
+        
+        # Silindir gövdesi (dolu)
+        ax.fill_between(x_bottom, y_bottom, y_top, alpha=0.3, color='#3b82f6')
+        
+        # Alt elips (ön yarısı görünür)
+        ax.plot(x_bottom, y_bottom, color='#1d4ed8', linewidth=2)
+        
+        # Üst elips
+        ax.plot(x_top, y_top, color='#1d4ed8', linewidth=2)
+        ax.fill(x_top, y_top, alpha=0.5, color='#93c5fd')
+        
+        # Yan kenarlar
+        ax.plot([-r, -r], [0, h], color='#1d4ed8', linewidth=2)
+        ax.plot([r, r], [0, h], color='#1d4ed8', linewidth=2)
+        
+        # Yarıçap çizgisi
+        ax.plot([0, r], [h, h], color='#ef4444', linewidth=2, linestyle='--')
+        ax.annotate('r', (r/2, h + 0.3), fontsize=12, fontweight='bold', color='#ef4444', ha='center')
+        
+        # Yükseklik
+        ax.annotate('', xy=(r + 0.5, h), xytext=(r + 0.5, 0),
+                   arrowprops=dict(arrowstyle='<->', color='#22c55e', lw=2))
+        ax.annotate('h', (r + 0.8, h/2), fontsize=12, fontweight='bold', color='#22c55e')
+        
+        # Kenar değerleri
+        if kenarlar:
+            for k in kenarlar:
+                uzunluk = k.get('uzunluk', '')
+                if 'r' in k.get('etiket', '').lower() or 'yarıçap' in k.get('etiket', '').lower():
+                    ax.annotate(uzunluk, (r/2, h + 0.6), fontsize=11, fontweight='bold',
+                               color='#ef4444', ha='center',
+                               bbox=dict(boxstyle='round,pad=0.2', facecolor='white', edgecolor='#ef4444'))
+        
+        ax.set_aspect('equal')
+        ax.axis('off')
+        
+        return self._finalize_figure(fig, ax)
+    
+    def _render_cone(self, analysis: Dict, fig, ax) -> bytes:
+        """Koni çiz"""
+        r, h = 2, 4
+        
+        theta = np.linspace(0, 2*np.pi, 100)
+        x_base = r * np.cos(theta)
+        y_base = r * 0.3 * np.sin(theta)
+        
+        # Taban elipsi
+        ax.plot(x_base, y_base, color='#1d4ed8', linewidth=2)
+        ax.fill(x_base, y_base, alpha=0.3, color='#93c5fd')
+        
+        # Koni yüzeyi
+        ax.fill([0, -r, r, 0], [h, 0, 0, h], alpha=0.4, color='#3b82f6')
+        ax.plot([0, -r], [h, 0], color='#1d4ed8', linewidth=2)
+        ax.plot([0, r], [h, 0], color='#1d4ed8', linewidth=2)
+        
+        # Tepe noktası
+        ax.scatter([0], [h], c='#ef4444', s=80, zorder=5)
+        ax.annotate('T', (0.2, h + 0.2), fontsize=12, fontweight='bold', color='#ef4444')
+        
+        # Yükseklik (kesikli)
+        ax.plot([0, 0], [0, h], color='#22c55e', linewidth=2, linestyle='--')
+        ax.annotate('h', (0.3, h/2), fontsize=12, fontweight='bold', color='#22c55e')
+        
+        # Yarıçap
+        ax.plot([0, r], [0, 0], color='#f59e0b', linewidth=2)
+        ax.annotate('r', (r/2, -0.4), fontsize=12, fontweight='bold', color='#f59e0b', ha='center')
+        
+        ax.set_aspect('equal')
+        ax.axis('off')
+        
+        return self._finalize_figure(fig, ax)
+    
+    def _render_sphere(self, analysis: Dict, fig, ax) -> bytes:
+        """Küre çiz"""
+        r = 3
+        
+        # Ana daire
+        theta = np.linspace(0, 2*np.pi, 100)
+        x = r * np.cos(theta)
+        y = r * np.sin(theta)
+        
+        ax.plot(x, y, color='#1d4ed8', linewidth=2.5)
+        ax.fill(x, y, alpha=0.2, color='#3b82f6')
+        
+        # Yatay elips (ekvator)
+        x_eq = r * np.cos(theta)
+        y_eq = r * 0.3 * np.sin(theta)
+        ax.plot(x_eq, y_eq, color='#1d4ed8', linewidth=1.5, linestyle='--')
+        
+        # Dikey elips
+        y_vert = r * np.cos(theta)
+        x_vert = r * 0.3 * np.sin(theta)
+        ax.plot(x_vert, y_vert, color='#1d4ed8', linewidth=1.5, linestyle='--')
+        
+        # Merkez
+        ax.scatter([0], [0], c='#ef4444', s=60, zorder=5)
+        ax.annotate('O', (0.3, 0.3), fontsize=12, fontweight='bold', color='#ef4444')
+        
+        # Yarıçap
+        ax.plot([0, r], [0, 0], color='#22c55e', linewidth=2)
+        ax.annotate('r', (r/2, 0.4), fontsize=12, fontweight='bold', color='#22c55e', ha='center')
+        
+        ax.set_aspect('equal')
+        ax.axis('off')
+        
+        return self._finalize_figure(fig, ax)
+    
+    def _render_pyramid(self, analysis: Dict, fig, ax) -> bytes:
+        """Piramit çiz (kare tabanlı)"""
+        a, h = 4, 5  # Taban kenarı ve yükseklik
+        
+        def iso(x, y, z):
+            iso_x = (x - y) * np.cos(np.radians(30))
+            iso_y = (x + y) * np.sin(np.radians(30)) + z
+            return iso_x, iso_y
+        
+        # Taban köşeleri
+        A = iso(0, 0, 0)
+        B = iso(a, 0, 0)
+        C = iso(a, a, 0)
+        D = iso(0, a, 0)
+        
+        # Tepe noktası
+        T = iso(a/2, a/2, h)
+        
+        # Taban
+        base = patches.Polygon([A, B, C, D], fill=True, facecolor='#93c5fd', 
+                              edgecolor='#1d4ed8', linewidth=2, alpha=0.5)
+        ax.add_patch(base)
+        
+        # Görünür yan yüzler
+        face1 = patches.Polygon([A, B, T], fill=True, facecolor='#dbeafe', 
+                               edgecolor='#1d4ed8', linewidth=2, alpha=0.7)
+        face2 = patches.Polygon([B, C, T], fill=True, facecolor='#bfdbfe', 
+                               edgecolor='#1d4ed8', linewidth=2, alpha=0.7)
+        ax.add_patch(face1)
+        ax.add_patch(face2)
+        
+        # Gizli kenarlar
+        ax.plot([D[0], T[0]], [D[1], T[1]], color='#94a3b8', linewidth=1.5, linestyle='--')
+        ax.plot([C[0], D[0]], [C[1], D[1]], color='#94a3b8', linewidth=1.5, linestyle='--')
+        ax.plot([D[0], A[0]], [D[1], A[1]], color='#94a3b8', linewidth=1.5, linestyle='--')
+        
+        # Yükseklik (kesikli)
+        base_center = iso(a/2, a/2, 0)
+        ax.plot([base_center[0], T[0]], [base_center[1], T[1]], 
+               color='#22c55e', linewidth=2, linestyle='--')
+        ax.annotate('h', (T[0] + 0.3, (base_center[1] + T[1])/2), 
+                   fontsize=12, fontweight='bold', color='#22c55e')
+        
+        # Noktalar
+        for name, point in [('A', A), ('B', B), ('C', C), ('T', T)]:
+            ax.scatter([point[0]], [point[1]], c='#1d4ed8', s=50, zorder=5)
+            offset = (5, 8) if name == 'T' else (5, -12)
+            ax.annotate(name, point, xytext=offset, textcoords='offset points',
+                       fontsize=12, fontweight='bold', color='#1d4ed8')
+        
+        ax.set_aspect('equal')
+        ax.axis('off')
         
         return self._finalize_figure(fig, ax)
 
