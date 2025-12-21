@@ -268,10 +268,16 @@ DESTEKLENEN ŞEKİL TİPLERİ:
 - ucgen: Üçgen (genel, dik, ikizkenar, eşkenar)
 - dortgen: Dörtgen (kare, dikdörtgen, paralelkenar, yamuk, eşkenar dörtgen)
 - cember: Çember/Daire
-- analitik: Koordinat düzleminde nokta/doğru
+- analitik: Koordinat düzleminde şekil (KOORDİNAT VERİLMİŞSE BU TİPİ KULLAN!)
 - cokgen: Çokgen (beşgen, altıgen, vb.)
 - kati_cisim: 3D katı cisimler (alt_tip belirt: kup, prizma, silindir, koni, kure, piramit)
 - birlesik: Birden fazla şekil içeren kompozit şekil
+
+⚠️ KOORDİNAT SİSTEMİ KURALI:
+Soruda A(1,1), B(5,1), C(7,4) gibi KOORDİNATLAR verilmişse:
+- sekil_tipi: "analitik" KULLAN (dortgen veya ucgen değil!)
+- Verilen koordinatları AYNEN kullan
+- Kareli zemin üzerinde çizilecek
 
 JSON ÇIKTI FORMATI (TEK ŞEKİL):
 {
@@ -1415,164 +1421,211 @@ class GeometryRenderer:
         return self._finalize_figure(fig, ax)
     
     def _render_analytic(self, analysis: Dict) -> bytes:
-        """Koordinat düzleminde çizim - geliştirilmiş"""
-        fig, ax = self._create_figure()
+        """Koordinat düzleminde profesyonel çizim - kareli zemin"""
+        fig, ax = plt.subplots(1, 1, figsize=(12, 10), facecolor='white')
         
         coords = self._get_point_coords(analysis)
         kenarlar = analysis.get('kenarlar', [])
         ek_etiketler = analysis.get('ek_etiketler', [])
-        ozel_cizgiler = analysis.get('ozel_cizgiler', [])
+        sekiller = analysis.get('sekiller', [])
         
         # Koordinat sınırlarını belirle
         if coords:
             all_x = [c[0] for c in coords.values()]
             all_y = [c[1] for c in coords.values()]
-            x_min, x_max = min(all_x) - 2, max(all_x) + 2
-            y_min, y_max = min(all_y) - 2, max(all_y) + 2
+            x_min = min(all_x) - 2
+            x_max = max(all_x) + 2
+            y_min = min(all_y) - 2
+            y_max = max(all_y) + 2
         else:
-            x_min, x_max = -8, 8
-            y_min, y_max = -6, 6
+            x_min, x_max = -2, 10
+            y_min, y_max = -2, 8
         
-        # Simetrik sınırlar
-        x_range = max(abs(x_min), abs(x_max), 6)
-        y_range = max(abs(y_min), abs(y_max), 5)
+        # Biraz daha padding ekle
+        x_min = min(x_min, -1)
+        y_min = min(y_min, -1)
         
-        # Koordinat eksenleri
-        ax.axhline(y=0, color='#374151', linewidth=2, zorder=2)
-        ax.axvline(x=0, color='#374151', linewidth=2, zorder=2)
+        # Tam sayılara yuvarla
+        x_min, x_max = int(x_min) - 1, int(x_max) + 1
+        y_min, y_max = int(y_min) - 1, int(y_max) + 1
         
-        # Ok uçları
-        ax.annotate('', xy=(x_range + 0.5, 0), xytext=(x_range, 0),
+        # KARELI ZEMİN - Profesyonel grid
+        # Ana grid çizgileri (her birim)
+        for i in range(x_min, x_max + 1):
+            lw = 1.5 if i == 0 else 0.5
+            color = '#374151' if i == 0 else '#d1d5db'
+            ax.axvline(x=i, color=color, linewidth=lw, zorder=1)
+        
+        for i in range(y_min, y_max + 1):
+            lw = 1.5 if i == 0 else 0.5
+            color = '#374151' if i == 0 else '#d1d5db'
+            ax.axhline(y=i, color=color, linewidth=lw, zorder=1)
+        
+        # Eksen ok uçları
+        ax.annotate('', xy=(x_max + 0.3, 0), xytext=(x_max, 0),
                    arrowprops=dict(arrowstyle='->', color='#374151', lw=2))
-        ax.annotate('', xy=(0, y_range + 0.5), xytext=(0, y_range),
+        ax.annotate('', xy=(0, y_max + 0.3), xytext=(0, y_max),
                    arrowprops=dict(arrowstyle='->', color='#374151', lw=2))
         
         # Eksen etiketleri
-        ax.text(x_range + 0.3, -0.5, 'x', fontsize=14, fontweight='bold', color='#374151')
-        ax.text(0.3, y_range + 0.3, 'y', fontsize=14, fontweight='bold', color='#374151')
-        ax.text(-0.5, -0.6, 'O', fontsize=12, fontweight='bold', color='#374151')
+        ax.text(x_max + 0.5, -0.3, 'x', fontsize=16, fontweight='bold', color='#374151')
+        ax.text(0.3, y_max + 0.4, 'y', fontsize=16, fontweight='bold', color='#374151')
         
-        # Grid çizgileri
-        for i in range(-int(x_range), int(x_range) + 1):
+        # Eksen sayıları
+        for i in range(x_min, x_max + 1):
             if i != 0:
-                ax.axvline(x=i, color='#e5e7eb', linewidth=0.5, zorder=1)
-        for i in range(-int(y_range), int(y_range) + 1):
+                ax.text(i, -0.4, str(i), fontsize=10, ha='center', va='top', color='#6b7280')
+        for i in range(y_min, y_max + 1):
             if i != 0:
-                ax.axhline(y=i, color='#e5e7eb', linewidth=0.5, zorder=1)
+                ax.text(-0.3, i, str(i), fontsize=10, ha='right', va='center', color='#6b7280')
         
-        # Doğrular çiz
+        # O noktası
+        ax.text(-0.4, -0.4, 'O', fontsize=12, fontweight='bold', color='#374151')
+        
+        # Birleşik şekiller varsa çiz
+        if sekiller:
+            for idx, sekil in enumerate(sekiller):
+                self._draw_analytic_shape(ax, sekil, idx)
+        
+        # Kenarlardan polygon oluştur (eğer şekiller yoksa)
+        elif len(coords) >= 3:
+            # Koordinatlardan şekil çiz
+            noktalar = list(coords.keys())
+            points = [coords[n] for n in noktalar]
+            
+            # Şekil dolgusu
+            polygon = patches.Polygon(points, fill=True,
+                                     facecolor='#dbeafe', alpha=0.5,
+                                     edgecolor='#2563eb', linewidth=3, zorder=2)
+            ax.add_patch(polygon)
+        
+        # Kenarları çiz
         for kenar in kenarlar:
             bas = kenar.get('baslangic')
             bit = kenar.get('bitis')
             if bas in coords and bit in coords:
                 p1, p2 = coords[bas], coords[bit]
+                ax.plot([p1[0], p2[0]], [p1[1], p2[1]], 
+                       color='#2563eb', linewidth=2.5, zorder=3)
                 
-                # Doğruyu uzat (kenarlardan taşsın)
-                dx, dy = p2[0] - p1[0], p2[1] - p1[1]
-                if abs(dx) > 0.01 or abs(dy) > 0.01:
-                    t_vals = np.linspace(-2, 3, 100)
-                    line_x = [p1[0] + t * dx for t in t_vals]
-                    line_y = [p1[1] + t * dy for t in t_vals]
-                    
-                    # Sınırlar içinde kal
-                    valid = [(x, y) for x, y in zip(line_x, line_y) 
-                            if -x_range-1 <= x <= x_range+1 and -y_range-1 <= y <= y_range+1]
-                    if valid:
-                        ax.plot([v[0] for v in valid], [v[1] for v in valid], 
-                               color=Config.COLORS['primary'], linewidth=2.5, zorder=3)
+                # Kenar uzunluğu
+                uzunluk = kenar.get('uzunluk', '')
+                if uzunluk:
+                    self._draw_styled_label(ax, p1, p2, uzunluk, '#2563eb')
         
-        # Özel çizgiler (doğru denklemi ile)
-        for ozel in ozel_cizgiler:
-            tip = ozel.get('tip', '')
-            if tip == 'dogru':
-                # Eğer iki nokta verilmişse
-                bas = ozel.get('baslangic')
-                bit = ozel.get('bitis')
-                if bas in coords and bit in coords:
-                    p1, p2 = coords[bas], coords[bit]
-                    ax.plot([p1[0], p2[0]], [p1[1], p2[1]], 
-                           color=Config.COLORS['primary'], linewidth=2.5, zorder=3)
+        # Noktaları çiz - profesyonel görünüm
+        point_colors = ['#dc2626', '#16a34a', '#2563eb', '#9333ea', '#ea580c', '#0891b2']
         
-        # Üçgen alanı varsa taralı göster
-        ucgen_noktalari = []
-        for ek in ek_etiketler:
-            metin = str(ek.get('metin', '')).lower()
-            if 'alan' in metin or 'üçgen' in metin or 's =' in metin:
-                # Orijin ve eksen kesim noktalarından üçgen
-                if (0, 0) not in coords.values():
-                    ucgen_noktalari.append((0, 0))
-                for isim, coord in coords.items():
-                    if coord[0] == 0 or coord[1] == 0:  # Eksen üzerindeki noktalar
-                        ucgen_noktalari.append(coord)
-        
-        # Eğer 3 nokta varsa üçgen çiz
-        if len(ucgen_noktalari) >= 3:
-            ucgen_noktalari = ucgen_noktalari[:3]
-            triangle = patches.Polygon(ucgen_noktalari, fill=True,
-                                       facecolor=Config.COLORS['primary'], alpha=0.15,
-                                       edgecolor=Config.COLORS['primary'], linewidth=2, zorder=2)
-            ax.add_patch(triangle)
-        
-        # Noktaları çiz
-        for isim, coord in coords.items():
+        for i, (isim, coord) in enumerate(coords.items()):
             x, y = coord
+            color = point_colors[i % len(point_colors)]
             
-            # Nokta
-            ax.scatter([x], [y], c=Config.COLORS['highlight'], s=100, zorder=5, 
-                      edgecolors='white', linewidths=2)
+            # Büyük, belirgin nokta
+            ax.scatter([x], [y], c=color, s=150, zorder=6,
+                      edgecolors='white', linewidths=3)
             
-            # Nokta etiketi - konuma göre offset
-            if x >= 0 and y >= 0:
-                offset = (8, 8)
-            elif x < 0 and y >= 0:
-                offset = (-15, 8)
-            elif x >= 0 and y < 0:
-                offset = (8, -15)
+            # Nokta ismi
+            # Offset'i şeklin merkezine göre ayarla
+            if coords:
+                cx = sum(c[0] for c in coords.values()) / len(coords)
+                cy = sum(c[1] for c in coords.values()) / len(coords)
+                dx, dy = x - cx, y - cy
+                norm = np.sqrt(dx**2 + dy**2)
+                if norm > 0:
+                    offset = (int(dx/norm * 20), int(dy/norm * 20))
+                else:
+                    offset = (12, 12)
             else:
-                offset = (-15, -15)
+                offset = (12, 12)
             
             ax.annotate(isim, (x, y), xytext=offset, textcoords='offset points',
-                       fontsize=14, fontweight='bold', color=Config.COLORS['highlight'], zorder=6)
+                       fontsize=16, fontweight='bold', color=color, zorder=7)
             
-            # Koordinat etiketi
-            # Bilinmeyen koordinatlar için özel gösterim
-            x_str = 'a' if isim == 'A' and y == 0 else ('0' if x == 0 else f'{x:.0f}')
-            y_str = 'b' if isim == 'B' and x == 0 else ('0' if y == 0 else f'{y:.0f}')
-            
-            # Eğer koordinatlar belirsizse (a,0) veya (0,b) şeklinde göster
-            coord_label = f'({x_str}, {y_str})'
-            
-            coord_offset = (offset[0], offset[1] - 18)
-            ax.annotate(coord_label, (x, y), xytext=coord_offset, textcoords='offset points',
-                       fontsize=11, color='#64748b', zorder=6)
+            # Koordinat etiketi - küçük, altında
+            coord_label = f'({x:.0f},{y:.0f})'
+            ax.annotate(coord_label, (x, y), xytext=(offset[0], offset[1] - 18),
+                       textcoords='offset points', fontsize=10, color='#64748b',
+                       bbox=dict(boxstyle='round,pad=0.2', facecolor='white', 
+                                edgecolor='#e5e7eb', alpha=0.9), zorder=7)
         
-        # Ek etiketler (Alan = 12 gibi)
+        # Ek etiketler (Alan bilgisi vb.)
         for ek in ek_etiketler:
             metin = ek.get('metin', '')
-            konum = ek.get('konum', 'sag_ust')
+            konum = ek.get('konum', 'ust')
             
-            if konum == 'sag_ust':
-                x, y = x_range * 0.6, y_range * 0.8
-            elif konum == 'sol_ust':
-                x, y = -x_range * 0.6, y_range * 0.8
-            elif konum == 'merkez':
-                x, y = x_range * 0.3, y_range * 0.3
-            else:
-                x, y = x_range * 0.5, y_range * 0.7
-            
-            ax.annotate(metin, (x, y), fontsize=12, fontweight='bold',
-                       color='#1e40af', ha='center',
-                       bbox=dict(boxstyle='round,pad=0.4', facecolor='#dbeafe',
-                                edgecolor='#3b82f6', alpha=0.9), zorder=7)
+            if metin:
+                if konum == 'ust':
+                    x, y = (x_min + x_max) / 2, y_max - 0.5
+                elif konum == 'alt':
+                    x, y = (x_min + x_max) / 2, y_min + 1
+                else:
+                    x, y = x_max - 2, y_max - 1
+                
+                ax.annotate(metin, (x, y), fontsize=12, fontweight='bold',
+                           color='#1e40af', ha='center',
+                           bbox=dict(boxstyle='round,pad=0.5', facecolor='#fef3c7',
+                                    edgecolor='#f59e0b', linewidth=2, alpha=0.95), zorder=8)
         
-        ax.set_xlim(-x_range - 0.5, x_range + 1)
-        ax.set_ylim(-y_range - 0.5, y_range + 1)
+        # Başlık
+        baslik = analysis.get('baslik', '')
+        if baslik:
+            ax.set_title(baslik, fontsize=16, fontweight='bold', color='#1e293b', pad=15)
+        
+        ax.set_xlim(x_min - 0.5, x_max + 0.8)
+        ax.set_ylim(y_min - 0.5, y_max + 0.8)
         ax.set_aspect('equal')
-        
-        # Eksenleri gizle (kendi çizdik)
         ax.axis('off')
         
         return self._finalize_figure(fig, ax)
+    
+    def _draw_analytic_shape(self, ax, sekil: Dict, idx: int):
+        """Analitik düzlemde şekil çiz"""
+        noktalar = sekil.get('noktalar', [])
+        if len(noktalar) < 3:
+            return
+        
+        # Koordinatları al
+        coords = []
+        for n in noktalar:
+            x = self._parse_coordinate(n.get('x', 0))
+            y = self._parse_coordinate(n.get('y', 0))
+            coords.append((x, y))
+        
+        # Renk seç
+        colors = Config.SHAPE_COLORS[idx % len(Config.SHAPE_COLORS)]
+        
+        # Şekil çiz
+        polygon = patches.Polygon(coords, fill=True,
+                                 facecolor=colors['fill'], alpha=0.6,
+                                 edgecolor=colors['stroke'], linewidth=3, zorder=2)
+        ax.add_patch(polygon)
+        
+        # Şekil ismi
+        sekil_isim = sekil.get('isim', f'Şekil {idx+1}')
+        cx = sum(c[0] for c in coords) / len(coords)
+        cy = sum(c[1] for c in coords) / len(coords)
+        
+        ax.annotate(sekil_isim, (cx, cy), fontsize=11, fontweight='bold',
+                   color=colors['text'], ha='center', va='center',
+                   bbox=dict(boxstyle='round,pad=0.3', facecolor='white',
+                            edgecolor=colors['stroke'], alpha=0.9), zorder=5)
+        
+        # Kenar uzunlukları
+        for kenar in sekil.get('kenarlar', []):
+            bas_idx = None
+            bit_idx = None
+            
+            for i, n in enumerate(noktalar):
+                if n.get('isim') == kenar.get('baslangic'):
+                    bas_idx = i
+                if n.get('isim') == kenar.get('bitis'):
+                    bit_idx = i
+            
+            if bas_idx is not None and bit_idx is not None:
+                p1, p2 = coords[bas_idx], coords[bit_idx]
+                uzunluk = kenar.get('uzunluk', '')
+                if uzunluk:
+                    self._draw_styled_label(ax, p1, p2, uzunluk, colors['stroke'])
     
     def _render_polygon(self, analysis: Dict) -> bytes:
         """Çokgen çiz (5gen, 6gen, vb.)"""
