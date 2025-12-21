@@ -1072,44 +1072,57 @@ class GeminiAnalyzer:
 
 GÖREV: Verilen matematik sorusunu analiz et ve infografik görsel için gerekli bilgileri JSON formatında çıkar.
 
-⚠️ KRİTİK: ŞABLON SEÇİMİ ÇOK ÖNEMLİ!
-Aşağıdaki anahtar kelimelere göre DOĞRU şablonu seç:
+⚠️ ŞABLON SEÇİM KURALLARI (ÖNCELİK SIRASINA GÖRE):
 
-🚗 "hareket" şablonu SEÇ eğer:
-- Yol, mesafe, hız, süre, km, m/s, km/saat varsa
-- Otobüs, araba, tren, bisiklet, yürüme, koşma varsa
-- Buluşma, karşılaşma, yetişme problemi ise
-- A şehrinden B şehrine, yolculuk varsa
-→ gorsel_tipi: "hareket"
+1️⃣ "hareket" şablonu SEÇ eğer şu KELİMELERDEN HERHANGİ BİRİ VARSA:
+   ✓ hız, km/saat, m/s, mesafe, yol, süre
+   ✓ otobüs, araba, tren, bisiklet, motorsiklet, kamyon
+   ✓ yürüme, koşma, gidiş, dönüş, yolculuk
+   ✓ buluşma, karşılaşma, yetişme, yakalama
+   ✓ şehir, köy, kasaba (A dan B ye)
+   → gorsel_tipi: "hareket"
+   → icon: "🚗"
 
-⚖️ "karsilastirma" şablonu SEÇ eğer:
-- İki seçenek/firma/ürün karşılaştırması varsa
-- Maliyet, fiyat, ücret karşılaştırması varsa
-- "Hangisi daha avantajlı/ucuz/karlı" soruluyorsa
-- A planı vs B planı, X markası vs Y markası varsa
-→ gorsel_tipi: "karsilastirma"
+2️⃣ "karsilastirma" şablonu SEÇ eğer:
+   ✓ İKİ FARKLI SEÇENEĞİN karşılaştırılması varsa
+   ✓ "A firması", "B firması" veya "X markası", "Y markası"
+   ✓ "hangisi daha ucuz", "hangisi avantajlı", "hangisi karlı"
+   ✓ iki farklı tarife, plan, paket karşılaştırması
+   ✓ sabit ücret + değişken ücret tipi problemler
+   → gorsel_tipi: "karsilastirma"
+   → icon: "⚖️"
 
-🏊 "havuz" şablonu SEÇ eğer:
-- Havuz, musluk, boru, tank, depo varsa
-- Doldurma, boşaltma, dolum süresi varsa
-- "Birlikte açılırsa kaç saatte dolar" tipi soruysa
-→ gorsel_tipi: "havuz"
+3️⃣ "havuz" şablonu SEÇ eğer:
+   ✓ havuz, depo, tank, su deposu, çeşme
+   ✓ musluk, boru, vana, pompa
+   ✓ doldurma, boşaltma, dolum, tahliye
+   ✓ "kaç saatte dolar", "kaç dakikada boşalır"
+   → gorsel_tipi: "havuz"
+   → icon: "🏊"
 
-👨‍👩‍👧 "yas" şablonu SEÇ eğer:
-- Yaş problemi ise (anne, baba, çocuk yaşları)
-- "X yıl önce", "Y yıl sonra" ifadeleri varsa
-- Yaşlar toplamı, yaş farkı soruluyorsa
-→ gorsel_tipi: "yas"
+4️⃣ "yas" şablonu SEÇ eğer:
+   ✓ yaş, yaşında, yaşındaydı
+   ✓ "X yıl önce", "Y yıl sonra"
+   ✓ anne, baba, çocuk, kardeş yaşları
+   ✓ yaşlar toplamı, yaş farkı
+   → gorsel_tipi: "yas"
+   → icon: "👨‍👩‍👧"
 
-📊 "tablo" şablonu SEÇ eğer:
-- Veriler tablo formatında verilmişse
-- Birden fazla satır/sütun veri varsa
-- Ürün listesi, fiyat listesi varsa
-→ gorsel_tipi: "tablo"
+5️⃣ "tablo" şablonu SEÇ eğer:
+   ✓ Veriler AÇIKÇA tablo formatında sunulmuşsa
+   ✓ Satır ve sütun başlıkları varsa
+   ✓ Ürün-fiyat listesi TABLO HALİNDE verilmişse
+   → gorsel_tipi: "tablo"
+   → icon: "📊"
 
-📋 "genel" şablonu SEÇ SADECE eğer:
-- Yukarıdaki kategorilerin HİÇBİRİNE uymuyorsa
-- Basit bir senaryo ile tek bir hesaplama varsa
+6️⃣ "genel" şablonu SEÇ SADECE eğer:
+   ✓ Yukarıdaki HİÇBİR kategoriye uymuyorsa
+   ✓ Basit tek hesaplama gerektiren senaryo ise
+   → gorsel_tipi: "genel"
+   → icon: "📋"
+
+⚠️ ÖNEMLİ: "tablo" şablonunu SADECE veriler tablo formatında verilmişse kullan!
+Karşılaştırma, hareket, havuz veya yaş problemi varsa İLGİLİ şablonu seç!
 
 ÖNEMLİ KURALLAR:
 1. Sadece VERİLENLERİ çıkar - ÇÖZÜMÜ YAPMA!
@@ -1117,6 +1130,7 @@ Aşağıdaki anahtar kelimelere göre DOĞRU şablonu seç:
 3. Sorudaki isimleri ve değerleri aynen kullan
 4. Türkçe karakterleri düzgün kullan
 5. ozel_pisiniler içinde SEÇTİĞİN şablona ait verileri MUTLAKA doldur!
+6. Şablon seçerken ANAHTAR KELİMELERE dikkat et!
 
 JSON ÇIKTI FORMATI:
 {
@@ -1190,13 +1204,24 @@ JSON ÇIKTI FORMATI:
 ÖRNEKLER:
 
 Soru: "Bir otobüs A şehrinden B şehrine 80 km/saat hızla gidiyor. 3 saatte varırsa mesafe kaç km?"
-→ gorsel_tipi: "hareket" (çünkü otobüs, hız, mesafe var)
+→ gorsel_tipi: "hareket" ✓ (otobüs + hız + mesafe = hareket)
 
 Soru: "X firması aylık 100 TL + 2 TL/dk, Y firması 200 TL sabit. 60 dk kullanımda hangisi ucuz?"
-→ gorsel_tipi: "karsilastirma" (çünkü iki firma karşılaştırması)
+→ gorsel_tipi: "karsilastirma" ✓ (iki firma + hangisi ucuz = karşılaştırma)
 
 Soru: "A musluğu havuzu 6 saatte, B musluğu 4 saatte dolduruyor. Birlikte kaç saatte dolar?"
-→ gorsel_tipi: "havuz" (çünkü musluk, havuz, dolum var)
+→ gorsel_tipi: "havuz" ✓ (musluk + havuz + dolum = havuz)
+
+Soru: "Baba 40 yaşında, oğul 10 yaşında. 5 yıl sonra yaşları toplamı kaç?"
+→ gorsel_tipi: "yas" ✓ (yaş + yıl sonra = yaş)
+
+Soru: "Ali 60 km/saat, Veli 80 km/saat hızla aynı anda karşı yönlerden yola çıkıyor. 2 saat sonra aralarındaki mesafe?"
+→ gorsel_tipi: "hareket" ✓ (hız + yol + mesafe = hareket, karşılaştırma DEĞİL!)
+
+Soru: "Bir mağazada şapka 25 TL, gömlek 60 TL, pantolon 90 TL. Toplam fiyat?"
+→ gorsel_tipi: "tablo" ✓ (ürün fiyat listesi = tablo)
+
+SORU:
 
 Soru: "Bir babanın yaşı oğlunun yaşının 3 katıdır. 10 yıl sonra 2 katı olacaktır. Oğul kaç yaşında?"
 → gorsel_tipi: "yas" (çünkü yaş problemi, yıl sonra var)
