@@ -1333,34 +1333,22 @@ class SupabaseManager:
         logger.info("Supabase bağlantısı kuruldu")
     
     def get_questions_without_images(self, limit=30):
-        """Görselsiz geometri/grafik sorularını çek"""
+        """Görselsiz soruları çek - şemaya uygun"""
         try:
-            # Geometri anahtar kelimeleri ile filtrele
-            geometry_keywords = [
-                'üçgen', 'dörtgen', 'kare', 'dikdörtgen', 'daire', 'çember',
-                'açı', 'kenar', 'köşegen', 'paralel', 'dik', 'eşkenar',
-                'yamuk', 'paralelkenar', 'prizma', 'piramit', 'silindir', 
-                'koni', 'küre', 'küp', 'ABC', 'ABCD', 'koordinat',
-                'çap', 'yarıçap', 'teğet', 'pasta grafik', 'sütun grafik',
-                'derece', 'alan', 'çevre', 'hacim', 'cm²', 'm²'
-            ]
-            
-            # original_text sütununda arama yap
-            or_filters = ','.join([f"original_text.ilike.%{kw}%" for kw in geometry_keywords[:10]])
-            
-            result = self.client.table('question_bank').select('*').or_(
-                'image_url.is.null,image_url.eq.'
-            ).or_(or_filters).limit(limit).execute()
+            # Basit sorgu: image_url boş veya null olanlar
+            result = self.client.table('question_bank').select(
+                'id', 'original_text', 'topic', 'topic_group', 'grade_level', 'image_url'
+            ).is_('image_url', 'null').eq('is_active', True).limit(limit).execute()
             
             if result.data and len(result.data) > 0:
-                logger.info(f"Geometri sorgusu: {len(result.data)} soru bulundu")
+                logger.info(f"Görselsiz {len(result.data)} soru bulundu")
                 return result.data
             
-            # Fallback: tüm görselsiz sorular
-            logger.info("Geometri filtresi sonuç vermedi, tüm sorular çekiliyor")
-            result = self.client.table('question_bank').select('*').or_(
-                'image_url.is.null,image_url.eq.'
-            ).limit(limit).execute()
+            # Alternatif: boş string olanları da dene
+            result = self.client.table('question_bank').select(
+                'id', 'original_text', 'topic', 'topic_group', 'grade_level', 'image_url'
+            ).eq('image_url', '').eq('is_active', True).limit(limit).execute()
+            
             return result.data if result.data else []
             
         except Exception as e:
@@ -1368,11 +1356,15 @@ class SupabaseManager:
             return []
     
     def update_question_image(self, question_id, image_url):
+        """Soru görselini güncelle - şemaya uygun"""
         try:
-            self.client.table('question_bank').update({'image_url': image_url, 'updated_at': datetime.now().isoformat()}).eq('id', question_id).execute()
+            self.client.table('question_bank').update({
+                'image_url': image_url
+            }).eq('id', question_id).execute()
+            logger.info(f"Soru {question_id} güncellendi")
             return True
         except Exception as e:
-            logger.error(f"Güncelleme hatası: {e}")
+            logger.error(f"Güncelleme hatası (id={question_id}): {e}")
             return False
     
     def upload_image(self, image_bytes, filename):
@@ -1390,36 +1382,58 @@ class SupabaseManager:
 
 
 class GeminiAnalyzer:
-    ANALYSIS_PROMPT = """Sen geometri ve veri görselleştirme uzmanısın. Soruyu analiz et ve çizim gerekip gerekmediğine karar ver.
+    ANALYSIS_PROMPT = """Sen geometri ve veri görselleştirme uzmanısın. Soruyu analiz et ve çizim talimatı üret.
 
-## ÇİZİM GEREKLİ DURUMLAR (cizim_pisinilir: true):
-1. Geometrik şekil içeren sorular: üçgen, dörtgen, kare, dikdörtgen, daire, çember, paralel doğrular, açılar
-2. Koordinat düzlemi soruları: nokta, doğru, grafik çizimi
-3. 3D cisimler: küp, prizma, piramit, silindir, koni, küre
-4. Veri görselleştirme: pasta grafik, sütun/çubuk grafik, dağılım
-5. Ölçü ve boyut içeren sorular: cm, m, derece (°), alan, çevre, hacim
+## ÇİZİM GEREKLİ (cizim_pisinilir: true):
+- Geometrik şekil: üçgen, dörtgen, kare, dikdörtgen, daire, çember
+- 3D cisim: küp, prizma, piramit, silindir, koni, küre
+- Veri görselleştirme: pasta grafik, sütun grafik
 
 ## ÇİZİM GEREKMİYOR (cizim_pisinilir: false):
-- Sadece sayısal hesaplama (denklem, işlem, oran)
-- Sözel problem (hikaye anlatımı ama şekil yok)
-- Formül uygulama (görsel yardımı olmadan çözülebilir)
+- Sayısal hesaplama, hikaye problemi (şekil çizimi gerektirmeyen)
 
-## JSON FORMATLARI:
+## KRİTİK: 
+- 2D şekiller için "points" listesi ZORUNLU (x,y koordinatları)
+- 3D cisimler için "dimensions" objesi ZORUNLU
+- Sadece JSON döndür!
 
-### Geometri (üçgen, dörtgen, çokgen):
-{"cizim_pisinilir": true, "shape_type": "triangle", "points": [{"name": "A", "x": 0, "y": 0}, {"name": "B", "x": 6, "y": 0}, {"name": "C", "x": 3, "y": 5.2}], "edges": [{"start": "A", "end": "B", "label": "6 cm"}], "angles": [{"vertex": "C", "is_right": false, "label": "60°"}], "special_lines": [{"type": "height", "from": "C", "label": "h"}]}
+## ÖRNEKLER:
 
-### Daire/Çember:
-{"cizim_pisinilir": true, "shape_type": "circle", "center": {"name": "O", "x": 5, "y": 5}, "radius": 4, "points": [{"name": "A", "x": 9, "y": 5}], "labels": ["r=4 cm"]}
+2D Üçgen:
+{"cizim_pisinilir": true, "shape_type": "triangle", "points": [{"name": "A", "x": 0, "y": 0}, {"name": "B", "x": 6, "y": 0}, {"name": "C", "x": 3, "y": 5}], "edges": [{"start": "A", "end": "B", "label": "6 cm"}]}
 
-### Pasta Grafik:
-{"cizim_pisinilir": true, "shape_type": "pie_chart", "pie_data": {"values": [40, 30, 20, 10], "labels": ["A", "B", "C", "D"], "value_type": "percent", "title": "Dağılım"}}
+2D Dikdörtgen:
+{"cizim_pisinilir": true, "shape_type": "rectangle", "points": [{"name": "A", "x": 0, "y": 0}, {"name": "B", "x": 8, "y": 0}, {"name": "C", "x": 8, "y": 5}, {"name": "D", "x": 0, "y": 5}]}
 
-### Sütun Grafik:
-{"cizim_pisinilir": true, "shape_type": "bar_chart", "bar_data": {"values": [25, 40, 35], "labels": ["X", "Y", "Z"], "title": "Karşılaştırma"}}
+2D Daire:
+{"cizim_pisinilir": true, "shape_type": "circle", "center": {"name": "O", "x": 5, "y": 5}, "radius": 4}
 
-### Çizim Gerekmez:
-{"cizim_pisinilir": false, "neden": "Sayısal hesaplama"}
+3D Küp:
+{"cizim_pisinilir": true, "shape_type": "cube", "dimensions": {"size": 4}}
+
+3D Piramit:
+{"cizim_pisinilir": true, "shape_type": "pyramid", "dimensions": {"base_size": 4, "height": 5}}
+
+3D Silindir:
+{"cizim_pisinilir": true, "shape_type": "cylinder", "dimensions": {"radius": 3, "height": 6}}
+
+3D Koni:
+{"cizim_pisinilir": true, "shape_type": "cone", "dimensions": {"radius": 3, "height": 5}}
+
+3D Küre:
+{"cizim_pisinilir": true, "shape_type": "sphere", "dimensions": {"radius": 4}}
+
+3D Prizma:
+{"cizim_pisinilir": true, "shape_type": "rectangular_prism", "dimensions": {"width": 4, "height": 3, "depth": 2}}
+
+Pasta Grafik:
+{"cizim_pisinilir": true, "shape_type": "pie_chart", "pie_data": {"values": [40, 30, 20, 10], "labels": ["A", "B", "C", "D"], "value_type": "percent"}}
+
+Sütun Grafik:
+{"cizim_pisinilir": true, "shape_type": "bar_chart", "bar_data": {"values": [25, 40, 35], "labels": ["X", "Y", "Z"]}}
+
+Çizim Yok:
+{"cizim_pisinilir": false, "neden": "Hesaplama"}
 
 SORU: """
     
@@ -1498,17 +1512,80 @@ class ImageGenerator:
         shape_type = analysis.get('shape_type', '')
         logger.info(f"ImageGenerator: shape_type={shape_type}")
         
+        # 3D şekil tipleri
+        three_d_shapes = ['cube', 'pyramid', 'cylinder', 'sphere', 'cone', 'prism', 
+                         'rectangular_prism', 'triangular_prism']
+        
         try:
             if shape_type == 'pie_chart': 
                 return self._pie(analysis)
             elif shape_type == 'bar_chart': 
                 return self._bar(analysis)
+            elif shape_type in three_d_shapes:
+                return self._render_3d(analysis)
             else: 
                 return self._geometry(analysis)
         except Exception as e:
             logger.error(f"ImageGenerator hata: {e}")
             import traceback
             logger.error(traceback.format_exc())
+            return None
+    
+    def _render_3d(self, analysis):
+        """3D şekilleri render et"""
+        shape_type = analysis.get('shape_type', '')
+        dimensions = analysis.get('dimensions', {})
+        
+        renderer = Cube3DRenderer(800, 700)
+        if not renderer.setup():
+            logger.warning("3D renderer başlatılamadı (matplotlib eksik olabilir)")
+            return None
+        
+        try:
+            if shape_type == 'cube':
+                size = dimensions.get('size', dimensions.get('edge', 4))
+                renderer.draw_cube(size=size, edge_label=f"{size} cm")
+            
+            elif shape_type == 'rectangular_prism' or shape_type == 'prism':
+                w = dimensions.get('width', 4)
+                h = dimensions.get('height', 3)
+                d = dimensions.get('depth', 2)
+                renderer.draw_rectangular_prism(w, h, d)
+            
+            elif shape_type == 'cylinder':
+                r = dimensions.get('radius', 2)
+                h = dimensions.get('height', 4)
+                renderer.draw_cylinder(radius=r, height=h)
+            
+            elif shape_type == 'sphere':
+                r = dimensions.get('radius', 3)
+                renderer.draw_sphere(radius=r)
+            
+            elif shape_type == 'cone':
+                r = dimensions.get('radius', 2)
+                h = dimensions.get('height', 4)
+                renderer.draw_cone(radius=r, height=h)
+            
+            elif shape_type == 'pyramid':
+                base = dimensions.get('base_size', dimensions.get('base', 4))
+                h = dimensions.get('height', 5)
+                sides = dimensions.get('sides', 4)
+                renderer.draw_pyramid(base_size=base, height=h, n_sides=sides)
+            
+            elif shape_type == 'triangular_prism':
+                base = dimensions.get('base_size', 3)
+                h = dimensions.get('height', 5)
+                renderer.draw_triangular_prism(base_size=base, height=h)
+            
+            else:
+                # Varsayılan: küp
+                renderer.draw_cube(size=4)
+            
+            logger.info(f"3D şekil oluşturuldu: {shape_type}")
+            return renderer.get_png_bytes()
+            
+        except Exception as e:
+            logger.error(f"3D render hatası: {e}")
             return None
     
     def _pie(self, analysis):
@@ -1533,6 +1610,12 @@ class ImageGenerator:
         return r.get_png_bytes()
     
     def _geometry(self, analysis):
+        shape_type = analysis.get('shape_type', '')
+        
+        # Circle için özel işlem
+        if shape_type == 'circle':
+            return self._circle(analysis)
+        
         pts = analysis.get('points', [])
         if not pts: 
             logger.warning("Geometry: points eksik")
@@ -1585,6 +1668,47 @@ class ImageGenerator:
             r.draw_point(pos, color)
             r.draw_point_label(pos, p['name'], color, p.get('label_position', 'auto'))
         return r.get_png_bytes()
+    
+    def _circle(self, analysis):
+        """Daire/çember çiz"""
+        center_data = analysis.get('center', {})
+        radius = analysis.get('radius', 4)
+        
+        cx = center_data.get('x', 5)
+        cy = center_data.get('y', 5)
+        center_name = center_data.get('name', 'O')
+        
+        # Bounds hesapla
+        bounds = {
+            'x_min': cx - radius - 2,
+            'x_max': cx + radius + 2,
+            'y_min': cy - radius - 2,
+            'y_max': cy + radius + 2
+        }
+        
+        r = CairoRenderer(Config.IMAGE_WIDTH, Config.IMAGE_HEIGHT)
+        r.setup(bounds)
+        
+        # Çember çiz
+        r.draw_circle((cx, cy), radius, Colors.FILL_LIGHT, Colors.PRIMARY, stroke_width=3)
+        
+        # Merkez noktası
+        r.draw_point((cx, cy), Colors.get_point_color(0))
+        r.draw_point_label((cx, cy), center_name, Colors.get_point_color(0))
+        
+        # Yarıçap çizgisi
+        r.draw_line((cx, cy), (cx + radius, cy), Colors.SECONDARY, width=2)
+        r.draw_label((cx + radius/2, cy + 0.3), f"r={radius}", Colors.SECONDARY)
+        
+        # Ek noktalar varsa
+        for i, p in enumerate(analysis.get('points', [])):
+            pos = (p['x'], p['y'])
+            color = Colors.get_point_color(i + 1)
+            r.draw_point(pos, color)
+            r.draw_point_label(pos, p['name'], color)
+        
+        logger.info(f"Circle: center=({cx},{cy}), radius={radius}")
+        return r.get_png_bytes()
 
 
 class GeometryBot:
@@ -1613,7 +1737,7 @@ class GeometryBot:
     
     def _process(self, question):
         q_id = question.get('id')
-        q_text = question.get('question_text', '') or question.get('original_text', '')
+        q_text = question.get('original_text', '')
         
         if not q_text:
             logger.warning(f"[{q_id}] ⏭️ Soru metni boş")
