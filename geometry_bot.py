@@ -35,7 +35,7 @@ class Config:
     SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
     GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
     # Alternatif modeller: gemini-2.0-flash-exp, gemini-1.5-flash, gemini-1.5-pro
-    GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-2.5-flash')
+    GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-2.0-flash-exp')
     STORAGE_BUCKET = 'questions-images'
     # Rate limit nedeniyle batch size düşük tutulmalı (dakikada max 10 istek)
     BATCH_SIZE = int(os.environ.get('BATCH_SIZE', '10'))
@@ -1422,7 +1422,10 @@ HAYIR ise → cizim_pisinilir: false
 ## JSON FORMATLARI:
 
 Dikdörtgen/Kare:
-{"cizim_pisinilir": true, "shape_type": "rectangle", "points": [{"name": "A", "x": 0, "y": 0}, {"name": "B", "x": 9, "y": 0}, {"name": "C", "x": 9, "y": 8}, {"name": "D", "x": 0, "y": 8}], "edges": [{"start": "A", "end": "B", "label": "9 cm"}]}
+{"cizim_pisinilir": true, "shape_type": "rectangle", "points": [{"name": "A", "x": 0, "y": 0}, {"name": "B", "x": 20, "y": 0}, {"name": "C", "x": 20, "y": 20}, {"name": "D", "x": 0, "y": 20}], "edges": [{"start": "A", "end": "B", "label": "20 m"}]}
+
+Kare içinde daire (teğet):
+{"cizim_pisinilir": true, "shape_type": "rectangle", "points": [{"name": "A", "x": 0, "y": 0}, {"name": "B", "x": 20, "y": 0}, {"name": "C", "x": 20, "y": 20}, {"name": "D", "x": 0, "y": 20}], "edges": [{"start": "A", "end": "B", "label": "20 m"}], "inscribed_circle": {"center": {"x": 10, "y": 10}, "radius": 10, "label": "r=10"}}
 
 Üçgen:
 {"cizim_pisinilir": true, "shape_type": "triangle", "points": [{"name": "A", "x": 0, "y": 0}, {"name": "B", "x": 6, "y": 0}, {"name": "C", "x": 3, "y": 5}], "edges": [{"start": "A", "end": "B", "label": "6 cm"}]}
@@ -1458,10 +1461,9 @@ Sütun Grafik:
 {"cizim_pisinilir": false, "neden": "kısa açıklama"}
 
 NOT: 
-- 2D şekillerde points listesi ve koordinatlar ZORUNLU
-- 3D cisimlerde dimensions objesi ZORUNLU
+- İç içe şekiller için inscribed_circle kullan
 - Soruda verilen ölçüleri kullan
-- SADECE JSON döndür, açıklama yazma!
+- SADECE JSON döndür!
 
 SORU: """
     
@@ -1655,12 +1657,37 @@ class ImageGenerator:
         r.setup(bounds)
         points = {p['name']: (p['x'], p['y']) for p in pts}
         for name, pos in points.items(): r.add_point(name, *pos)
+        
+        # İç içe daireler (inscribed_circle)
+        inscribed = analysis.get('inscribed_circle', {})
+        if inscribed:
+            ic_center = inscribed.get('center', {})
+            ic_radius = inscribed.get('radius', 0)
+            if ic_center and ic_radius:
+                cx = ic_center.get('x', (min(xs) + max(xs)) / 2)
+                cy = ic_center.get('y', (min(ys) + max(ys)) / 2)
+                # Daire arka planı farklı renk
+                r.draw_circle((cx, cy), ic_radius, '#E8F4FD', '#2196F3', stroke_width=2)
+                # Merkez noktası
+                r.draw_point((cx, cy), '#2196F3')
+                r.draw_label((cx, cy + 0.8), inscribed.get('label', ''), '#2196F3')
+                logger.info(f"Inscribed circle: center=({cx},{cy}), radius={ic_radius}")
+        
+        # Genel circles listesi
         for circle in analysis.get('circles', []):
             if 'center' in circle and 'radius' in circle:
-                r.draw_circle(circle['center'], circle['radius'], Colors.FILL_LIGHT, Colors.PRIMARY)
+                cc = circle['center']
+                if isinstance(cc, dict):
+                    cx, cy = cc.get('x', 0), cc.get('y', 0)
+                else:
+                    cx, cy = cc
+                r.draw_circle((cx, cy), circle['radius'], '#E8F4FD', '#2196F3', stroke_width=2)
+        
+        # Ana şekil (polygon)
         if len(pts) >= 3:
             coords = [(p['x'], p['y']) for p in pts]
             r.draw_polygon(coords, Colors.FILL_LIGHT, Colors.PRIMARY, stroke_width=3)
+            
         for sl in analysis.get('special_lines', []):
             from_name = sl.get('from')
             if from_name:
