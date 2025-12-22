@@ -291,16 +291,16 @@ PISA_YETERLIK_SEVIYELERI = {
 # ═══════════════════════════════════════════════════════════════════════════════
 
 SINIF_PISA_MAP = {
-    3: {'seviyeleri': [1], 'bloom': ['hatırlama', 'anlama']},
-    4: {'seviyeleri': [1, 2], 'bloom': ['hatırlama', 'anlama']},
-    5: {'seviyeleri': [1, 2], 'bloom': ['hatırlama', 'anlama']},
-    6: {'seviyeleri': [1, 2, 3], 'bloom': ['hatırlama', 'anlama', 'uygulama']},
-    7: {'seviyeleri': [2, 3, 4], 'bloom': ['anlama', 'uygulama', 'analiz']},
-    8: {'seviyeleri': [3, 4, 5], 'bloom': ['uygulama', 'analiz', 'değerlendirme']},
-    9: {'seviyeleri': [3, 4, 5], 'bloom': ['uygulama', 'analiz', 'değerlendirme']},
-    10: {'seviyeleri': [4, 5, 6], 'bloom': ['analiz', 'değerlendirme', 'yaratma']},
-    11: {'seviyeleri': [5, 6], 'bloom': ['değerlendirme', 'yaratma']},
-    12: {'seviyeleri': [5, 6], 'bloom': ['değerlendirme', 'yaratma']}
+    3: {'seviyeleri': [1,2,3], 'bloom': ['hatırlama', 'anlama','uygulama']},
+    4: {'seviyeleri': [1,2,3], 'bloom': ['hatırlama', 'anlama','uygulama']},
+    5: {'seviyeleri': [1,2,3], 'bloom': ['hatırlama', 'anlama','uygulama']},
+    6: {'seviyeleri': [2,3,4], 'bloom': ['anlama', 'uygulama', 'analiz']},
+    7: {'seviyeleri': [2,3,4], 'bloom': ['anlama', 'uygulama', 'analiz']},
+    8: {'seviyeleri': [3,4,5], 'bloom': ['uygulama', 'analiz', 'değerlendirme']},
+    9: {'seviyeleri': [3,4,5], 'bloom': ['uygulama', 'analiz', 'değerlendirme']},
+    10: {'seviyeleri': [4,5,6], 'bloom': ['analiz', 'değerlendirme', 'yaratma']},
+    11: {'seviyeleri': [4,5,6], 'bloom': ['analiz', 'değerlendirme', 'yaratma']},
+    12: {'seviyeleri': [4,5,6], 'bloom': ['analiz', 'değerlendirme', 'yaratma']}
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
