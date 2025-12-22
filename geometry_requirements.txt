@@ -7,8 +7,11 @@ supabase>=2.0.0
 # Google Gemini
 google-genai>=1.0.0
 
-# Çizim - Cairo
+# Çizim - Cairo (2D)
 pycairo>=1.24.0
+
+# Çizim - Matplotlib (3D cisimler)
+matplotlib>=3.7.0
 
 # Matematik
 numpy>=1.24.0
