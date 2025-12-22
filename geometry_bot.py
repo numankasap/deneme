@@ -1333,21 +1333,45 @@ class SupabaseManager:
         logger.info("Supabase bağlantısı kuruldu")
     
     def get_questions_without_images(self, limit=30):
-        """Görselsiz soruları çek - şemaya uygun"""
+        """Görselsiz geometri sorularını çek - şemaya uygun"""
         try:
-            # Basit sorgu: image_url boş veya null olanlar
+            # Geometri konularını filtrele (topic sütununda)
+            geometry_topics = [
+                'Geometri', 'Üçgen', 'Dörtgen', 'Çember', 'Daire', 
+                'Alan', 'Çevre', 'Hacim', 'Açı', 'Koordinat',
+                'Prizma', 'Piramit', 'Silindir', 'Koni', 'Küre'
+            ]
+            
+            # İlk önce topic'te geometri olanları dene
+            for geo_topic in geometry_topics[:5]:  # İlk 5 konuyu dene
+                result = self.client.table('question_bank').select(
+                    'id', 'original_text', 'topic', 'topic_group', 'grade_level', 'image_url'
+                ).is_('image_url', 'null').eq('is_active', True).ilike(
+                    'topic', f'%{geo_topic}%'
+                ).limit(limit).execute()
+                
+                if result.data and len(result.data) > 0:
+                    logger.info(f"Geometri sorgusu ({geo_topic}): {len(result.data)} soru bulundu")
+                    return result.data
+            
+            # Alternatif: original_text'te geometri anahtar kelimeleri ara
+            geometry_keywords = ['üçgen', 'ABC', 'ABCD', 'açı', 'kenar', 'çember', 'daire', 'kare', 'dikdörtgen']
+            for kw in geometry_keywords[:3]:
+                result = self.client.table('question_bank').select(
+                    'id', 'original_text', 'topic', 'topic_group', 'grade_level', 'image_url'
+                ).is_('image_url', 'null').eq('is_active', True).ilike(
+                    'original_text', f'%{kw}%'
+                ).limit(limit).execute()
+                
+                if result.data and len(result.data) > 0:
+                    logger.info(f"Anahtar kelime sorgusu ({kw}): {len(result.data)} soru bulundu")
+                    return result.data
+            
+            # Fallback: tüm görselsiz sorular
+            logger.info("Geometri filtresi sonuç vermedi, tüm sorular çekiliyor")
             result = self.client.table('question_bank').select(
                 'id', 'original_text', 'topic', 'topic_group', 'grade_level', 'image_url'
             ).is_('image_url', 'null').eq('is_active', True).limit(limit).execute()
-            
-            if result.data and len(result.data) > 0:
-                logger.info(f"Görselsiz {len(result.data)} soru bulundu")
-                return result.data
-            
-            # Alternatif: boş string olanları da dene
-            result = self.client.table('question_bank').select(
-                'id', 'original_text', 'topic', 'topic_group', 'grade_level', 'image_url'
-            ).eq('image_url', '').eq('is_active', True).limit(limit).execute()
             
             return result.data if result.data else []
             
