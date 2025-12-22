@@ -1,7 +1,7 @@
 # Geometry Bot Workflow
 # Günde 3 kez çalışır (08:00, 14:00, 20:00 UTC+3)
-# Her seansta 30 geometri sorusuna görsel oluşturur
-# Test modunda 10 soru işler
+# Her seansta 10 geometri sorusuna görsel oluşturur (rate limit nedeniyle)
+# Gemini API: dakikada max 10 istek
 
 name: Geometry Bot
 
@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       test_mode:
-        description: 'Test modu (10 soru)'
+        description: 'Test modu (5 soru)'
         required: false
         default: 'false'
         type: choice
@@ -18,10 +18,17 @@ on:
           - 'true'
           - 'false'
       batch_size:
-        description: 'İşlenecek soru sayısı (1-100)'
+        description: 'İşlenecek soru sayısı (1-10, rate limit)'
         required: false
-        default: '30'
+        default: '10'
         type: string
+      gemini_model:
+        description: 'Gemini Model'
+        required: false
+        default: 'gemini-2.5-flash'
+        type: choice
+        options:
+          - 'gemini-2.0-flash'
   
   # Zamanlanmış çalışma (UTC saatleri - Türkiye için +3)
   schedule:
@@ -61,13 +68,15 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ github.event.inputs.gemini_model || 'gemini-2.0-flash-exp' }}
           TEST_MODE: ${{ github.event.inputs.test_mode || 'false' }}
-          BATCH_SIZE: ${{ github.event.inputs.batch_size || '30' }}
+          BATCH_SIZE: ${{ github.event.inputs.batch_size || '10' }}
         run: |
           echo "🚀 Geometri Görsel Botu Başlatılıyor..."
           echo "📅 Tarih: $(date)"
           echo "🔧 Test Modu: $TEST_MODE"
           echo "📊 Batch Boyutu: $BATCH_SIZE soru"
+          echo "🤖 Gemini Model: $GEMINI_MODEL"
           python geometry_bot.py
       
       - name: 📊 Job Summary
@@ -77,6 +86,9 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- **Tarih:** $(date)" >> $GITHUB_STEP_SUMMARY
           echo "- **Test Modu:** ${{ github.event.inputs.test_mode || 'false' }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Batch Boyutu:** ${{ github.event.inputs.batch_size || '30' }} soru" >> $GITHUB_STEP_SUMMARY
+          echo "- **Batch Boyutu:** ${{ github.event.inputs.batch_size || '10' }} soru" >> $GITHUB_STEP_SUMMARY
+          echo "- **Gemini Model:** ${{ github.event.inputs.gemini_model || 'gemini-2.0-flash-exp' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "⚠️ **Rate Limit:** Gemini API dakikada max 10 istek izin veriyor." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Detaylar için logları kontrol edin." >> $GITHUB_STEP_SUMMARY
