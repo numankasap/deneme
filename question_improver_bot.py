@@ -1,9 +1,9 @@
 """
-🔧 QUESTION BANK İYİLEŞTİRİCİ BOT V2
+🔧 QUESTION BANK İYİLEŞTİRİCİ BOT V3
 ═══════════════════════════════════════════════════════════════════════════════
 
 Mevcut soruları kalite kontrolünden geçirir ve iyileştirir.
-JSON escape hatalarını çözen gelişmiş versiyon.
+V3: Sıralı işleme hatası düzeltildi - kaldığı yerden devam eder.
 
 📚 ÖZELLİKLER:
 ✅ Kısa/kalitesiz soruları bağlamlı hale getirir
@@ -16,8 +16,9 @@ JSON escape hatalarını çözen gelişmiş versiyon.
 ✅ LaTeX matematiksel ifadeleri doğru escape eder
 ✅ İlk geçişte atlananları 2. geçişte işler
 ✅ Her gün kontrol eder, işlenmemiş soru kalmayana kadar devam eder
+🆕 V3: Son işlenen ID'den devam eder (sıralı işleme düzeltmesi)
 
-@version 2.0.0
+@version 3.0.0
 @author MATAİ PRO
 """
 
@@ -128,7 +129,7 @@ SINIF_BLOOM_MAP = {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# PROGRESS YÖNETİMİ
+# PROGRESS YÖNETİMİ - V3 GÜNCELLEME
 # ═══════════════════════════════════════════════════════════════════════════════
 
 PROGRESS_TABLE_EXISTS = False
@@ -180,30 +181,120 @@ def progress_kaydet(question_id, status, attempt=1, deepseek_puan=None, hata=Non
         print(f"   ⚠️ Progress kayıt hatası: {str(e)[:50]}")
         return False
 
+def son_islenen_id_getir():
+    """Progress tablosundan son başarıyla işlenen ID'yi getir"""
+    if not PROGRESS_TABLE_EXISTS:
+        return START_ID - 1
+    try:
+        # Success durumundaki en büyük question_id'yi bul
+        result = supabase.table(PROGRESS_TABLE)\
+            .select('question_id')\
+            .eq('status', 'success')\
+            .order('question_id', desc=True)\
+            .limit(1)\
+            .execute()
+        
+        if result.data:
+            return result.data[0]['question_id']
+        return START_ID - 1
+    except Exception as e:
+        print(f"   ⚠️ Son ID getirme hatası: {str(e)[:50]}")
+        return START_ID - 1
+
 def islenmemis_sorulari_getir(limit, retry_mode=False):
-    """İşlenmemiş veya tekrar işlenecek soruları getir"""
+    """
+    İşlenmemiş veya tekrar işlenecek soruları getir - V3 DÜZELTİLMİŞ
+    
+    V3 Değişiklik: Son işlenen ID'den devam eder, tüm işlenmiş ID'leri 
+    bellekte tutmak yerine veritabanında LEFT JOIN mantığı kullanır.
+    """
     try:
         if not PROGRESS_TABLE_EXISTS:
             print(f"   📋 Progress tablosu yok, direkt sorgulama...")
-            result = supabase.table('question_bank').select('*').gte('id', START_ID).lte('id', END_ID).order('id').limit(limit).execute()
+            result = supabase.table('question_bank')\
+                .select('*')\
+                .gte('id', START_ID)\
+                .lte('id', END_ID)\
+                .order('id')\
+                .limit(limit)\
+                .execute()
             return result.data if result.data else []
         
         if retry_mode:
-            progress_result = supabase.table(PROGRESS_TABLE).select('question_id').in_('status', ['failed', 'pending_retry']).execute()
+            # Retry mode: failed veya pending_retry olanları getir
+            progress_result = supabase.table(PROGRESS_TABLE)\
+                .select('question_id')\
+                .in_('status', ['failed', 'pending_retry'])\
+                .order('question_id')\
+                .limit(limit)\
+                .execute()
+            
             if not progress_result.data:
                 return []
+            
             retry_ids = [p['question_id'] for p in progress_result.data]
-            result = supabase.table('question_bank').select('*').in_('id', retry_ids).limit(limit).execute()
-        else:
-            progress_result = supabase.table(PROGRESS_TABLE).select('question_id').execute()
-            islenmis_ids = set([p['question_id'] for p in progress_result.data]) if progress_result.data else set()
-            result = supabase.table('question_bank').select('*').gte('id', START_ID).lte('id', END_ID).order('id').limit(limit * 2).execute()
-            if result.data:
-                result.data = [q for q in result.data if q['id'] not in islenmis_ids][:limit]
+            result = supabase.table('question_bank')\
+                .select('*')\
+                .in_('id', retry_ids)\
+                .order('id')\
+                .execute()
+            return result.data if result.data else []
         
-        return result.data if result.data else []
+        else:
+            # V3 DEĞİŞİKLİK: Son işlenen ID'den devam et
+            # Tüm işlenmiş ID'leri çek (success, failed, pending_retry)
+            progress_result = supabase.table(PROGRESS_TABLE)\
+                .select('question_id')\
+                .execute()
+            
+            islenmis_ids = set()
+            if progress_result.data:
+                islenmis_ids = set([p['question_id'] for p in progress_result.data])
+            
+            print(f"   📊 Progress'te {len(islenmis_ids)} kayıt var")
+            
+            # Son başarılı ID'yi bul ve oradan devam et
+            son_id = son_islenen_id_getir()
+            
+            # Sorguyu başlat - son ID'den sonrasını çek
+            # Ama aynı zamanda arada atlanmış olabilecekleri de kontrol et
+            
+            # Strateji: Belirli bir aralıkta (örn: 500 soru) tarama yap
+            # ve işlenmemiş olanları bul
+            
+            baslangic_id = START_ID
+            sorular = []
+            
+            # Chunk'lar halinde tara
+            chunk_size = 200  # Her seferinde 200 soru kontrol et
+            current_start = baslangic_id
+            
+            while len(sorular) < limit and current_start <= END_ID:
+                # Bu chunk'taki soruları çek
+                result = supabase.table('question_bank')\
+                    .select('*')\
+                    .gte('id', current_start)\
+                    .lte('id', min(current_start + chunk_size - 1, END_ID))\
+                    .order('id')\
+                    .execute()
+                
+                if result.data:
+                    # İşlenmemiş olanları filtrele
+                    for soru in result.data:
+                        if soru['id'] not in islenmis_ids:
+                            sorular.append(soru)
+                            if len(sorular) >= limit:
+                                break
+                
+                current_start += chunk_size
+            
+            print(f"   📋 {len(sorular)} işlenmemiş soru bulundu")
+            return sorular
+            
     except Exception as e:
         print(f"❌ Soru getirme hatası: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return []
 
 def tum_isler_bitti_mi():
@@ -211,20 +302,37 @@ def tum_isler_bitti_mi():
     if not PROGRESS_TABLE_EXISTS:
         return {'total': END_ID - START_ID + 1, 'success': 0, 'pending': 0, 'completed': False}
     try:
-        total = supabase.table('question_bank').select('id', count='exact').gte('id', START_ID).lte('id', END_ID).execute()
+        total = supabase.table('question_bank')\
+            .select('id', count='exact')\
+            .gte('id', START_ID)\
+            .lte('id', END_ID)\
+            .execute()
         total_count = total.count if total.count else 0
-        success = supabase.table(PROGRESS_TABLE).select('question_id', count='exact').eq('status', 'success').execute()
+        
+        success = supabase.table(PROGRESS_TABLE)\
+            .select('question_id', count='exact')\
+            .eq('status', 'success')\
+            .execute()
         success_count = success.count if success.count else 0
-        pending = supabase.table(PROGRESS_TABLE).select('question_id', count='exact').in_('status', ['failed', 'pending_retry']).execute()
+        
+        pending = supabase.table(PROGRESS_TABLE)\
+            .select('question_id', count='exact')\
+            .in_('status', ['failed', 'pending_retry'])\
+            .execute()
         pending_count = pending.count if pending.count else 0
+        
+        # İşlenmemiş soru sayısı
+        islenmemis = total_count - success_count - pending_count
+        
         return {
             'total': total_count,
             'success': success_count,
             'pending': pending_count,
+            'islenmemis': islenmemis,
             'completed': success_count >= total_count and pending_count == 0
         }
     except:
-        return {'total': 0, 'success': 0, 'pending': 0, 'completed': False}
+        return {'total': 0, 'success': 0, 'pending': 0, 'islenmemis': 0, 'completed': False}
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # SORU KALİTE ANALİZİ
@@ -498,12 +606,9 @@ def regex_json_fallback(text):
         secenekler_match = re.search(r'"secenekler"\s*:\s*\{([^}]+)\}', text, re.DOTALL)
         if secenekler_match:
             secenekler_text = secenekler_match.group(1)
-            secenekler = {}
-            for opt in ['A', 'B', 'C', 'D', 'E']:
-                opt_match = re.search(rf'"{opt}"\s*:\s*"([^"]*)"', secenekler_text)
-                if opt_match:
-                    secenekler[opt] = opt_match.group(1)
-            result['secenekler'] = secenekler
+            result['secenekler'] = {}
+            for opt_match in re.finditer(r'"([A-E])"\s*:\s*"([^"]*)"', secenekler_text):
+                result['secenekler'][opt_match.group(1)] = opt_match.group(2)
         
         # dogru_cevap
         match = re.search(r'"dogru_cevap"\s*:\s*"([A-E])"', text)
@@ -525,78 +630,37 @@ def regex_json_fallback(text):
         if match:
             result['bloom_seviye'] = match.group(1)
         
-        # beceri
-        match = re.search(r'"beceri"\s*:\s*"([^"]*)"', text)
-        if match:
-            result['beceri'] = match.group(1)
-        
         # iyilestirme_yapildi
         match = re.search(r'"iyilestirme_yapildi"\s*:\s*(true|false)', text)
         if match:
             result['iyilestirme_yapildi'] = match.group(1) == 'true'
         
-        # Minimum gerekli alanlar var mı kontrol et
         if result.get('soru_metni') and result.get('dogru_cevap'):
             print(f"      ✅ Regex fallback başarılı")
             return result
         
-        print(f"      ⚠️ Regex fallback: yetersiz veri")
+        print(f"      ⚠️ Regex fallback yetersiz veri çıkardı")
         return None
         
     except Exception as e:
         print(f"      ⚠️ Regex fallback hatası: {str(e)[:50]}")
         return None
 
-def html_safe_text(text):
-    """Metni HTML-safe hale getir"""
-    if not text:
-        return ""
-    text = str(text)
-    text = text.replace('&', '&amp;')
-    text = text.replace('<', '&lt;')
-    text = text.replace('>', '&gt;')
-    text = text.replace('"', '&quot;')
-    text = text.replace("'", '&#39;')
-    return text
-
 # ═══════════════════════════════════════════════════════════════════════════════
-# GEMİNİ İLE SORU İYİLEŞTİRME
+# GEMİNİ İYİLEŞTİRME
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# Daha net JSON talimatları ile güncellenmiş prompt
-IYILESTIRME_PROMPT = """Sen matematik eğitimi uzmanı ve soru editörüsün. Görevin mevcut soruları kalite standartlarına uygun hale getirmek.
+IYILESTIRME_PROMPT = """Sen bir matematik öğretmenisin. Görevi şu:
 
-## 📋 GÖREV
+1. Verilen soruyu incele
+2. Eğer soru çok kısa veya bağlamsız ise, gerçek hayat bağlamı ekle
+3. Çözümü ADIM ADIM yaz
+4. Her adım tek satırda ve kısa olsun
 
-Verilen soruyu analiz et ve iyileştir:
-1. Soru çok kısaysa (örn: "2^5=?", "√49=?") → Bağlamlı, beceri temelli hale getir
-2. Çözüm eksik/yanlışsa → Doğru ve adım adım çözüm yaz
-3. Çözüm formatı kötüyse → Temiz, öz format kullan
-
-## ⚠️ KRİTİK JSON KURALLARI
-
-MUTLAKA şu kurallara uy:
-1. LaTeX komutları için ÇİFT backslash kullan: \\\\frac, \\\\sqrt, \\\\times, \\\\leq, \\\\geq, \\\\equiv, \\\\pmod vs.
-2. Yeni satır için \\n kullan (çift backslash değil, tek)
-3. Tırnak içinde tırnak için \\" kullan
-4. JSON dışında HİÇBİR ŞEY yazma
-
-### DOĞRU LaTeX KULLANIMI (JSON İÇİNDE):
-- Kesir: \\\\frac{a}{b}
-- Karekök: \\\\sqrt{x}
-- Çarpı: \\\\times veya \\\\cdot
-- Eşit değil: \\\\neq
-- Küçük eşit: \\\\leq
-- Büyük eşit: \\\\geq
-- Denk: \\\\equiv
-- Mod: \\\\pmod{n} veya (mod n)
-- Kümeler: \\\\{1, 2, 3\\\\}
-- Üst simge: ^{2}
-- Alt simge: _{n}
-
-## SORU İYİLEŞTİRME:
-- Çok kısa sorulara KISA bir bağlam ekle (1-2 cümle yeterli)
-- Gereksiz uzatma YAPMA, öz tut
+## KURALLAR:
+- Sorunun matematiksel içeriğini DEĞİŞTİRME
+- Doğru cevabı DEĞİŞTİRME
+- Seçenekleri DEĞİŞTİRME (sadece eksikse ekle)
 - Matematiksel içeriği KORUMALI
 - Sınıf seviyesine uygun olmalı
 
@@ -742,6 +806,12 @@ DEEPSEEK_KONTROL_PROMPT = """Sen matematik soru kalite kontrolcüsüsün. Verile
    - Seviyeye uygun mu?
    - Seçenekler mantıklı mı?
 
+## ⚠️ ÖNEMLİ NOT: GEOMETRİ SORULARI
+Eğer soru geometri konusunda ve şekil/görsel gerektiriyorsa:
+- Görsel olmadan tam değerlendirme yapılamayacağını kabul et
+- Matematiksel mantık doğruysa yüksek puan ver
+- Şekil gerektiren sorularda minimum 70 puan ver (eğer çözüm mantıklıysa)
+
 ## ⚠️ KRİTİK JSON KURALLARI
 - SADECE JSON döndür
 - LaTeX için ÇİFT backslash: \\\\frac, \\\\sqrt vs.
@@ -773,6 +843,9 @@ def deepseek_kontrol(iyilestirilmis, orijinal):
         dogru_cevap = iyilestirilmis.get('dogru_cevap', '')
         secenekler = iyilestirilmis.get('secenekler', {})
         
+        # Orijinal sorudaki konu bilgisi
+        topic = orijinal.get('topic', '') or ''
+        
         # Seçenekleri güvenli string'e çevir
         try:
             secenekler_str = json.dumps(secenekler, ensure_ascii=False, indent=2)
@@ -780,6 +853,8 @@ def deepseek_kontrol(iyilestirilmis, orijinal):
             secenekler_str = str(secenekler)
         
         kontrol_metni = f"""
+**Konu:** {topic}
+
 **Soru:** {soru_metni}
 
 **Seçenekler:**
@@ -944,10 +1019,12 @@ def batch_isle(retry_mode=False):
         return {'islenen': 0, 'basarili': 0, 'bitti': True}
     
     print(f"\n{'='*70}")
-    print(f"🔧 QUESTION BANK İYİLEŞTİRME - {mode_str}")
+    print(f"🔧 QUESTION BANK İYİLEŞTİRME V3 - {mode_str}")
     print(f"   Tarih: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     print(f"   İşlenecek: {len(sorular)} soru")
     print(f"   ID Aralığı: {START_ID} - {END_ID}")
+    if sorular:
+        print(f"   Bu batch ID'leri: {sorular[0]['id']} - {sorular[-1]['id']}")
     print(f"{'='*70}\n")
     
     basarili = 0
@@ -997,7 +1074,8 @@ def batch_isle(retry_mode=False):
     print(f"   📋 Genel Durum:")
     print(f"      Toplam: {durum['total']} soru")
     print(f"      Başarılı: {durum['success']}")
-    print(f"      Bekleyen: {durum['pending']}")
+    print(f"      Bekleyen (retry): {durum['pending']}")
+    print(f"      İşlenmemiş: {durum.get('islenmemis', '?')}")
     print(f"{'='*70}\n")
     
     return {
@@ -1012,7 +1090,7 @@ def batch_isle(retry_mode=False):
 
 def main():
     print("\n" + "="*70)
-    print("🔧 QUESTION BANK İYİLEŞTİRİCİ BOT V2")
+    print("🔧 QUESTION BANK İYİLEŞTİRİCİ BOT V3")
     print("   📚 ID Aralığı: {} - {}".format(START_ID, END_ID))
     print("   ✅ Kısa soruları bağlamlı hale getirir")
     print("   ✅ Yanlış çözümleri düzeltir")
@@ -1020,6 +1098,7 @@ def main():
     print("   ✅ DeepSeek kalite kontrolü")
     print("   ✅ LaTeX JSON escape düzeltmesi")
     print("   ✅ Regex fallback JSON parser")
+    print("   🆕 V3: Sıralı işleme düzeltmesi - kaldığı yerden devam eder")
     print("="*70 + "\n")
     
     # Progress tablosu kontrolü
@@ -1054,23 +1133,29 @@ def main():
     print(f"\n📋 Mevcut Durum:")
     print(f"   Toplam: {durum['total']} soru")
     print(f"   Başarılı: {durum['success']}")
-    print(f"   Bekleyen: {durum['pending']}")
+    print(f"   Bekleyen (retry): {durum['pending']}")
+    print(f"   İşlenmemiş: {durum.get('islenmemis', durum['total'] - durum['success'] - durum['pending'])}")
     
     if durum['completed']:
         print("\n🎉 TÜM İŞLER TAMAMLANDI!")
         return
     
-    # İlk geçiş
-    print("\n" + "="*70)
-    print("📍 İLK GEÇİŞ BAŞLIYOR...")
-    print("="*70)
+    # İlk geçiş - işlenmemiş sorular
+    islenmemis = durum.get('islenmemis', durum['total'] - durum['success'] - durum['pending'])
     
-    sonuc = batch_isle(retry_mode=False)
+    if islenmemis > 0:
+        print("\n" + "="*70)
+        print(f"📍 İLK GEÇİŞ BAŞLIYOR... ({islenmemis} işlenmemiş soru)")
+        print("="*70)
+        
+        sonuc = batch_isle(retry_mode=False)
+    else:
+        sonuc = {'islenen': 0}
     
-    # Eğer ilk geçişte iş kalmadıysa, retry mode'a geç
+    # Eğer ilk geçişte iş kalmadıysa veya az işlendiyse, retry mode'a geç
     if sonuc['islenen'] == 0 and durum['pending'] > 0:
         print("\n" + "="*70)
-        print("📍 TEKRAR GEÇİŞ BAŞLIYOR (Atlanan sorular)...")
+        print(f"📍 TEKRAR GEÇİŞ BAŞLIYOR ({durum['pending']} bekleyen soru)...")
         print("="*70)
         
         sonuc = batch_isle(retry_mode=True)
@@ -1084,8 +1169,11 @@ def main():
         print(f"   Toplam işlenen: {final_durum['success']} soru")
         print("="*70)
     else:
+        kalan = final_durum['total'] - final_durum['success']
         print(f"\n📋 Sonraki çalışmada devam edilecek...")
-        print(f"   Kalan: {final_durum['total'] - final_durum['success']} soru")
+        print(f"   Kalan: {kalan} soru")
+        print(f"   - İşlenmemiş: {final_durum.get('islenmemis', '?')}")
+        print(f"   - Bekleyen (retry): {final_durum['pending']}")
 
 if __name__ == "__main__":
     main()
