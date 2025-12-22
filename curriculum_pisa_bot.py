@@ -49,7 +49,7 @@ DEEPSEEK_DOGRULAMA = bool(DEEPSEEK_API_KEY)
 COT_AKTIF = True
 BEKLEME = 1.5
 MAX_DENEME = 4
-MIN_DEEPSEEK_PUAN = 45  # Düşürüldü - sorular kaydedilsin, sonra manuel kontrol
+MIN_DEEPSEEK_PUAN = 65  # Minimum kalite puanı
 API_TIMEOUT = 30
 
 # Progress tablosu adı
