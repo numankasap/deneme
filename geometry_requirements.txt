@@ -1,18 +1,17 @@
-# Geometry Bot Requirements
-# Geometri görsel oluşturma botu için gerekli kütüphaneler
+# Geometry Bot v3.0 Requirements
+# Cairo tabanlı profesyonel geometri ve grafik çizimleri
 
 # Supabase
 supabase>=2.0.0
 
-# Google Gemini (yeni paket)
+# Google Gemini
 google-genai>=1.0.0
 
-# Matematik ve Geometri
-sympy>=1.12
+# Çizim - Cairo
+pycairo>=1.24.0
+
+# Matematik
 numpy>=1.24.0
 
-# Görselleştirme
-matplotlib>=3.7.0
-
-# Resim işleme
+# Resim işleme (opsiyonel)
 Pillow>=10.0.0
