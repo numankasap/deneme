@@ -35,7 +35,7 @@ class Config:
     SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
     GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
     # Alternatif modeller: gemini-2.0-flash-exp, gemini-1.5-flash, gemini-1.5-pro
-    GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-2.5-flash')
+    GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-2.0-flash-exp')
     STORAGE_BUCKET = 'questions-images'
     # Rate limit nedeniyle batch size düşük tutulmalı (dakikada max 10 istek)
     BATCH_SIZE = int(os.environ.get('BATCH_SIZE', '10'))
@@ -1333,30 +1333,36 @@ class SupabaseManager:
         logger.info("Supabase bağlantısı kuruldu")
     
     def get_questions_without_images(self, limit=30):
-        """Görselsiz geometri sorularını çek - şemaya uygun"""
+        """Görselsiz geometri şekil sorularını çek - şemaya uygun"""
         try:
-            # Geometri konularını filtrele (topic sütununda)
-            geometry_topics = [
-                'Geometri', 'Üçgen', 'Dörtgen', 'Çember', 'Daire', 
-                'Alan', 'Çevre', 'Hacim', 'Açı', 'Koordinat',
-                'Prizma', 'Piramit', 'Silindir', 'Koni', 'Küre'
+            # GERÇEK geometri şekil konuları (geometrik dizi DEĞİL)
+            shape_topics = [
+                'Üçgen', 'Dörtgen', 'Çember', 'Daire', 'Çokgen',
+                'Alan', 'Çevre', 'Hacim', 'Prizma', 'Piramit', 
+                'Silindir', 'Koni', 'Küre', 'Açı', 'Koordinat'
             ]
             
-            # İlk önce topic'te geometri olanları dene
-            for geo_topic in geometry_topics[:5]:  # İlk 5 konuyu dene
+            # Topic'te şekil konusu ara
+            for topic in shape_topics:
                 result = self.client.table('question_bank').select(
                     'id', 'original_text', 'topic', 'topic_group', 'grade_level', 'image_url'
                 ).is_('image_url', 'null').eq('is_active', True).ilike(
-                    'topic', f'%{geo_topic}%'
+                    'topic', f'%{topic}%'
                 ).limit(limit).execute()
                 
                 if result.data and len(result.data) > 0:
-                    logger.info(f"Geometri sorgusu ({geo_topic}): {len(result.data)} soru bulundu")
+                    logger.info(f"Şekil konusu ({topic}): {len(result.data)} soru bulundu")
                     return result.data
             
-            # Alternatif: original_text'te geometri anahtar kelimeleri ara
-            geometry_keywords = ['üçgen', 'ABC', 'ABCD', 'açı', 'kenar', 'çember', 'daire', 'kare', 'dikdörtgen']
-            for kw in geometry_keywords[:3]:
+            # Alternatif: original_text'te şekil anahtar kelimeleri ara
+            # "ABC üçgeninde", "ABCD dörtgeninde" gibi ifadeler
+            shape_keywords = [
+                'ABC üçgen', 'üçgeninde', 'dörtgeninde', 'karesinde',
+                'dikdörtgeninde', 'çemberinde', 'dairesinde',
+                'kenar uzunluğu', 'açısı', 'yüksekliği'
+            ]
+            
+            for kw in shape_keywords:
                 result = self.client.table('question_bank').select(
                     'id', 'original_text', 'topic', 'topic_group', 'grade_level', 'image_url'
                 ).is_('image_url', 'null').eq('is_active', True).ilike(
@@ -1364,11 +1370,11 @@ class SupabaseManager:
                 ).limit(limit).execute()
                 
                 if result.data and len(result.data) > 0:
-                    logger.info(f"Anahtar kelime sorgusu ({kw}): {len(result.data)} soru bulundu")
+                    logger.info(f"Şekil anahtar kelime ({kw}): {len(result.data)} soru bulundu")
                     return result.data
             
             # Fallback: tüm görselsiz sorular
-            logger.info("Geometri filtresi sonuç vermedi, tüm sorular çekiliyor")
+            logger.info("Şekil filtresi sonuç vermedi, tüm sorular çekiliyor")
             result = self.client.table('question_bank').select(
                 'id', 'original_text', 'topic', 'topic_group', 'grade_level', 'image_url'
             ).is_('image_url', 'null').eq('is_active', True).limit(limit).execute()
@@ -1406,58 +1412,56 @@ class SupabaseManager:
 
 
 class GeminiAnalyzer:
-    ANALYSIS_PROMPT = """Sen geometri ve veri görselleştirme uzmanısın. Soruyu analiz et ve çizim talimatı üret.
+    ANALYSIS_PROMPT = """Bu matematik sorusunu oku ve analiz et.
 
-## ÇİZİM GEREKLİ (cizim_pisinilir: true):
-- Geometrik şekil: üçgen, dörtgen, kare, dikdörtgen, daire, çember
-- 3D cisim: küp, prizma, piramit, silindir, koni, küre
-- Veri görselleştirme: pasta grafik, sütun grafik
+SORU: Geometrik bir çizim/şekil bu soruyu anlamayı veya çözmeyi kolaylaştırır mı?
 
-## ÇİZİM GEREKMİYOR (cizim_pisinilir: false):
-- Sayısal hesaplama, hikaye problemi (şekil çizimi gerektirmeyen)
+EVET ise → cizim_pisinilir: true + çizim talimatları
+HAYIR ise → cizim_pisinilir: false
 
-## KRİTİK: 
-- 2D şekiller için "points" listesi ZORUNLU (x,y koordinatları)
-- 3D cisimler için "dimensions" objesi ZORUNLU
-- Sadece JSON döndür!
+## JSON FORMATLARI:
 
-## ÖRNEKLER:
+Dikdörtgen/Kare:
+{"cizim_pisinilir": true, "shape_type": "rectangle", "points": [{"name": "A", "x": 0, "y": 0}, {"name": "B", "x": 9, "y": 0}, {"name": "C", "x": 9, "y": 8}, {"name": "D", "x": 0, "y": 8}], "edges": [{"start": "A", "end": "B", "label": "9 cm"}]}
 
-2D Üçgen:
+Üçgen:
 {"cizim_pisinilir": true, "shape_type": "triangle", "points": [{"name": "A", "x": 0, "y": 0}, {"name": "B", "x": 6, "y": 0}, {"name": "C", "x": 3, "y": 5}], "edges": [{"start": "A", "end": "B", "label": "6 cm"}]}
 
-2D Dikdörtgen:
-{"cizim_pisinilir": true, "shape_type": "rectangle", "points": [{"name": "A", "x": 0, "y": 0}, {"name": "B", "x": 8, "y": 0}, {"name": "C", "x": 8, "y": 5}, {"name": "D", "x": 0, "y": 5}]}
-
-2D Daire:
+Daire/Çember:
 {"cizim_pisinilir": true, "shape_type": "circle", "center": {"name": "O", "x": 5, "y": 5}, "radius": 4}
 
-3D Küp:
+Küp:
 {"cizim_pisinilir": true, "shape_type": "cube", "dimensions": {"size": 4}}
 
-3D Piramit:
-{"cizim_pisinilir": true, "shape_type": "pyramid", "dimensions": {"base_size": 4, "height": 5}}
-
-3D Silindir:
-{"cizim_pisinilir": true, "shape_type": "cylinder", "dimensions": {"radius": 3, "height": 6}}
-
-3D Koni:
-{"cizim_pisinilir": true, "shape_type": "cone", "dimensions": {"radius": 3, "height": 5}}
-
-3D Küre:
-{"cizim_pisinilir": true, "shape_type": "sphere", "dimensions": {"radius": 4}}
-
-3D Prizma:
+Prizma:
 {"cizim_pisinilir": true, "shape_type": "rectangular_prism", "dimensions": {"width": 4, "height": 3, "depth": 2}}
 
+Piramit:
+{"cizim_pisinilir": true, "shape_type": "pyramid", "dimensions": {"base_size": 4, "height": 5}}
+
+Silindir:
+{"cizim_pisinilir": true, "shape_type": "cylinder", "dimensions": {"radius": 3, "height": 6}}
+
+Koni:
+{"cizim_pisinilir": true, "shape_type": "cone", "dimensions": {"radius": 3, "height": 5}}
+
+Küre:
+{"cizim_pisinilir": true, "shape_type": "sphere", "dimensions": {"radius": 4}}
+
 Pasta Grafik:
-{"cizim_pisinilir": true, "shape_type": "pie_chart", "pie_data": {"values": [40, 30, 20, 10], "labels": ["A", "B", "C", "D"], "value_type": "percent"}}
+{"cizim_pisinilir": true, "shape_type": "pie_chart", "pie_data": {"values": [40, 30, 20], "labels": ["A", "B", "C"], "value_type": "percent"}}
 
 Sütun Grafik:
 {"cizim_pisinilir": true, "shape_type": "bar_chart", "bar_data": {"values": [25, 40, 35], "labels": ["X", "Y", "Z"]}}
 
-Çizim Yok:
-{"cizim_pisinilir": false, "neden": "Hesaplama"}
+Çizim gereksiz:
+{"cizim_pisinilir": false, "neden": "kısa açıklama"}
+
+NOT: 
+- 2D şekillerde points listesi ve koordinatlar ZORUNLU
+- 3D cisimlerde dimensions objesi ZORUNLU
+- Soruda verilen ölçüleri kullan
+- SADECE JSON döndür, açıklama yazma!
 
 SORU: """
     
