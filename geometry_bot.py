@@ -34,9 +34,11 @@ class Config:
     SUPABASE_URL = os.environ.get('SUPABASE_URL')
     SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
     GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
-    GEMINI_MODEL = 'gemini-2.0-flash-exp'
+    # Alternatif modeller: gemini-2.0-flash-exp, gemini-1.5-flash, gemini-1.5-pro
+    GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-2.5-flash')
     STORAGE_BUCKET = 'questions-images'
-    BATCH_SIZE = int(os.environ.get('BATCH_SIZE', '30'))
+    # Rate limit nedeniyle batch size düşük tutulmalı (dakikada max 10 istek)
+    BATCH_SIZE = int(os.environ.get('BATCH_SIZE', '10'))
     TEST_MODE = os.environ.get('TEST_MODE', 'false').lower() == 'true'
     IMAGE_WIDTH = 900
     IMAGE_HEIGHT = 750
@@ -1385,26 +1387,66 @@ SORU: """
         else:
             genai.configure(api_key=Config.GEMINI_API_KEY)
             self.model = genai.GenerativeModel(Config.GEMINI_MODEL)
+        self.request_count = 0
+        self.last_request_time = 0
+        self.requests_per_minute = 8  # 10'dan biraz düşük tut güvenlik için
         logger.info(f"Gemini bağlantısı kuruldu (model: {Config.GEMINI_MODEL})")
     
-    def analyze(self, question_text):
-        try:
-            prompt = self.ANALYSIS_PROMPT + question_text
-            if NEW_GENAI:
-                response = self.client.models.generate_content(model=Config.GEMINI_MODEL, contents=prompt)
-                text = response.text
-            else:
-                response = self.model.generate_content(prompt)
-                text = response.text
-            text = text.strip()
-            if text.startswith('```'):
-                lines = text.split('\n')
-                text = '\n'.join(lines[1:-1])
-                if text.startswith('json'): text = text[4:].strip()
-            return json.loads(text)
-        except Exception as e:
-            logger.error(f"Gemini hatası: {e}")
-            return None
+    def _rate_limit(self):
+        """Rate limiting - dakikada max istek sayısını kontrol et"""
+        current_time = time.time()
+        
+        # Her dakika başında sayacı sıfırla
+        if current_time - self.last_request_time > 60:
+            self.request_count = 0
+            self.last_request_time = current_time
+        
+        # Limit aşıldıysa bekle
+        if self.request_count >= self.requests_per_minute:
+            wait_time = 60 - (current_time - self.last_request_time) + 2  # +2 güvenlik marjı
+            if wait_time > 0:
+                logger.info(f"⏳ Rate limit - {wait_time:.0f} saniye bekleniyor...")
+                time.sleep(wait_time)
+                self.request_count = 0
+                self.last_request_time = time.time()
+        
+        self.request_count += 1
+    
+    def analyze(self, question_text, max_retries=3):
+        for attempt in range(max_retries):
+            try:
+                self._rate_limit()
+                prompt = self.ANALYSIS_PROMPT + question_text
+                
+                if NEW_GENAI:
+                    response = self.client.models.generate_content(model=Config.GEMINI_MODEL, contents=prompt)
+                    text = response.text
+                else:
+                    response = self.model.generate_content(prompt)
+                    text = response.text
+                
+                text = text.strip()
+                if text.startswith('```'):
+                    lines = text.split('\n')
+                    text = '\n'.join(lines[1:-1])
+                    if text.startswith('json'): text = text[4:].strip()
+                return json.loads(text)
+                
+            except Exception as e:
+                error_str = str(e)
+                if '429' in error_str or 'RESOURCE_EXHAUSTED' in error_str:
+                    # Rate limit hatası - bekle ve tekrar dene
+                    wait_time = 60 + (attempt * 10)  # Her denemede daha uzun bekle
+                    logger.warning(f"⚠️ Rate limit aşıldı. {wait_time}s bekleniyor... (deneme {attempt + 1}/{max_retries})")
+                    time.sleep(wait_time)
+                    self.request_count = 0  # Sayacı sıfırla
+                    self.last_request_time = time.time()
+                else:
+                    logger.error(f"Gemini hatası: {e}")
+                    return None
+        
+        logger.error(f"Gemini: {max_retries} deneme sonrası başarısız")
+        return None
 
 
 class ImageGenerator:
