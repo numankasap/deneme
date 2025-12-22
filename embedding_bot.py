@@ -14,7 +14,7 @@ from google import genai
 
 # ============== YAPILANDIRMA ==============
 CONFIG = {
-    "BATCH_SIZE": 50,
+    "BATCH_SIZE": 100,
     "EMBEDDING_MODEL": "text-embedding-004",
     "MAX_TEXT_LENGTH": 8000,
     "RETRY_ATTEMPTS": 3,
