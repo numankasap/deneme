@@ -1345,8 +1345,8 @@ class SupabaseManager:
                 'derece', 'alan', 'çevre', 'hacim', 'cm²', 'm²'
             ]
             
-            # İlk önce geometri sorularını dene
-            or_filters = ','.join([f"question_text.ilike.%{kw}%" for kw in geometry_keywords[:10]])
+            # original_text sütununda arama yap
+            or_filters = ','.join([f"original_text.ilike.%{kw}%" for kw in geometry_keywords[:10]])
             
             result = self.client.table('question_bank').select('*').or_(
                 'image_url.is.null,image_url.eq.'
