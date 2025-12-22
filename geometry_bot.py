@@ -35,7 +35,7 @@ class Config:
     SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
     GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
     # Alternatif modeller: gemini-2.0-flash-exp, gemini-1.5-flash, gemini-1.5-pro
-    GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-2.5-flash')
+    GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-2.0-flash-exp')
     STORAGE_BUCKET = 'questions-images'
     # Rate limit nedeniyle batch size düşük tutulmalı (dakikada max 10 istek)
     BATCH_SIZE = int(os.environ.get('BATCH_SIZE', '10'))
@@ -1452,13 +1452,26 @@ SORU: """
 class ImageGenerator:
     def generate(self, analysis):
         shape_type = analysis.get('shape_type', '')
-        if shape_type == 'pie_chart': return self._pie(analysis)
-        elif shape_type == 'bar_chart': return self._bar(analysis)
-        else: return self._geometry(analysis)
+        logger.info(f"ImageGenerator: shape_type={shape_type}")
+        
+        try:
+            if shape_type == 'pie_chart': 
+                return self._pie(analysis)
+            elif shape_type == 'bar_chart': 
+                return self._bar(analysis)
+            else: 
+                return self._geometry(analysis)
+        except Exception as e:
+            logger.error(f"ImageGenerator hata: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return None
     
     def _pie(self, analysis):
         pd = analysis.get('pie_data', {})
-        if not pd.get('values'): return None
+        if not pd.get('values'): 
+            logger.warning("Pie chart: values eksik")
+            return None
         r = Pie3DRenderer(700, 620)
         r.setup(bg_color=Colors.WHITE)
         r.draw(values=pd.get('values', []), labels=pd.get('labels', []), title=pd.get('title'),
@@ -1467,7 +1480,9 @@ class ImageGenerator:
     
     def _bar(self, analysis):
         bd = analysis.get('bar_data', {})
-        if not bd.get('values'): return None
+        if not bd.get('values'): 
+            logger.warning("Bar chart: values eksik")
+            return None
         r = BarChartRenderer(700, 500)
         r.setup(bg_color=Colors.WHITE)
         r.draw(values=bd.get('values', []), labels=bd.get('labels', []), title=bd.get('title'))
@@ -1475,7 +1490,10 @@ class ImageGenerator:
     
     def _geometry(self, analysis):
         pts = analysis.get('points', [])
-        if not pts: return None
+        if not pts: 
+            logger.warning("Geometry: points eksik")
+            return None
+        logger.info(f"Geometry: {len(pts)} nokta")
         xs, ys = [p['x'] for p in pts], [p['y'] for p in pts]
         bounds = {'x_min': min(xs)-2, 'x_max': max(xs)+2, 'y_min': min(ys)-2, 'y_max': max(ys)+2}
         r = CairoRenderer(Config.IMAGE_WIDTH, Config.IMAGE_HEIGHT)
@@ -1552,24 +1570,55 @@ class GeometryBot:
     def _process(self, question):
         q_id = question.get('id')
         q_text = question.get('question_text', '') or question.get('original_text', '')
+        
         if not q_text:
+            logger.warning(f"[{q_id}] ⏭️ Soru metni boş")
             self.stats['skipped'] += 1
             return
+        
+        logger.info(f"[{q_id}] 📝 İşleniyor: {q_text[:80]}...")
         self.stats['processed'] += 1
-        analysis = self.analyzer.analyze(q_text)
-        if not analysis or not analysis.get('cizim_pisinilir', False):
-            self.stats['skipped'] += 1
-            return
-        image_bytes = self.generator.generate(analysis)
-        if not image_bytes:
-            self.stats['error'] += 1
-            return
-        filename = f"geometry_{q_id}_{int(time.time())}.png"
-        image_url = self.supabase.upload_image(image_bytes, filename)
-        if image_url and self.supabase.update_question_image(q_id, image_url):
-            logger.info(f"Soru {q_id}: OK")
-            self.stats['success'] += 1
-        else:
+        
+        try:
+            analysis = self.analyzer.analyze(q_text)
+            
+            if not analysis:
+                logger.warning(f"[{q_id}] ❌ Gemini analiz döndürmedi")
+                self.stats['error'] += 1
+                return
+            
+            logger.info(f"[{q_id}] 🔍 Analiz: cizim={analysis.get('cizim_pisinilir')}, type={analysis.get('shape_type', 'N/A')}")
+            
+            if not analysis.get('cizim_pisinilir', False):
+                reason = analysis.get('neden', 'belirtilmedi')
+                logger.info(f"[{q_id}] ⏭️ Çizim gerekmiyor: {reason}")
+                self.stats['skipped'] += 1
+                return
+            
+            image_bytes = self.generator.generate(analysis)
+            
+            if not image_bytes:
+                logger.warning(f"[{q_id}] ❌ Görsel oluşturulamadı - shape_type: {analysis.get('shape_type')}")
+                logger.debug(f"[{q_id}] Full analysis: {json.dumps(analysis, ensure_ascii=False)}")
+                self.stats['error'] += 1
+                return
+            
+            logger.info(f"[{q_id}] 🎨 Görsel oluşturuldu ({len(image_bytes)} bytes)")
+            
+            filename = f"geometry_{q_id}_{int(time.time())}.png"
+            image_url = self.supabase.upload_image(image_bytes, filename)
+            
+            if image_url and self.supabase.update_question_image(q_id, image_url):
+                logger.info(f"[{q_id}] ✅ Başarılı: {image_url}")
+                self.stats['success'] += 1
+            else:
+                logger.warning(f"[{q_id}] ❌ Yükleme/güncelleme başarısız")
+                self.stats['error'] += 1
+                
+        except Exception as e:
+            logger.error(f"[{q_id}] ❌ Hata: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             self.stats['error'] += 1
 
 
