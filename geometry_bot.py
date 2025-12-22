@@ -35,7 +35,7 @@ class Config:
     SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
     GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
     # Alternatif modeller: gemini-2.0-flash-exp, gemini-1.5-flash, gemini-1.5-pro
-    GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-2.0-flash-exp')
+    GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-2.5-flash')
     STORAGE_BUCKET = 'questions-images'
     # Rate limit nedeniyle batch size düşük tutulmalı (dakikada max 10 istek)
     BATCH_SIZE = int(os.environ.get('BATCH_SIZE', '10'))
