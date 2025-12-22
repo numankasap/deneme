@@ -7,35 +7,39 @@ Model: Gemini text-embedding-004 (768 boyut)
 """
 
 import os
-import json
 import time
 from datetime import datetime
 from supabase import create_client, Client
-import google.generativeai as genai
+from google import genai
 
 # ============== YAPILANDIRMA ==============
 CONFIG = {
-    "BATCH_SIZE": 50,                      # Her çalışmada işlenecek soru sayısı
-    "EMBEDDING_MODEL": "text-embedding-004",  # Gemini embedding modeli
-    "MAX_TEXT_LENGTH": 8000,               # Max karakter
-    "RETRY_ATTEMPTS": 3,                   # Hata durumunda tekrar deneme
-    "RETRY_DELAY": 2,                      # Tekrar deneme arası bekleme (saniye)
+    "BATCH_SIZE": 50,
+    "EMBEDDING_MODEL": "text-embedding-004",
+    "MAX_TEXT_LENGTH": 8000,
+    "RETRY_ATTEMPTS": 3,
+    "RETRY_DELAY": 2,
 }
 
 # ============== İSTEMCİLER ==============
-supabase: Client = create_client(
-    os.environ.get("SUPABASE_URL"),
-    os.environ.get("SUPABASE_SERVICE_KEY")
-)
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
+GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
 
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+# Kontrol
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise Exception("❌ SUPABASE_URL ve SUPABASE_SERVICE_KEY environment variable'ları gerekli!")
+if not GEMINI_KEY:
+    raise Exception("❌ GEMINI_API_KEY environment variable'ı gerekli!")
+
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+client = genai.Client(api_key=GEMINI_KEY)
 
 
 def build_embedding_text(question: dict) -> str:
     """Soru verilerinden embedding için zengin metin oluşturur"""
     parts = []
     
-    # Konu bilgisi (semantic context için önemli)
     if question.get("subject"):
         parts.append(f"Ders: {question['subject']}")
     if question.get("topic_group"):
@@ -44,8 +48,6 @@ def build_embedding_text(question: dict) -> str:
         parts.append(f"Alt Konu: {question['topic']}")
     if question.get("kazanim_kodu"):
         parts.append(f"Kazanım: {question['kazanim_kodu']}")
-    
-    # Seviye bilgileri
     if question.get("grade_level"):
         parts.append(f"Sınıf: {question['grade_level']}")
     if question.get("difficulty"):
@@ -54,34 +56,27 @@ def build_embedding_text(question: dict) -> str:
         parts.append(f"Bloom: {question['bloom_level']}")
     if question.get("pisa_level"):
         parts.append(f"PISA Seviye: {question['pisa_level']}")
-    
-    # Senaryo (varsa)
     if question.get("scenario_text"):
         parts.append(f"Senaryo: {question['scenario_text']}")
     
-    # Ana soru metni
     if question.get("original_text"):
         parts.append(f"Soru: {question['original_text']}")
     elif question.get("title"):
         parts.append(f"Soru: {question['title']}")
     
-    # Şıklar
     options = question.get("options")
     if options and isinstance(options, dict):
         options_text = " | ".join([f"{k}) {v}" for k, v in options.items()])
         parts.append(f"Şıklar: {options_text}")
     
-    # Çözüm
     if question.get("solution_short"):
         parts.append(f"Çözüm: {question['solution_short']}")
     elif question.get("solution_text"):
         parts.append(f"Çözüm: {question['solution_text']}")
     
-    # Doğru cevap
     if question.get("correct_answer"):
         parts.append(f"Doğru Cevap: {question['correct_answer']}")
     
-    # Birleştir ve uzunluğu kontrol et
     full_text = "\n\n".join(parts)
     
     if len(full_text) > CONFIG["MAX_TEXT_LENGTH"]:
@@ -91,13 +86,13 @@ def build_embedding_text(question: dict) -> str:
 
 
 def get_embedding(text: str, retry_count: int = 0) -> list:
-    """Gemini API ile embedding oluşturur (retry mekanizmalı)"""
+    """Gemini API ile embedding oluşturur"""
     try:
-        result = genai.embed_content(
-            model=f"models/{CONFIG['EMBEDDING_MODEL']}",
-            content=text
+        result = client.models.embed_content(
+            model=CONFIG["EMBEDDING_MODEL"],
+            contents=text
         )
-        return result['embedding']
+        return result.embeddings[0].values
     except Exception as e:
         if retry_count < CONFIG["RETRY_ATTEMPTS"]:
             print(f"⚠️  Embedding hatası, tekrar deneniyor ({retry_count + 1}/{CONFIG['RETRY_ATTEMPTS']})...")
@@ -146,7 +141,6 @@ def process_embeddings():
         
         for question in questions:
             try:
-                # Embedding metni oluştur
                 embedding_text = build_embedding_text(question)
                 
                 if not embedding_text or len(embedding_text.strip()) < 10:
@@ -154,10 +148,8 @@ def process_embeddings():
                     failed += 1
                     continue
                 
-                # Gemini'den embedding al
                 embedding = get_embedding(embedding_text)
                 
-                # Supabase'e kaydet
                 supabase.table("question_bank") \
                     .update({"embedding": vector_to_postgres(embedding)}) \
                     .eq("id", question["id"]) \
@@ -168,7 +160,6 @@ def process_embeddings():
                 topic = question.get("topic") or "Genel"
                 print(f"✓ Soru #{question['id']} embed edildi [{progress}%] - {topic}")
                 
-                # Rate limit için kısa bekleme
                 time.sleep(0.1)
                 
             except Exception as e:
@@ -202,7 +193,7 @@ def process_embeddings():
             for e in errors:
                 print(f"   - Soru #{e['id']}: {e['error']}")
         
-        # 5. Log kaydı (opsiyonel)
+        # 5. Log kaydı
         try:
             supabase.table("bot_logs").insert({
                 "bot_name": "embedding_bot",
@@ -214,7 +205,7 @@ def process_embeddings():
                 "details": {"errors": errors} if errors else None,
                 "created_at": datetime.now().isoformat()
             }).execute()
-        except Exception as log_error:
+        except Exception:
             print("ℹ️  Log kaydı atlandı (bot_logs tablosu mevcut değil)")
         
         return {"processed": processed, "failed": failed, "remaining": remaining_count}
