@@ -28,7 +28,8 @@ on:
         default: 'gemini-2.5-flash'
         type: choice
         options:
-          - 'gemini-2.0-flash
+          - 'gemini-2.0-flash'
+          
   # Zamanlanmış çalışma (UTC saatleri - Türkiye için +3)
   schedule:
     # 05:00 UTC = 08:00 TR
