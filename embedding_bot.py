@@ -2,7 +2,7 @@
 MATAI PRO - Embedding Bot
 Soru bankasındaki soruları Gemini ile vektörel formata çevirir
 
-Çalışma: Günde 4 kez, her seferinde 50 soru
+Çalışma: Günde 8 kez, her seferinde 100 soru
 Model: Gemini text-embedding-004 (768 boyut)
 """
 
