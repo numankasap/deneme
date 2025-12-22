@@ -1,5 +1,5 @@
 """
-🎯 CURRICULUM PISA SORU ÜRETİCİ BOT V1
+🎯 CURRICULUM PISA SORU ÜRETİCİ BOT V2
 ═══════════════════════════════════════════════════════════════════════════════
 
 Curriculum tablosundaki her kazanımdan PISA tarzı sorular üretir.
@@ -12,8 +12,11 @@ Sorular question_bank tablosuna kaydedilir.
 ✅ DeepSeek doğrulama sistemi
 ✅ Bloom taksonomisi entegrasyonu
 ✅ Tekrar önleyici sistem
+✅ SEVİYEYE GÖRE SORU KARMAŞIKLIĞI (V2 YENİ!)
+   - Seviye 1-4: Tek karakter, kısa sorular, az adım
+   - Seviye 5-6: Çoklu karakter, karmaşık senaryolar
 
-@version 1.0.0
+@version 2.0.0
 @author MATAİ PRO
 """
 
@@ -167,7 +170,9 @@ PISA_BAGLAM_KATEGORILERI = {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# PISA 2022 YETERLİK SEVİYELERİ
+# PISA 2022 YETERLİK SEVİYELERİ - V2 GÜNCELLEME
+# Seviye 1-4: Basit, tek kişi, kısa sorular
+# Seviye 5-6: Karmaşık, çoklu kişi, uzun sorular
 # ═══════════════════════════════════════════════════════════════════════════════
 
 PISA_YETERLIK_SEVIYELERI = {
@@ -182,7 +187,11 @@ PISA_YETERLIK_SEVIYELERI = {
         'soru_ozellikleri': {
             'adim_sayisi': '1-2',
             'veri_sunumu': 'Doğrudan ve açık',
-            'hesaplama': 'Basit dört işlem'
+            'hesaplama': 'Basit dört işlem',
+            'karakter_sayisi': 1,  # TEK KİŞİ
+            'min_kelime': 40,
+            'max_kelime': 60,
+            'senaryo_tipi': 'basit'
         }
     },
     2: {
@@ -196,7 +205,11 @@ PISA_YETERLIK_SEVIYELERI = {
         'soru_ozellikleri': {
             'adim_sayisi': '2-3',
             'veri_sunumu': 'Tablo veya basit grafik',
-            'hesaplama': 'Oran, yüzde, basit kesir'
+            'hesaplama': 'Oran, yüzde, basit kesir',
+            'karakter_sayisi': 1,  # TEK KİŞİ
+            'min_kelime': 50,
+            'max_kelime': 80,
+            'senaryo_tipi': 'basit'
         }
     },
     3: {
@@ -208,9 +221,13 @@ PISA_YETERLIK_SEVIYELERI = {
             'Basit modeller oluşturma ve kullanma'
         ],
         'soru_ozellikleri': {
-            'adim_sayisi': '3-4',
+            'adim_sayisi': '2-3',
             'veri_sunumu': 'Çoklu kaynak veya tablo',
-            'hesaplama': 'Çok adımlı, ara sonuçlar'
+            'hesaplama': 'Çok adımlı, ara sonuçlar',
+            'karakter_sayisi': 1,  # TEK KİŞİ
+            'min_kelime': 60,
+            'max_kelime': 90,
+            'senaryo_tipi': 'basit'
         }
     },
     4: {
@@ -222,9 +239,13 @@ PISA_YETERLIK_SEVIYELERI = {
             'Farklı temsilleri bütünleştirme'
         ],
         'soru_ozellikleri': {
-            'adim_sayisi': '4-5',
+            'adim_sayisi': '3-4',
             'veri_sunumu': 'Çoklu temsil, grafik+tablo',
-            'hesaplama': 'Model kurma, denklem'
+            'hesaplama': 'Model kurma, denklem',
+            'karakter_sayisi': 1,  # TEK KİŞİ
+            'min_kelime': 70,
+            'max_kelime': 100,
+            'senaryo_tipi': 'basit'
         }
     },
     5: {
@@ -236,9 +257,13 @@ PISA_YETERLIK_SEVIYELERI = {
             'Çoklu çözüm yollarını değerlendirme'
         ],
         'soru_ozellikleri': {
-            'adim_sayisi': '5-6',
+            'adim_sayisi': '4-5',
             'veri_sunumu': 'Karmaşık, çoklu kaynak',
-            'hesaplama': 'Üst düzey modelleme'
+            'hesaplama': 'Üst düzey modelleme',
+            'karakter_sayisi': 2,  # İKİ KİŞİ - KARMAŞIK
+            'min_kelime': 100,
+            'max_kelime': 150,
+            'senaryo_tipi': 'karmasik'
         }
     },
     6: {
@@ -250,9 +275,13 @@ PISA_YETERLIK_SEVIYELERI = {
             'Yaratıcı matematiksel düşünme'
         ],
         'soru_ozellikleri': {
-            'adim_sayisi': '6+',
+            'adim_sayisi': '5-6',
             'veri_sunumu': 'Soyut, çok katmanlı',
-            'hesaplama': 'Genelleme, ispat benzeri'
+            'hesaplama': 'Genelleme, ispat benzeri',
+            'karakter_sayisi': 2,  # İKİ KİŞİ - KARMAŞIK
+            'min_kelime': 120,
+            'max_kelime': 180,
+            'senaryo_tipi': 'karmasik'
         }
     }
 }
@@ -270,8 +299,8 @@ SINIF_PISA_MAP = {
     8: {'seviyeleri': [3, 4, 5], 'bloom': ['uygulama', 'analiz', 'değerlendirme']},
     9: {'seviyeleri': [3, 4, 5], 'bloom': ['uygulama', 'analiz', 'değerlendirme']},
     10: {'seviyeleri': [4, 5, 6], 'bloom': ['analiz', 'değerlendirme', 'yaratma']},
-    11: {'seviyeleri': [5, 6], 'bloom': ['değerlendirme', 'yaratma']},
-    12: {'seviyeleri': [5, 6], 'bloom': ['değerlendirme', 'yaratma']}
+    11: {'seviyeleri': [4, 5, 6], 'bloom': ['analiz', 'değerlendirme', 'yaratma']},
+    12: {'seviyeleri': [4, 5, 6], 'bloom': ['analiz', 'değerlendirme', 'yaratma']}
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -398,40 +427,33 @@ def progress_getir(curriculum_id):
     except:
         return None
 
-def progress_guncelle(curriculum_id, tur_sayisi, uretilen_soru):
-    """Progress'i güncelle veya oluştur"""
+def progress_guncelle(curriculum_id, tur, soru_sayisi):
+    """Progress güncelle veya oluştur"""
     try:
         mevcut = progress_getir(curriculum_id)
         
         if mevcut:
-            # Güncelle
             supabase.table(PROGRESS_TABLE)\
                 .update({
-                    'current_tur': tur_sayisi,
-                    'questions_in_current_tur': uretilen_soru,
-                    'total_questions': mevcut.get('total_questions', 0) + 1,
-                    'last_processed_at': datetime.utcnow().isoformat()
+                    'current_tur': tur,
+                    'questions_in_current_tur': soru_sayisi,
+                    'updated_at': datetime.now().isoformat()
                 })\
                 .eq('curriculum_id', curriculum_id)\
                 .execute()
         else:
-            # Yeni kayıt
             supabase.table(PROGRESS_TABLE)\
                 .insert({
                     'curriculum_id': curriculum_id,
-                    'current_tur': tur_sayisi,
-                    'questions_in_current_tur': uretilen_soru,
-                    'total_questions': 1,
-                    'last_processed_at': datetime.utcnow().isoformat()
+                    'current_tur': tur,
+                    'questions_in_current_tur': soru_sayisi
                 })\
                 .execute()
-        return True
     except Exception as e:
-        print(f"   ⚠️ Progress güncelleme hatası: {str(e)[:50]}")
-        return False
+        print(f"   ⚠️ Progress güncelleme hatası: {str(e)[:30]}")
 
-def mevcut_tur_getir():
-    """Şu anki tur numarasını getir"""
+def mevcut_turu_hesapla(curriculum_data):
+    """Mevcut tur numarasını hesapla"""
     try:
         result = supabase.table(PROGRESS_TABLE)\
             .select('current_tur')\
@@ -440,164 +462,116 @@ def mevcut_tur_getir():
             .execute()
         
         if result.data:
-            return result.data[0].get('current_tur', 1)
+            return result.data[0]['current_tur']
         return 1
     except:
         return 1
 
-def sonraki_kazanimlari_getir(curriculum_list, tur_sayisi, limit):
-    """
-    Sıradaki işlenecek kazanımları getir.
-    Mevcut turda henüz SORU_PER_KAZANIM'a ulaşmamış kazanımları döndürür.
-    """
+def tur_tamamlandi_mi(curriculum_data, tur):
+    """Bu tur tüm kazanımlar için tamamlandı mı?"""
+    for cur in curriculum_data:
+        prog = progress_getir(cur['id'])
+        if not prog:
+            return False
+        if prog.get('current_tur', 0) < tur:
+            return False
+        if prog.get('current_tur') == tur and prog.get('questions_in_current_tur', 0) < SORU_PER_KAZANIM:
+            return False
+    return True
+
+def sonraki_kazanimlari_getir(curriculum_data, tur, limit):
+    """Bu turda işlenmesi gereken kazanımları getir"""
     islenecekler = []
     
-    for curriculum in curriculum_list:
+    for cur in curriculum_data:
+        prog = progress_getir(cur['id'])
+        
+        if not prog:
+            # Hiç işlenmemiş
+            islenecekler.append({
+                'curriculum': cur,
+                'tur': tur,
+                'mevcut_soru': 0
+            })
+        elif prog.get('current_tur', 0) < tur:
+            # Bu tura henüz geçmemiş
+            islenecekler.append({
+                'curriculum': cur,
+                'tur': tur,
+                'mevcut_soru': 0
+            })
+        elif prog.get('current_tur') == tur and prog.get('questions_in_current_tur', 0) < SORU_PER_KAZANIM:
+            # Bu turda devam eden
+            islenecekler.append({
+                'curriculum': cur,
+                'tur': tur,
+                'mevcut_soru': prog.get('questions_in_current_tur', 0)
+            })
+        
         if len(islenecekler) >= limit:
             break
-            
-        curriculum_id = curriculum.get('id')
-        progress = progress_getir(curriculum_id)
-        
-        if progress is None:
-            # Hiç işlenmemiş - ekle
-            islenecekler.append({
-                'curriculum': curriculum,
-                'tur': tur_sayisi,
-                'mevcut_soru': 0
-            })
-        elif progress.get('current_tur', 1) < tur_sayisi:
-            # Önceki turda kalmış, yeni tura geç
-            islenecekler.append({
-                'curriculum': curriculum,
-                'tur': tur_sayisi,
-                'mevcut_soru': 0
-            })
-        elif progress.get('current_tur', 1) == tur_sayisi:
-            # Aynı turda, eksik soru var mı?
-            mevcut_soru = progress.get('questions_in_current_tur', 0)
-            if mevcut_soru < SORU_PER_KAZANIM:
-                islenecekler.append({
-                    'curriculum': curriculum,
-                    'tur': tur_sayisi,
-                    'mevcut_soru': mevcut_soru
-                })
     
     return islenecekler
 
-def tur_tamamlandi_mi(curriculum_list, tur_sayisi):
-    """Mevcut turun tamamlanıp tamamlanmadığını kontrol et"""
-    for curriculum in curriculum_list:
-        curriculum_id = curriculum.get('id')
-        progress = progress_getir(curriculum_id)
-        
-        if progress is None:
-            return False
-        if progress.get('current_tur', 0) < tur_sayisi:
-            return False
-        if progress.get('current_tur') == tur_sayisi and progress.get('questions_in_current_tur', 0) < SORU_PER_KAZANIM:
-            return False
-    
-    return True
-
 # ═══════════════════════════════════════════════════════════════════════════════
-# PISA İÇERİK KATEGORİSİ BELİRLE
+# İÇERİK KATEGORİSİ BELİRLE
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def icerik_kategorisi_belirle(curriculum_row):
-    """Curriculum satırından PISA içerik kategorisini belirler"""
-    
-    # Kontrol edilecek alanlar
-    topic_name = str(curriculum_row.get('topic_name', '')).lower()
+    """Curriculum verisinden PISA içerik kategorisini belirle"""
+    topic = str(curriculum_row.get('topic_name', '')).lower()
     sub_topic = str(curriculum_row.get('sub_topic', '')).lower()
-    lesson_name = str(curriculum_row.get('lesson_name', '')).lower()
+    category = str(curriculum_row.get('category', '')).lower()
+    combined = f"{topic} {sub_topic} {category}"
     
-    birlesik_metin = f"{topic_name} {sub_topic} {lesson_name}"
+    for key, val in PISA_ICERIK_KATEGORILERI.items():
+        for konu in val['konular']:
+            if konu.lower() in combined:
+                return key, val
     
-    # Her kategori için anahtar kelimeleri kontrol et
-    for kategori_key, kategori_val in PISA_ICERIK_KATEGORILERI.items():
-        for konu in kategori_val['konular']:
-            if konu.lower() in birlesik_metin:
-                return kategori_key, kategori_val
-    
-    # Varsayılan: lesson_name'e göre
-    if 'geometri' in birlesik_metin:
-        return 'uzay_sekil', PISA_ICERIK_KATEGORILERI['uzay_sekil']
-    elif any(k in birlesik_metin for k in ['olasılık', 'veri', 'istatistik']):
-        return 'belirsizlik_veri', PISA_ICERIK_KATEGORILERI['belirsizlik_veri']
-    elif any(k in birlesik_metin for k in ['denklem', 'fonksiyon', 'cebir', 'eşitsizlik']):
-        return 'degisim_iliskiler', PISA_ICERIK_KATEGORILERI['degisim_iliskiler']
-    else:
-        return 'nicelik', PISA_ICERIK_KATEGORILERI['nicelik']
+    # Varsayılan
+    return 'nicelik', PISA_ICERIK_KATEGORILERI['nicelik']
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # RASTGELE BAĞLAM SEÇ
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def rastgele_baglam_sec():
-    """Rastgele PISA bağlamı seçer"""
-    baglam_kategorisi = random.choice(list(PISA_BAGLAM_KATEGORILERI.keys()))
-    temalar = PISA_BAGLAM_KATEGORILERI[baglam_kategorisi]['temalar']
-    secilen = random.choice(temalar)
+    """Rastgele bir PISA bağlamı seç"""
+    kategori_key = random.choice(list(PISA_BAGLAM_KATEGORILERI.keys()))
+    kategori = PISA_BAGLAM_KATEGORILERI[kategori_key]
+    tema = random.choice(kategori['temalar'])
     
     return {
-        'kategori': baglam_kategorisi,
-        'kategori_ad': PISA_BAGLAM_KATEGORILERI[baglam_kategorisi]['ad'],
-        'tema': secilen['tema'],
-        'aciklama': secilen['aciklama']
+        'kategori': kategori_key,
+        'kategori_ad': kategori['ad'],
+        'tema': tema['tema'],
+        'aciklama': tema['aciklama']
     }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# PISA 2022 ANA SYSTEM PROMPT
+# PISA 2022 SYSTEM PROMPT - V2 SEVİYEYE GÖRE AYARLI
 # ═══════════════════════════════════════════════════════════════════════════════
 
-PISA_2022_SYSTEM_PROMPT = """
-# 🎯 OECD PISA 2022 MATEMATİK SORU TASARIM UZMANI
+PISA_2022_SYSTEM_PROMPT = """# PISA 2022 MATEMATİK SORU TASARIM UZMANI
 
-Sen OECD PISA 2022 standartlarında matematik soruları tasarlayan uzman bir eğitimcisin.
-Görevin, verilen KAZANIM'a uygun, matematiksel okuryazarlığı ölçen, gerçek yaşam bağlamlarında otantik sorular üretmektir.
+Sen OECD PISA Matematik Çerçevesi'nde uzmanlaşmış bir psikometrist ve matematik eğitimcisisin.
 
-## 📚 MATEMATİKSEL OKURYAZARLIK TANIMI (OECD)
+## 🎯 TEMEL İLKELER
 
-"Bireyin matematiksel akıl yürütme kapasitesi ve çeşitli gerçek yaşam bağlamlarında 
-problemleri çözmek için matematiği FORMÜLE ETME, KULLANMA ve YORUMLAMA becerisidir."
+### 1. OTANTİK BAĞLAM
+- Sorular gerçek yaşam senaryolarına dayanmalı
+- Yapay sözcük problemleri YASAK
+- Sayılar mantıklı ve gerçekçi olmalı
 
-## 🎯 ÜÇ MATEMATİKSEL SÜREÇ
+### 2. VERİ TAMLIĞI
+- Senaryo KENDİ KENDİNE YETERLİ olmalı
+- Öğrenci SADECE sorudaki bilgilerle çözebilmeli
+- Dış bilgi gerektirmemeli
 
-### 1. FORMÜLE ETME (%25)
-- Gerçek dünya problemini matematiksel forma dönüştürme
-- Anahtar değişkenleri belirleme
-
-### 2. KULLANMA (%50)
-- Matematiksel kavram ve prosedürleri uygulama
-- Hesaplamalar yapma
-
-### 3. YORUMLAMA (%25)
-- Matematiksel sonuçları bağlama geri yorumlama
-- Çözümün makullüğünü değerlendirme
-
-## ⚠️ OTANTİK SENARYO KURALLARI (KRİTİK!)
-
-### YAPILMASI GEREKENLER:
-1. ✅ Matematiğin GERÇEKTEN kullanıldığı durumlar seç
-2. ✅ Bağlam yapay "sözcük problemi" değil, otantik olmalı
-3. ✅ Tüm veriler senaryoda AÇIKÇA belirtilmeli
-4. ✅ Öğrenci SADECE senaryoyu okuyarak çözebilmeli
-5. ✅ Gerçekçi sayısal değerler kullan
-
-### YAPILMAMASI GEREKENLER:
-1. ❌ Formül/kural vermeden hesaplama isteme
-2. ❌ "Kurallara göre" deyip kuralları yazmama
-3. ❌ Eksik veri ile soru sorma
-
-## 📐 GÖRSEL TEMSİL KURALLARI
-
-Tablo, grafik veya şema gerekiyorsa MUTLAKA metin formatında göster:
-
-### TABLO FORMATI:
-**📊 [Tablo Başlığı]**
-• Satır 1: Değer A, Değer B, Değer C
-• Satır 2: Değer D, Değer E, Değer F
+### 3. MATEMATİKSEL DOĞRULUK
+- Tüm hesaplamalar doğru olmalı
+- Çözüm adımları tutarlı olmalı
 
 ## 🔢 ÇELDİRİCİ TASARIM İLKELERİ (Çoktan Seçmeli için)
 
@@ -615,13 +589,31 @@ Her çeldirici belirli bir kavram yanılgısını temsil etmeli:
 """
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# SEVİYEYE ÖZEL PROMPT EKLERİ
+# SEVİYEYE ÖZEL PROMPT EKLERİ - V2 GÜNCELLEME
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def seviye_prompt_olustur(pisa_seviye):
-    """PISA seviyesine göre ek prompt oluşturur"""
+    """PISA seviyesine göre ek prompt oluşturur - V2 ile karakter sayısı eklendi"""
     seviye = PISA_YETERLIK_SEVIYELERI.get(pisa_seviye, PISA_YETERLIK_SEVIYELERI[3])
+    ozellikler = seviye['soru_ozellikleri']
     
+    karakter_uyari = ""
+    if ozellikler['karakter_sayisi'] == 1:
+        karakter_uyari = """
+⚠️ KARAKTER KURALI: Bu seviyede SADECE TEK KİŞİ olmalı!
+- Senaryoda İKİNCİ bir kişi kullanma!
+- "Ali ve Ayşe" gibi çoklu karakterler YASAK!
+- Tek bir ana karakter üzerinden git!
+- Senaryo KISA ve ÖZ olmalı!
+"""
+    else:
+        karakter_uyari = """
+✅ KARMAŞIK SENARYO: Bu seviyede 2 kişi kullanılabilir.
+- İki farklı karakter ve onların verileri olabilir
+- Karşılaştırma, toplama gibi çoklu işlemler yapılabilir
+- Senaryo daha uzun ve detaylı olabilir
+"""
+
     return f"""
 ## 🎯 HEDEFLENİEN SEVİYE: {seviye['ad']}
 Puan Aralığı: {seviye['puan_araligi']}
@@ -630,56 +622,85 @@ Puan Aralığı: {seviye['puan_araligi']}
 {chr(10).join(f"• {t}" for t in seviye['tanimlayicilar'])}
 
 ### Soru özellikleri:
-• Adım sayısı: {seviye['soru_ozellikleri']['adim_sayisi']}
-• Veri sunumu: {seviye['soru_ozellikleri']['veri_sunumu']}
-• Hesaplama türü: {seviye['soru_ozellikleri']['hesaplama']}
+• Adım sayısı: {ozellikler['adim_sayisi']}
+• Veri sunumu: {ozellikler['veri_sunumu']}
+• Hesaplama türü: {ozellikler['hesaplama']}
+• Karakter sayısı: {ozellikler['karakter_sayisi']} kişi
+• Kelime aralığı: {ozellikler['min_kelime']}-{ozellikler['max_kelime']} kelime
+• Senaryo tipi: {ozellikler['senaryo_tipi'].upper()}
+
+{karakter_uyari}
 
 ⚠️ Soru bu seviyeye UYGUN zorlukta olmalı!
 """
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# JSON FORMAT ŞABLONLARI
+# JSON FORMAT ŞABLONLARI - V2 GÜNCELLEME
 # ═══════════════════════════════════════════════════════════════════════════════
 
-JSON_FORMAT_COKTAN_SECMELI = '''
+def json_format_coktan_secmeli_olustur(pisa_seviye):
+    """Seviyeye göre JSON format şablonu oluştur"""
+    seviye = PISA_YETERLIK_SEVIYELERI.get(pisa_seviye, PISA_YETERLIK_SEVIYELERI[3])
+    ozellikler = seviye['soru_ozellikleri']
+    
+    min_kelime = ozellikler['min_kelime']
+    max_kelime = ozellikler['max_kelime']
+    adim = ozellikler['adim_sayisi']
+    
+    # Adım sayısına göre çözüm adımları
+    if pisa_seviye <= 2:
+        cozum_sablonu = '''    "Adım 1: [Açıklama] - [İşlem] = [Sonuç]",
+    "Adım 2: [Açıklama] - [İşlem] = [Sonuç]"'''
+        min_adim = 2
+    elif pisa_seviye <= 4:
+        cozum_sablonu = '''    "Adım 1: [Açıklama] - [İşlem] = [Sonuç]",
+    "Adım 2: [Açıklama] - [İşlem] = [Sonuç]",
+    "Adım 3: [Açıklama] - [İşlem] = [Sonuç]"'''
+        min_adim = 3
+    else:
+        cozum_sablonu = '''    "Adım 1: [Açıklama] - [İşlem] = [Sonuç]",
+    "Adım 2: [Açıklama] - [İşlem] = [Sonuç]",
+    "Adım 3: [Açıklama] - [İşlem] = [Sonuç]",
+    "Adım 4: [Açıklama] - [İşlem] = [Sonuç]",
+    "Adım 5: [Açıklama] - [İşlem] = [Sonuç]"'''
+        min_adim = 5
+    
+    return f'''
 ## 📋 JSON FORMATI - ÇOKTAN SEÇMELİ (5 Seçenek: A-E)
 
 ```json
-{
+{{
   "soru_tipi": "coktan_secmeli",
-  "senaryo": "[Minimum 100 kelime otantik senaryo. Tüm veriler AÇIKÇA yazılmalı.]",
+  "senaryo": "[{min_kelime}-{max_kelime} kelime arası senaryo. TÜM VERİLER AÇIKÇA yazılmalı.]",
   "soru_metni": "[Net, anlaşılır soru kökü]",
-  "secenekler": {
+  "secenekler": {{
     "A": "[Seçenek metni]",
     "B": "[Seçenek metni]",
     "C": "[Seçenek metni]",
     "D": "[Seçenek metni]",
     "E": "[Seçenek metni]"
-  },
+  }},
   "dogru_cevap": "[A/B/C/D/E]",
-  "celdirici_aciklamalar": {
+  "celdirici_aciklamalar": {{
     "[Yanlış şık]": "Bu şıkkı seçen öğrenci [kavram yanılgısı] yapmış olabilir."
-  },
+  }},
   "cozum_adimlari": [
-    "Adım 1: [Açıklama] - [İşlem] = [Sonuç]",
-    "Adım 2: [Açıklama] - [İşlem] = [Sonuç]",
-    "Adım 3: [Açıklama] - [İşlem] = [Sonuç]",
-    "Adım 4: [Açıklama] - [İşlem] = [Sonuç]",
-    "Adım 5: [Açıklama] - [İşlem] = [Sonuç]"
+{cozum_sablonu}
   ],
   "solution_short": null,
-  "solution_detailed": "[Detaylı, öğrenci dostu, adım adım çözüm açıklaması. Her adımda ne yapıldığı ve neden yapıldığı açıklanmalı.]",
+  "solution_detailed": "[Detaylı, öğrenci dostu, adım adım çözüm açıklaması]",
   "aha_moment": "[Kilit matematiksel fikir]",
   "tahmini_sure": "[X dakika]"
-}
+}}
 ```
 
 ⚠️ JSON KURALLARI:
 1. SADECE JSON döndür, başka metin yazma
 2. String içinde çift tırnak yerine tek tırnak kullan
 3. Seçenekler MUTLAKA 5 tane olmalı (A, B, C, D, E)
-4. EN AZ 5 çözüm adımı olmalı
-5. solution_detailed öğrenci dostu, detaylı ve anlaşılır olmalı
+4. EN AZ {min_adim} çözüm adımı olmalı
+5. Senaryo {min_kelime}-{max_kelime} kelime arasında olmalı!
+6. solution_detailed öğrenci dostu, detaylı ve anlaşılır olmalı
 '''
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -799,17 +820,59 @@ def json_temizle(text):
     return None
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# COT ÇÖZÜM OLUŞTUR
+# COT ÇÖZÜM OLUŞTUR - V2 SEVİYEYE GÖRE AYARLI
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def cot_cozum_olustur(curriculum_row, params):
-    """Chain of Thought: Önce matematiksel çözümü oluştur"""
+    """Chain of Thought: Önce matematiksel çözümü oluştur - V2 seviyeye göre"""
     try:
         baglam = params.get('baglam', {})
         icerik = params.get('icerik_kategorisi', {})
         seviye = params.get('pisa_seviye', 3)
-        isim1 = rastgele_isim_sec()
-        isim2 = rastgele_isim_sec()
+        
+        # Seviye bilgilerini al
+        seviye_info = PISA_YETERLIK_SEVIYELERI.get(seviye, PISA_YETERLIK_SEVIYELERI[3])
+        ozellikler = seviye_info['soru_ozellikleri']
+        karakter_sayisi = ozellikler['karakter_sayisi']
+        min_kelime = ozellikler['min_kelime']
+        max_kelime = ozellikler['max_kelime']
+        
+        # Karakter seçimi - seviyeye göre
+        if karakter_sayisi == 1:
+            isim1 = rastgele_isim_sec()
+            karakter_prompt = f"""## 👤 KULLANILACAK KİŞİ (TEK KARAKTERLİ - ZORUNLU!)
+⚠️ Bu seviyede SADECE TEK KİŞİ kullanılmalı!
+• Karakter: {isim1}
+
+❌ İKİNCİ BİR KİŞİ EKLEME!
+❌ "Ali ve Ayşe" gibi çoklu karakterler YASAK!
+❌ Birden fazla kişinin verilerini karşılaştırma YAPMA!
+✅ Sadece {isim1} üzerinden basit bir senaryo kur!
+"""
+            karakter_ref = f"Tek karakter: {isim1}"
+        else:
+            isim1 = rastgele_isim_sec()
+            isim2 = rastgele_isim_sec()
+            karakter_prompt = f"""## 👥 KULLANILACAK KİŞİLER (KARMAŞIK SENARYO)
+✅ Bu seviyede 2 kişi kullanılabilir:
+• Karakter 1: {isim1}
+• Karakter 2: {isim2}
+
+✅ İki kişi için ayrı veriler verilebilir
+✅ Karşılaştırma, toplama gibi işlemler yapılabilir
+"""
+            karakter_ref = f"İki karakter: {isim1} ve {isim2}"
+        
+        # Adım sayısı belirleme
+        if seviye <= 2:
+            adim_hedef = "1-2"
+            min_adim = 2
+        elif seviye <= 4:
+            adim_hedef = "2-3"
+            min_adim = 3
+        else:
+            adim_hedef = "4-5"
+            min_adim = 5
         
         # Curriculum bilgilerini çıkar
         topic_name = curriculum_row.get('topic_name', '')
@@ -855,6 +918,14 @@ def cot_cozum_olustur(curriculum_row, params):
 ## GÖREV
 Aşağıdaki KAZANIM'a uygun ÖNCE bir matematik problemi tasarla, SONRA adım adım çöz.
 
+## ⚠️ SEVİYE UYARISI - ÇOK ÖNEMLİ!
+Bu soru PISA Seviye {seviye} için hazırlanıyor.
+• Kelime sayısı: {min_kelime}-{max_kelime} arası olmalı (KISA!)
+• Adım sayısı: {adim_hedef} adım (FAZLA DEĞİL!)
+• Karakter sayısı: {karakter_sayisi} kişi
+
+{karakter_prompt}
+
 ## KAZANIM BİLGİSİ
 • Konu: {topic_name}
 • Alt Konu: {sub_topic if sub_topic else 'Genel'}
@@ -869,44 +940,33 @@ Aşağıdaki KAZANIM'a uygun ÖNCE bir matematik problemi tasarla, SONRA adım a
 • Bağlam: {baglam.get('kategori_ad', 'Kişisel')} - {baglam.get('tema', 'alisveris').replace('_', ' ')}
 • Bağlam Açıklaması: {baglam.get('aciklama', 'Günlük yaşam problemi')}
 
-## 👤 KULLANILACAK İSİMLER (ZORUNLU!)
-⚠️ Senaryoda MUTLAKA şu isimleri kullan:
-• Karakter 1: {isim1}
-• Karakter 2: {isim2}
-
-## SEVİYE BEKLENTİLERİ
 {seviye_prompt_olustur(seviye)}
 
-## ⚠️ VERİ TAMLIĞI KURALLARI (ÇOK KRİTİK!)
-
-Problem tanımında şunlar MUTLAKA yer almalı:
+## ⚠️ VERİ TAMLIĞI KURALLARI
 1. Eğer TABLO gerekiyorsa → Tablo VERİLERİ AÇIKÇA yazılmalı
 2. Eğer FİYAT/MALİYET varsa → Her öğenin fiyatı RAKAMLA belirtilmeli
 3. Eğer ORAN/KATSAYI varsa → Sayısal değerler AÇIKÇA verilmeli
-4. Eğer FORMÜL gerekiyorsa → Formül tam olarak yazılmalı
 
 ## ÖNEMLİ KURALLAR
 1. Soru MUTLAKA "{kazanim_bilgisi}" konusuyla ilgili olmalı
 2. Senaryo OTANTİK olmalı - yapay sözcük problemi değil
-3. Küçük, hesaplanabilir sayılar kullan (1-500 arası)
-4. EN AZ 5 çözüm adımı olmalı
-5. {grade_level}. sınıf düzeyine uygun olmalı
+3. Küçük, hesaplanabilir sayılar kullan (1-100 arası tercih et)
+4. {grade_level}. sınıf düzeyine uygun olmalı
+5. Problem tanımı {min_kelime}-{max_kelime} kelime arasında olmalı!
+6. {karakter_ref} - BUNA DİKKAT ET!
 
 ## ÇIKTI FORMATI (JSON)
 ⚠️ Yanıtında SADECE JSON formatını kullan. Markdown code block KULLANMA.
 
 {{
-    "problem_tanimi": "[En az 120 kelime. TÜM VERİLER AÇIKÇA yazılmalı.]",
+    "problem_tanimi": "[{min_kelime}-{max_kelime} kelime. KISA VE ÖZ!]",
     "sayisal_veriler_tablosu": "[Birden fazla öğe varsa liste halinde yaz]",
-    "kurallar": ["Kural 1: [Açıklama]", "Kural 2: [Açıklama]"],
+    "kurallar": ["Kural 1: [Açıklama]"],
     "verilen_degerler": {{"degisken1": "değer1", "degisken2": "değer2"}},
     "istenen": "Ne bulunacak",
     "cozum_adimlari": [
         "Adım 1: [Açıklama] - [İşlem] = [Sonuç]",
-        "Adım 2: [Açıklama] - [İşlem] = [Sonuç]",
-        "Adım 3: [Açıklama] - [İşlem] = [Sonuç]",
-        "Adım 4: [Açıklama] - [İşlem] = [Sonuç]",
-        "Adım 5: [Açıklama] - [İşlem] = [Sonuç]"
+        "Adım 2: [Açıklama] - [İşlem] = [Sonuç]"
     ],
     "sonuc": "[Kesin sayısal cevap]",
     "sonuc_aciklama": "[Cevabın bağlamdaki anlamı]",
@@ -919,7 +979,7 @@ Problem tanımında şunlar MUTLAKA yer almalı:
             contents=prompt,
             config=types.GenerateContentConfig(
                 temperature=0.7,
-                max_output_tokens=3000,
+                max_output_tokens=2500,
                 response_mime_type="application/json"
             )
         )
@@ -930,19 +990,40 @@ Problem tanımında şunlar MUTLAKA yer almalı:
         return None
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# ÇÖZÜMDEN SORU OLUŞTUR
+# ÇÖZÜMDEN SORU OLUŞTUR - V2 GÜNCELLEME
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def cozumden_soru_olustur(cozum, curriculum_row, params):
-    """CoT çözümünden tam PISA sorusu oluştur - 5 seçenekli"""
+    """CoT çözümünden tam PISA sorusu oluştur - 5 seçenekli - V2"""
     try:
         topic_name = curriculum_row.get('topic_name', '')
         sub_topic = curriculum_row.get('sub_topic', '')
         grade_level = curriculum_row.get('grade_level', 8)
+        pisa_seviye = params.get('pisa_seviye', 3)
+        
+        # Seviye bilgilerini al
+        seviye_info = PISA_YETERLIK_SEVIYELERI.get(pisa_seviye, PISA_YETERLIK_SEVIYELERI[3])
+        ozellikler = seviye_info['soru_ozellikleri']
+        karakter_sayisi = ozellikler['karakter_sayisi']
+        min_kelime = ozellikler['min_kelime']
+        max_kelime = ozellikler['max_kelime']
+        
+        # Karakter uyarısı
+        if karakter_sayisi == 1:
+            karakter_uyari = """
+⚠️ TEK KARAKTERLİ SENARYO ZORUNLU!
+- Senaryodaki ismi koru ama İKİNCİ KİŞİ EKLEME!
+- Basit, doğrudan bir senaryo olmalı!
+"""
+        else:
+            karakter_uyari = """
+✅ İki karakterli senaryo kullanılabilir.
+- Her iki karakterin isimlerini koru.
+"""
         
         prompt = f'''{PISA_2022_SYSTEM_PROMPT}
 
-{seviye_prompt_olustur(params.get('pisa_seviye', 3))}
+{seviye_prompt_olustur(pisa_seviye)}
 
 ## KAZANIM
 • Konu: {topic_name}
@@ -970,30 +1051,32 @@ def cozumden_soru_olustur(cozum, curriculum_row, params):
 
 Bu hazır çözümü kullanarak 5 SEÇENEKLİ (A-E) ÇOKTAN SEÇMELİ bir PISA sorusu oluştur.
 
+{karakter_uyari}
+
 • Soru Tipi: coktan_secmeli
 • Seçenek Sayısı: 5 (A, B, C, D, E)
 • İçerik: {params.get('icerik_kategorisi', {}).get('ad', 'Nicelik')}
 • Sınıf: {grade_level}
-• PISA Seviye: {params.get('pisa_seviye', 3)}
+• PISA Seviye: {pisa_seviye}
 • Bloom Seviye: {params.get('bloom_seviye', 'uygulama')}
 • Bağlam: {params.get('baglam', {}).get('kategori_ad', 'Kişisel')}
-• Matematiksel Süreç: {params.get('matematiksel_surec', 'kullanma')}
+• Senaryo uzunluğu: {min_kelime}-{max_kelime} kelime!
 
-{JSON_FORMAT_COKTAN_SECMELI}
+{json_format_coktan_secmeli_olustur(pisa_seviye)}
 
 ⚠️ ÖNEMLİ: 
-- Karakterlerin isimlerini AYNEN koru!
+- Senaryodaki isimleri AYNEN koru!
 - MUTLAKA 5 seçenek olmalı (A, B, C, D, E)
 - String değerlerde satır sonu kullanma
 - Markdown code block kullanma
-- solution_detailed alanı detaylı ve öğrenci dostu olmalı'''
+- Senaryo {min_kelime}-{max_kelime} kelime arasında olmalı!'''
 
         response = gemini_client.models.generate_content(
             model='gemini-2.0-flash',
             contents=prompt,
             config=types.GenerateContentConfig(
                 temperature=0.7,
-                max_output_tokens=3500,
+                max_output_tokens=3000,
                 response_mime_type="application/json"
             )
         )
@@ -1005,7 +1088,7 @@ Bu hazır çözümü kullanarak 5 SEÇENEKLİ (A-E) ÇOKTAN SEÇMELİ bir PISA s
         
         # Meta bilgileri ekle
         soru['sinif'] = grade_level
-        soru['pisa_seviye'] = params.get('pisa_seviye', 3)
+        soru['pisa_seviye'] = pisa_seviye
         soru['bloom_seviye'] = params.get('bloom_seviye', 'uygulama')
         soru['matematiksel_surec'] = params.get('matematiksel_surec', 'kullanma')
         soru['curriculum_id'] = curriculum_row.get('id')
@@ -1060,8 +1143,8 @@ def senaryo_veri_tamligini_dogrula(soru):
     """Senaryonun kendi kendine yeterli olup olmadığını kontrol eder"""
     senaryo = soru.get('senaryo', '')
     
-    if not senaryo or len(senaryo) < 80:
-        return False, "Senaryo çok kısa (min 80 karakter)"
+    if not senaryo or len(senaryo) < 30:
+        return False, "Senaryo çok kısa (min 30 karakter)"
     
     tehlikeli_ifadeler = [
         ('tabloya göre', ['|', '•', 'Tablo', '📊', '📋', ':']),
@@ -1099,66 +1182,52 @@ def question_bank_kaydet(soru, curriculum_row, dogrulama_puan=None):
                     secenekler_dict[chr(65+i)] = str(s)
             secenekler = secenekler_dict
         
-        # Çözüm adımlarını birleştir (solution_text için)
+        # Çözüm adımlarını string olarak birleştir
         cozum_adimlari = soru.get('cozum_adimlari', [])
         if isinstance(cozum_adimlari, list):
-            solution_text = '\n'.join(cozum_adimlari)
+            cozum_str = '\n'.join(cozum_adimlari)
         else:
-            solution_text = str(cozum_adimlari)
+            cozum_str = str(cozum_adimlari)
         
-        # Senaryo ve soru metni ayrı ayrı
-        senaryo = soru.get('senaryo', '')
-        soru_metni = soru.get('soru_metni', '')
-        original_text = f"{senaryo}\n\n{soru_metni}" if senaryo else soru_metni
+        # solution_detailed varsa kullan
+        solution_detailed = soru.get('solution_detailed', cozum_str)
         
-        # Zorluk hesapla (PISA seviyesinden, 1-5 arası)
-        pisa_seviye = soru.get('pisa_seviye', 3)
-        difficulty = min(5, max(1, pisa_seviye))
+        # Çeldirici açıklamalarını string'e çevir
+        celdirici = soru.get('celdirici_aciklamalar', {})
+        if isinstance(celdirici, dict):
+            celdirici_str = json.dumps(celdirici, ensure_ascii=False)
+        else:
+            celdirici_str = str(celdirici)
         
-        # Konu bilgisi: "topic_name -> sub_topic" formatında
-        topic_name = curriculum_row.get('topic_name', '')
-        sub_topic = curriculum_row.get('sub_topic', '')
-        topic = f"{topic_name}"
-        if sub_topic:
-            topic += f" -> {sub_topic}"
-        
-        # curriculum.id değerini kazanim_id olarak kullan
-        curriculum_id = curriculum_row.get('id')
-        grade_level = int(curriculum_row.get('grade_level', 8))
-        category = curriculum_row.get('category', '')  # Lise, LGS, TYT, AYT vs.
-        
+        # Kayıt verisi
         kayit = {
-            # Temel alanlar
-            'title': None,
-            'original_text': original_text,
-            'options': json.dumps(secenekler, ensure_ascii=False),
-            'solution_text': solution_text,
-            'difficulty': difficulty,
-            'subject': 'Matematik',
-            'grade_level': grade_level,
-            'topic': topic,
-            'correct_answer': soru.get('dogru_cevap', 'A'),
-            'kazanim_id': curriculum_id,
-            'is_past_exam': False,
-            'question_type': 'coktan_secmeli',
-            'solution_short': soru.get('solution_short', None),
-            'solution_detailed': soru.get('solution_detailed', soru.get('aha_moment', '')),
-            'verified': DEEPSEEK_DOGRULAMA and dogrulama_puan and dogrulama_puan >= MIN_DEEPSEEK_PUAN,
-            'verified_at': datetime.utcnow().isoformat() if (dogrulama_puan and dogrulama_puan >= MIN_DEEPSEEK_PUAN) else None,
-            'is_active': True,
-            'topic_group': category if category else None,
-            
-            # ═══ YENİ PISA SÜTUNLARI ═══
-            'pisa_level': pisa_seviye,
-            'bloom_level': soru.get('bloom_seviye', 'uygulama'),
-            'mathematical_process': soru.get('matematiksel_surec', 'kullanma'),
-            'pisa_context': soru.get('baglam_kategori', soru.get('senaryo_turu', 'kisisel')),
-            'pisa_content_category': soru.get('icerik_kategorisi', 'nicelik'),
-            'scenario_text': senaryo if senaryo else None,
+            'soru_metni': soru.get('senaryo', '') + '\n\n' + soru.get('soru_metni', ''),
+            'soru_tipi': 'coktan_secmeli',
+            'secenekler': secenekler,
+            'dogru_cevap': soru.get('dogru_cevap', ''),
+            'solution_short': None,
+            'solution_detailed': solution_detailed,
+            'sinif_seviyesi': curriculum_row.get('grade_level', 8),
+            'ders': 'Matematik',
+            'konu': curriculum_row.get('topic_name', ''),
+            'alt_konu': curriculum_row.get('sub_topic', ''),
+            'zorluk': soru.get('pisa_seviye', 3),
+            'bloom_seviyesi': soru.get('bloom_seviye', 'uygulama'),
+            'kazanim_id': curriculum_row.get('id'),
+            'aktif': True,
+            'olusturan': 'curriculum_pisa_bot_v2',
+            'kaynak': 'auto_generated_pisa_v2',
+            'pisa_seviye': soru.get('pisa_seviye'),
+            'pisa_baglam': soru.get('baglam_kategori', 'kisisel'),
+            'pisa_icerik': soru.get('icerik_kategorisi', 'nicelik'),
+            'matematiksel_surec': soru.get('matematiksel_surec', 'kullanma'),
+            'celdirici_aciklamalar': celdirici_str,
+            'aha_moment': soru.get('aha_moment', ''),
+            'tahmini_sure': soru.get('tahmini_sure', ''),
         }
         
-        # None değerleri kaldır (Supabase NULL olarak işler)
-        kayit = {k: v for k, v in kayit.items() if v is not None}
+        if dogrulama_puan:
+            kayit['kalite_puani'] = dogrulama_puan
         
         result = supabase.table('question_bank').insert(kayit).execute()
         
@@ -1167,7 +1236,7 @@ def question_bank_kaydet(soru, curriculum_row, dogrulama_puan=None):
         return None
         
     except Exception as e:
-        print(f"   ⚠️ Question Bank kayıt hatası: {str(e)[:80]}")
+        print(f"   ❌ Kayıt hatası: {str(e)[:50]}")
         return None
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1175,83 +1244,80 @@ def question_bank_kaydet(soru, curriculum_row, dogrulama_puan=None):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def tek_soru_uret(curriculum_row, params):
-    """Tek bir curriculum kaydından PISA sorusu üret"""
-    
+    """Tek bir soru üret, doğrula ve kaydet"""
     for deneme in range(MAX_DENEME):
         try:
-            # Adım 1: CoT ile çözüm oluştur
-            if COT_AKTIF:
-                cozum = cot_cozum_olustur(curriculum_row, params)
-                if not cozum:
-                    print(f"   ⚠️ CoT başarısız (deneme {deneme+1})")
-                    continue
-            else:
-                cozum = {'problem_tanimi': '', 'cozum_adimlari': [], 'sonuc': ''}
+            # 1. CoT ile çözüm oluştur
+            cozum = cot_cozum_olustur(curriculum_row, params)
             
-            # Adım 2: Çözümden soru oluştur
-            soru = cozumden_soru_olustur(cozum, curriculum_row, params)
-            if not soru:
-                print(f"   ⚠️ Soru oluşturulamadı (deneme {deneme+1})")
+            if not cozum:
+                print(f"      ⚠️ CoT başarısız (Deneme {deneme+1})")
                 continue
             
-            # Adım 3: Senaryo veri tamlığı kontrolü
+            # 2. Çözümden soru oluştur
+            soru = cozumden_soru_olustur(cozum, curriculum_row, params)
+            
+            if not soru:
+                print(f"      ⚠️ Soru oluşturulamadı (Deneme {deneme+1})")
+                continue
+            
+            # 3. Senaryo veri tamlığı kontrolü
             tamlik_ok, tamlik_mesaj = senaryo_veri_tamligini_dogrula(soru)
             if not tamlik_ok:
-                print(f"   ⚠️ Veri eksikliği: {tamlik_mesaj} (deneme {deneme+1})")
+                print(f"      ⚠️ Veri eksik: {tamlik_mesaj} (Deneme {deneme+1})")
                 continue
             
-            # Adım 4: Benzersizlik kontrolü
+            # 4. Benzersizlik kontrolü
             if not benzersiz_mi(soru):
-                print(f"   ⚠️ Tekrar soru (deneme {deneme+1})")
+                print(f"      ⚠️ Tekrar soru (Deneme {deneme+1})")
                 continue
             
-            # Adım 5: DeepSeek doğrulama
+            # 5. DeepSeek doğrulama
             dogrulama = deepseek_dogrula(soru)
-            dogrulama_puan = dogrulama.get('puan', 0)
+            puan = dogrulama.get('puan', 0)
             
-            if DEEPSEEK_DOGRULAMA and dogrulama_puan < MIN_DEEPSEEK_PUAN:
-                print(f"   ⚠️ Düşük puan: {dogrulama_puan} (deneme {deneme+1})")
+            if not dogrulama.get('gecerli', False) and puan < MIN_DEEPSEEK_PUAN:
+                print(f"      ⚠️ Kalite yetersiz: {puan}/100 (Deneme {deneme+1})")
                 continue
             
-            # Adım 6: Question Bank'a kaydet
-            soru_id = question_bank_kaydet(soru, curriculum_row, dogrulama_puan)
+            # 6. Kaydet
+            soru_id = question_bank_kaydet(soru, curriculum_row, puan)
             
             if soru_id:
                 hash_kaydet(soru)
                 return {
                     'success': True,
                     'id': soru_id,
-                    'puan': dogrulama_puan
+                    'puan': puan
                 }
-        
+            
         except Exception as e:
-            print(f"   ⚠️ Hata (deneme {deneme+1}): {str(e)[:50]}")
+            print(f"      ⚠️ Hata: {str(e)[:40]} (Deneme {deneme+1})")
             continue
     
     return {'success': False}
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# TOPLU ÜRETİM
+# TOPLU ÜRET
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def toplu_uret():
-    """Curriculum tablosundan toplu PISA Matematik sorusu üret - Kaldığı yerden devam eder"""
+    """Tüm curriculum kazanımları için soru üret"""
     
-    # Progress tablosunu kontrol et
+    # Progress tablosu kontrolü
     if not progress_tablosu_kontrol():
-        print("❌ Progress tablosu bulunamadı! Önce SQL'i çalıştırın.")
-        print("   SQL dosyası: question_bank_pisa_columns.sql")
+        print("❌ Progress tablosu hazır değil!")
         return 0
     
-    # Curriculum verilerini çek (sadece Matematik, 3-12. sınıf)
+    # Curriculum verilerini çek
     curriculum_data = curriculum_getir()
     
     if not curriculum_data:
-        print("❌ Matematik kazanımı bulunamadı!")
+        print("❌ Curriculum verisi bulunamadı!")
         return 0
     
-    # Mevcut tur numarasını al
-    mevcut_tur = mevcut_tur_getir()
+    # Mevcut turu hesapla
+    mevcut_tur = mevcut_turu_hesapla(curriculum_data)
     
     # Tur tamamlandı mı kontrol et
     if tur_tamamlandi_mi(curriculum_data, mevcut_tur):
@@ -1271,12 +1337,15 @@ def toplu_uret():
             return 0
     
     print(f"\n{'='*70}")
-    print(f"🎯 MATEMATİK PISA SORU ÜRETİM - TUR {mevcut_tur}")
+    print(f"🎯 MATEMATİK PISA SORU ÜRETİM V2 - TUR {mevcut_tur}")
     print(f"   Tarih: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     print(f"   Toplam Matematik Kazanımı: {len(curriculum_data)}")
     print(f"   Bu Çalışmada İşlenecek: {len(islenecekler)} kazanım")
     print(f"   Kazanım Başına Soru: {SORU_PER_KAZANIM}")
     print(f"   Soru Tipi: Sadece Çoktan Seçmeli (5 şık)")
+    print(f"   🆕 V2 Özelliği: Seviyeye göre karakter/uzunluk ayarı")
+    print(f"      - Seviye 1-4: Tek kişi, kısa sorular")
+    print(f"      - Seviye 5-6: İki kişi, uzun sorular")
     print(f"   CoT: {'✅ AKTİF' if COT_AKTIF else '❌ DEVRE DIŞI'}")
     print(f"   DeepSeek: {'✅ AKTİF (Min: ' + str(MIN_DEEPSEEK_PUAN) + ')' if DEEPSEEK_DOGRULAMA else '❌ DEVRE DIŞI'}")
     print(f"{'='*70}\n")
@@ -1317,6 +1386,11 @@ def toplu_uret():
             # Bağlam seç
             baglam = rastgele_baglam_sec()
             
+            # Seviye bilgisi
+            seviye_info = PISA_YETERLIK_SEVIYELERI.get(pisa_seviye, PISA_YETERLIK_SEVIYELERI[3])
+            senaryo_tipi = seviye_info['soru_ozellikleri']['senaryo_tipi']
+            karakter = seviye_info['soru_ozellikleri']['karakter_sayisi']
+            
             params = {
                 'sinif': grade_level,
                 'pisa_seviye': pisa_seviye,
@@ -1329,7 +1403,7 @@ def toplu_uret():
             }
             
             print(f"\n   Soru {mevcut_soru + soru_idx + 1}/{SORU_PER_KAZANIM}:")
-            print(f"      PISA {pisa_seviye} | Bloom: {bloom_seviye}")
+            print(f"      PISA {pisa_seviye} | Bloom: {bloom_seviye} | Tip: {senaryo_tipi.upper()} ({karakter} kişi)")
             print(f"      Bağlam: {baglam['kategori_ad']} > {baglam['tema'].replace('_', ' ')}")
             
             try:
@@ -1390,14 +1464,16 @@ def toplu_uret():
 
 def main():
     print("\n" + "="*70)
-    print("🎯 CURRICULUM PISA SORU ÜRETİCİ BOT V1")
+    print("🎯 CURRICULUM PISA SORU ÜRETİCİ BOT V2")
     print("   📚 Curriculum tablosundan MATEMATİK soruları")
     print("   📊 Sınıf Aralığı: 3-12. Sınıf")
     print("   ✅ Sadece Çoktan Seçmeli Sorular (5 şık)")
     print("   ✅ PISA 2022 Standartları")
     print("   ✅ Kaldığı yerden devam eder")
     print("   ✅ Tur sistemi: Tüm kazanımlar bitince yeni tur")
-    print("   ✅ kazanim_id = curriculum.id")
+    print("   🆕 V2: Seviyeye göre soru karmaşıklığı")
+    print("      • Seviye 1-4: TEK KİŞİ, KISA sorular")
+    print("      • Seviye 5-6: İKİ KİŞİ, UZUN sorular")
     print("="*70 + "\n")
     
     # Gemini testi
@@ -1433,7 +1509,7 @@ def main():
     basarili = toplu_uret()
     
     print(f"\n🎉 İşlem tamamlandı!")
-    print(f"   {basarili} PISA standardında soru question_bank'a kaydedildi.")
+    print(f"   {basarili} PISA V2 standardında soru question_bank'a kaydedildi.")
 
 if __name__ == "__main__":
     main()
