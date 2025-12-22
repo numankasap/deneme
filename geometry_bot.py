@@ -1333,9 +1333,36 @@ class SupabaseManager:
         logger.info("Supabase bağlantısı kuruldu")
     
     def get_questions_without_images(self, limit=30):
+        """Görselsiz geometri/grafik sorularını çek"""
         try:
-            result = self.client.table('question_bank').select('*').or_('image_url.is.null,image_url.eq.').limit(limit).execute()
+            # Geometri anahtar kelimeleri ile filtrele
+            geometry_keywords = [
+                'üçgen', 'dörtgen', 'kare', 'dikdörtgen', 'daire', 'çember',
+                'açı', 'kenar', 'köşegen', 'paralel', 'dik', 'eşkenar',
+                'yamuk', 'paralelkenar', 'prizma', 'piramit', 'silindir', 
+                'koni', 'küre', 'küp', 'ABC', 'ABCD', 'koordinat',
+                'çap', 'yarıçap', 'teğet', 'pasta grafik', 'sütun grafik',
+                'derece', 'alan', 'çevre', 'hacim', 'cm²', 'm²'
+            ]
+            
+            # İlk önce geometri sorularını dene
+            or_filters = ','.join([f"question_text.ilike.%{kw}%" for kw in geometry_keywords[:10]])
+            
+            result = self.client.table('question_bank').select('*').or_(
+                'image_url.is.null,image_url.eq.'
+            ).or_(or_filters).limit(limit).execute()
+            
+            if result.data and len(result.data) > 0:
+                logger.info(f"Geometri sorgusu: {len(result.data)} soru bulundu")
+                return result.data
+            
+            # Fallback: tüm görselsiz sorular
+            logger.info("Geometri filtresi sonuç vermedi, tüm sorular çekiliyor")
+            result = self.client.table('question_bank').select('*').or_(
+                'image_url.is.null,image_url.eq.'
+            ).limit(limit).execute()
             return result.data if result.data else []
+            
         except Exception as e:
             logger.error(f"Sorgu hatası: {e}")
             return []
@@ -1363,19 +1390,36 @@ class SupabaseManager:
 
 
 class GeminiAnalyzer:
-    ANALYSIS_PROMPT = """Sen geometri ve veri analizi illüstratörüsün. JSON formatında çizim talimatı üret.
+    ANALYSIS_PROMPT = """Sen geometri ve veri görselleştirme uzmanısın. Soruyu analiz et ve çizim gerekip gerekmediğine karar ver.
 
-Çizme: Hikaye problemleri, formül uygulaması, birden fazla şekil karşılaştırması
-Çiz: Saf geometri ("ABC üçgeninde...") veya veri analizi (pasta/sütun grafik)
+## ÇİZİM GEREKLİ DURUMLAR (cizim_pisinilir: true):
+1. Geometrik şekil içeren sorular: üçgen, dörtgen, kare, dikdörtgen, daire, çember, paralel doğrular, açılar
+2. Koordinat düzlemi soruları: nokta, doğru, grafik çizimi
+3. 3D cisimler: küp, prizma, piramit, silindir, koni, küre
+4. Veri görselleştirme: pasta grafik, sütun/çubuk grafik, dağılım
+5. Ölçü ve boyut içeren sorular: cm, m, derece (°), alan, çevre, hacim
 
-JSON FORMAT:
-Geometri: {"cizim_pisinilir": true, "shape_type": "triangle", "points": [{"name": "A", "x": 4, "y": 6.93, "label_position": "top"}...], "edges": [{"start": "A", "end": "B", "label": "8 cm"}], "angles": [{"vertex": "B", "is_right": true}], "special_lines": [{"type": "height", "from": "A", "label": "h=?"}]}
+## ÇİZİM GEREKMİYOR (cizim_pisinilir: false):
+- Sadece sayısal hesaplama (denklem, işlem, oran)
+- Sözel problem (hikaye anlatımı ama şekil yok)
+- Formül uygulama (görsel yardımı olmadan çözülebilir)
 
-3D Pasta: {"cizim_pisinilir": true, "shape_type": "pie_chart", "pie_data": {"values": [150,120,90], "labels": ["A","B","C"], "value_type": "degree", "title": "Dağılım"}}
+## JSON FORMATLARI:
 
-Sütun: {"cizim_pisinilir": true, "shape_type": "bar_chart", "bar_data": {"values": [40,30,20], "labels": ["X","Y","Z"], "title": "Karşılaştırma"}}
+### Geometri (üçgen, dörtgen, çokgen):
+{"cizim_pisinilir": true, "shape_type": "triangle", "points": [{"name": "A", "x": 0, "y": 0}, {"name": "B", "x": 6, "y": 0}, {"name": "C", "x": 3, "y": 5.2}], "edges": [{"start": "A", "end": "B", "label": "6 cm"}], "angles": [{"vertex": "C", "is_right": false, "label": "60°"}], "special_lines": [{"type": "height", "from": "C", "label": "h"}]}
 
-Çizim gerekmiyorsa: {"cizim_pisinilir": false, "neden": "Hikaye problemi"}
+### Daire/Çember:
+{"cizim_pisinilir": true, "shape_type": "circle", "center": {"name": "O", "x": 5, "y": 5}, "radius": 4, "points": [{"name": "A", "x": 9, "y": 5}], "labels": ["r=4 cm"]}
+
+### Pasta Grafik:
+{"cizim_pisinilir": true, "shape_type": "pie_chart", "pie_data": {"values": [40, 30, 20, 10], "labels": ["A", "B", "C", "D"], "value_type": "percent", "title": "Dağılım"}}
+
+### Sütun Grafik:
+{"cizim_pisinilir": true, "shape_type": "bar_chart", "bar_data": {"values": [25, 40, 35], "labels": ["X", "Y", "Z"], "title": "Karşılaştırma"}}
+
+### Çizim Gerekmez:
+{"cizim_pisinilir": false, "neden": "Sayısal hesaplama"}
 
 SORU: """
     
