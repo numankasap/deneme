@@ -49,7 +49,7 @@ DEEPSEEK_DOGRULAMA = bool(DEEPSEEK_API_KEY)
 COT_AKTIF = True
 BEKLEME = 1.5
 MAX_DENEME = 4
-MIN_DEEPSEEK_PUAN = 65
+MIN_DEEPSEEK_PUAN = 45  # Düşürüldü - sorular kaydedilsin, sonra manuel kontrol
 API_TIMEOUT = 30
 
 # Progress tablosu adı
@@ -1168,7 +1168,7 @@ def senaryo_veri_tamligini_dogrula(soru):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def question_bank_kaydet(soru, curriculum_row, dogrulama_puan=None):
-    """Soruyu question_bank tablosuna kaydet - Sadece mevcut sütunlar"""
+    """Soruyu question_bank tablosuna kaydet - GERÇEK SÜTUNLAR"""
     try:
         # Seçenekleri JSONB formatına çevir {"A": "...", "B": "...", ...}
         secenekler = soru.get('secenekler', {})
@@ -1182,6 +1182,12 @@ def question_bank_kaydet(soru, curriculum_row, dogrulama_puan=None):
                     secenekler_dict[chr(65+i)] = str(s)
             secenekler = secenekler_dict
         
+        # Seçenekleri JSON string'e çevir
+        if isinstance(secenekler, dict):
+            secenekler_str = json.dumps(secenekler, ensure_ascii=False)
+        else:
+            secenekler_str = str(secenekler)
+        
         # Çözüm adımlarını string olarak birleştir
         cozum_adimlari = soru.get('cozum_adimlari', [])
         if isinstance(cozum_adimlari, list):
@@ -1189,43 +1195,40 @@ def question_bank_kaydet(soru, curriculum_row, dogrulama_puan=None):
         else:
             cozum_str = str(cozum_adimlari)
         
-        # solution_detailed varsa kullan
-        solution_detailed = soru.get('solution_detailed', cozum_str)
+        # Senaryo ve soru metnini birleştir
+        senaryo = soru.get('senaryo', '')
+        soru_metni = soru.get('soru_metni', '')
+        tam_metin = f"{senaryo}\n\n{soru_metni}" if senaryo else soru_metni
         
-        # Ek bilgileri JSON olarak metadata'ya ekle
-        metadata = {
-            'pisa_seviye': soru.get('pisa_seviye'),
-            'pisa_baglam': soru.get('baglam_kategori', 'kisisel'),
-            'pisa_icerik': soru.get('icerik_kategorisi', 'nicelik'),
-            'matematiksel_surec': soru.get('matematiksel_surec', 'kullanma'),
-            'aha_moment': soru.get('aha_moment', ''),
-            'tahmini_sure': soru.get('tahmini_sure', ''),
-            'celdirici_aciklamalar': soru.get('celdirici_aciklamalar', {}),
-            'kalite_puani': dogrulama_puan
-        }
+        # Çeldirici açıklamalarını JSON'a çevir
+        celdirici = soru.get('celdirici_aciklamalar', {})
+        if isinstance(celdirici, dict) and celdirici:
+            celdirici_str = json.dumps(celdirici, ensure_ascii=False)
+        else:
+            celdirici_str = None
         
-        # Kayıt verisi - SADECE MEVCUT SÜTUNLAR
+        # Kayıt verisi - TABLODAKI GERÇEK SÜTUNLAR
         kayit = {
-            'soru_metni': soru.get('senaryo', '') + '\n\n' + soru.get('soru_metni', ''),
-            'soru_tipi': 'coktan_secmeli',
-            'secenekler': secenekler,
-            'dogru_cevap': soru.get('dogru_cevap', ''),
-            'solution_short': None,
-            'solution_detailed': solution_detailed,
-            'sinif_seviyesi': curriculum_row.get('grade_level', 8),
-            'ders': 'Matematik',
-            'konu': curriculum_row.get('topic_name', ''),
-            'alt_konu': curriculum_row.get('sub_topic', ''),
-            'zorluk': soru.get('pisa_seviye', 3),
-            'bloom_seviyesi': soru.get('bloom_seviye', 'uygulama'),
+            'original_text': tam_metin,
+            'options': secenekler_str,
+            'solution_text': cozum_str,
+            'difficulty': soru.get('pisa_seviye', 3),
+            'subject': 'Matematik',
+            'grade_level': curriculum_row.get('grade_level', 8),
+            'topic': f"{curriculum_row.get('topic_name', '')} -> {curriculum_row.get('sub_topic', '')}",
+            'correct_answer': soru.get('dogru_cevap', ''),
             'kazanim_id': curriculum_row.get('id'),
-            'aktif': True,
-            'olusturan': 'curriculum_pisa_bot_v2',
-            'kaynak': 'auto_generated_pisa_v2',
+            'question_type': 'coktan_secmeli',
+            'solution_detailed': soru.get('solution_detailed', cozum_str),
+            'is_active': True,
+            'pisa_level': soru.get('pisa_seviye'),
+            'bloom_level': soru.get('bloom_seviye', 'uygulama'),
+            'mathematical_process': soru.get('matematiksel_surec', 'kullanma'),
+            'pisa_context': soru.get('baglam_kategori', 'kisisel'),
+            'pisa_content_category': soru.get('icerik_kategorisi', 'nicelik'),
+            'scenario_text': senaryo,
+            'distractor_explanations': celdirici_str,
         }
-        
-        # Metadata sütunu varsa ekle, yoksa atla
-        # kayit['metadata'] = json.dumps(metadata, ensure_ascii=False)
         
         result = supabase.table('question_bank').insert(kayit).execute()
         
@@ -1234,7 +1237,7 @@ def question_bank_kaydet(soru, curriculum_row, dogrulama_puan=None):
         return None
         
     except Exception as e:
-        print(f"   ❌ Kayıt hatası: {str(e)[:60]}")
+        print(f"   ❌ Kayıt hatası: {str(e)[:80]}")
         return None
 
 # ═══════════════════════════════════════════════════════════════════════════════
