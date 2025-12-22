@@ -52,7 +52,7 @@ class Config:
     
     # Gemini
     GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
-    GEMINI_MODEL = 'gemini-2.0-flash'
+    GEMINI_MODEL = 'gemini-2.5-pro'
     
     # Storage
     STORAGE_BUCKET = 'questions-images'
@@ -1068,15 +1068,48 @@ class DatabaseManager:
 class GeminiAnalyzer:
     """Gemini ile senaryo analizi"""
     
-    ANALYSIS_PROMPT = """Sen profesyonel bir eğitim infografik tasarımcısısın. Bir öğrenci soruyu okuduğunda, problemi zihninde canlandırmasına yardımcı olacak MÜKEMMEL bir görsel tasarlayacaksın.
+    ANALYSIS_PROMPT = """Sen profesyonel bir eğitim infografik tasarımcısısın. SADECE görselleştirilebilir problemleri tasarlarsın.
 
-🎨 GÖREV: Soruyu oku, senaryoyu zihninde adım adım canlandır, sonra görsel talimatlarını JSON olarak ver.
+🎨 GÖREV: Soruyu oku, GÖRSEL GEREKLİ Mİ kontrol et, gerekirse tasarla.
+
+═══════════════════════════════════════════════════════════════
+🚨 ADIM 0: GÖRSEL GEREKLİ Mİ? (EN ÖNEMLİ!)
+═══════════════════════════════════════════════════════════════
+
+❌❌❌ KESİNLİKLE GÖRSEL YAPMA - Bu sorular için infografik GEREKSIZ:
+
+🧮 KARMAŞIK MATEMATİK/FORMÜL PROBLEMLERİ:
+• Graf teorisi (minimum yol ağı, ağaç yapısı, düğüm bağlantıları)
+• Kombinatorik (n tane nesneyi bağlama, permütasyon, kombinasyon)
+• "Minimum spanning tree", "en az maliyetli ağaç"
+• "n-1 kenar ile n düğümü bağlama" → Bu GRAF TEORİSİ, görselleştirilemez!
+
+🔢 SOYUT HESAPLAMA:
+• "5 park, 7 park, 9 park arasında yol" → Bu sayı problemi
+• "Minimum yol sayısı = n-1" formülü → Görsel gereksiz
+• Bütçe/maliyet HESAPLAMA soruları
+
+📊 VERİLER TABLOYA SIĞMIYORSA:
+• Çok fazla değişken (5+ kategori)
+• Hesaplanması gereken değerler çok fazla
+• Formül uygulaması gerekiyorsa
+
+═══════════════════════════════════════════════════════════════
+✅ GÖRSEL YAP SADECE EĞer:
+═══════════════════════════════════════════════════════════════
+
+• Problem SOMUT ve GÖRSELLEŞTİRİLEBİLİR ise
+• 2-3 kişi/nesne arasında basit ilişki varsa
+• Hareket, karşılaştırma, havuz, yaş gibi KLASIK problem tipiyse
+• Veriler az ve nettir (3-5 veri noktası)
 
 ═══════════════════════════════════════════════════════════════
 🎯 ADIM 1: SORUYU DERİNLEMESİNE ANALİZ ET
 ═══════════════════════════════════════════════════════════════
 
-Kendine şu soruları sor:
+Önce kendine sor: "Bu soruyu görselleştirmek öğrenciye YARDIMCI OLUR MU?"
+• Karmaşık formül/graf problemi → gorsel_pisinilir: false
+• Basit, somut senaryo → devam et
 
 🔍 PROBLEM TİPİ NEDİR?
 • Bu bir hareket/yol problemi mi? (hız, mesafe, süre)
@@ -1090,15 +1123,29 @@ Kendine şu soruları sor:
 • Her karakterin rolü ne? (sürücü, işçi, müşteri...)
 • Hangi emoji/avatar uygun?
 
-📊 VERİLERİ ÇIKAR:
+📊 VERİLERİ ÇIKAR (SOMUT DEĞERLER OLMALI!):
 • Hangi sayısal değerler VERİLMİŞ?
 • Hangi değer HESAPLANACAK (bilinmeyen)?
 • Birimler neler? (km, saat, TL, litre...)
+• VERİLER AÇIK VE NET Mİ? Değilse → gorsel_pisinilir: false
 
 ⚠️ ALTIN KURAL: SADECE VERİLENLERİ GÖSTER!
 • Hesaplanan değerleri ASLA gösterme (cevabı vermiş olursun!)
 • Çözümün adımlarını ima etme
 • Bilinmeyenleri "?" ile işaretle
+• BOŞ HÜCRE BIRAKMA - ya değer yaz ya da "?" koy!
+
+═══════════════════════════════════════════════════════════════
+📝 GÖRSEL YAPILMAYACAK ÖRNEK:
+═══════════════════════════════════════════════════════════════
+
+SORU: "A bölgesinde 5 park, B'de 7 park, C'de 9 park. Her bölgede parkları bağlayan minimum yol sayısı n-1. Maliyetler: A=150, B=200, C=250 birim. Toplam maliyet?"
+
+→ gorsel_pisinilir: FALSE!
+→ Neden: Graf teorisi problemi (minimum spanning tree)
+→ Neden: Formül uygulaması (n-1 kenar)
+→ Neden: Çok fazla hesaplama gerekli
+→ Neden: Görsel soruyu anlamaya YARDIMCI OLMAZ
 
 ═══════════════════════════════════════════════════════════════
 🚗 ADIM 2A: HAREKET PROBLEMİ İSE
