@@ -299,8 +299,8 @@ SINIF_PISA_MAP = {
     8: {'seviyeleri': [3, 4, 5], 'bloom': ['uygulama', 'analiz', 'değerlendirme']},
     9: {'seviyeleri': [3, 4, 5], 'bloom': ['uygulama', 'analiz', 'değerlendirme']},
     10: {'seviyeleri': [4, 5, 6], 'bloom': ['analiz', 'değerlendirme', 'yaratma']},
-    11: {'seviyeleri': [4, 5, 6], 'bloom': ['analiz', 'değerlendirme', 'yaratma']},
-    12: {'seviyeleri': [4, 5, 6], 'bloom': ['analiz', 'değerlendirme', 'yaratma']}
+    11: {'seviyeleri': [5, 6], 'bloom': ['değerlendirme', 'yaratma']},
+    12: {'seviyeleri': [5, 6], 'bloom': ['değerlendirme', 'yaratma']}
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1168,7 +1168,7 @@ def senaryo_veri_tamligini_dogrula(soru):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def question_bank_kaydet(soru, curriculum_row, dogrulama_puan=None):
-    """Soruyu question_bank tablosuna kaydet - Tüm PISA sütunları dahil"""
+    """Soruyu question_bank tablosuna kaydet - Sadece mevcut sütunlar"""
     try:
         # Seçenekleri JSONB formatına çevir {"A": "...", "B": "...", ...}
         secenekler = soru.get('secenekler', {})
@@ -1192,14 +1192,19 @@ def question_bank_kaydet(soru, curriculum_row, dogrulama_puan=None):
         # solution_detailed varsa kullan
         solution_detailed = soru.get('solution_detailed', cozum_str)
         
-        # Çeldirici açıklamalarını string'e çevir
-        celdirici = soru.get('celdirici_aciklamalar', {})
-        if isinstance(celdirici, dict):
-            celdirici_str = json.dumps(celdirici, ensure_ascii=False)
-        else:
-            celdirici_str = str(celdirici)
+        # Ek bilgileri JSON olarak metadata'ya ekle
+        metadata = {
+            'pisa_seviye': soru.get('pisa_seviye'),
+            'pisa_baglam': soru.get('baglam_kategori', 'kisisel'),
+            'pisa_icerik': soru.get('icerik_kategorisi', 'nicelik'),
+            'matematiksel_surec': soru.get('matematiksel_surec', 'kullanma'),
+            'aha_moment': soru.get('aha_moment', ''),
+            'tahmini_sure': soru.get('tahmini_sure', ''),
+            'celdirici_aciklamalar': soru.get('celdirici_aciklamalar', {}),
+            'kalite_puani': dogrulama_puan
+        }
         
-        # Kayıt verisi
+        # Kayıt verisi - SADECE MEVCUT SÜTUNLAR
         kayit = {
             'soru_metni': soru.get('senaryo', '') + '\n\n' + soru.get('soru_metni', ''),
             'soru_tipi': 'coktan_secmeli',
@@ -1217,17 +1222,10 @@ def question_bank_kaydet(soru, curriculum_row, dogrulama_puan=None):
             'aktif': True,
             'olusturan': 'curriculum_pisa_bot_v2',
             'kaynak': 'auto_generated_pisa_v2',
-            'pisa_seviye': soru.get('pisa_seviye'),
-            'pisa_baglam': soru.get('baglam_kategori', 'kisisel'),
-            'pisa_icerik': soru.get('icerik_kategorisi', 'nicelik'),
-            'matematiksel_surec': soru.get('matematiksel_surec', 'kullanma'),
-            'celdirici_aciklamalar': celdirici_str,
-            'aha_moment': soru.get('aha_moment', ''),
-            'tahmini_sure': soru.get('tahmini_sure', ''),
         }
         
-        if dogrulama_puan:
-            kayit['kalite_puani'] = dogrulama_puan
+        # Metadata sütunu varsa ekle, yoksa atla
+        # kayit['metadata'] = json.dumps(metadata, ensure_ascii=False)
         
         result = supabase.table('question_bank').insert(kayit).execute()
         
@@ -1236,7 +1234,7 @@ def question_bank_kaydet(soru, curriculum_row, dogrulama_puan=None):
         return None
         
     except Exception as e:
-        print(f"   ❌ Kayıt hatası: {str(e)[:50]}")
+        print(f"   ❌ Kayıt hatası: {str(e)[:60]}")
         return None
 
 # ═══════════════════════════════════════════════════════════════════════════════
