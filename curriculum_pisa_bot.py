@@ -185,12 +185,12 @@ PISA_YETERLIK_SEVIYELERI = {
             'Tek adımlı işlemler yapma'
         ],
         'soru_ozellikleri': {
-            'adim_sayisi': '1-2',
+            'adim_sayisi': '2-3',
             'veri_sunumu': 'Doğrudan ve açık',
             'hesaplama': 'Basit dört işlem',
             'karakter_sayisi': 1,  # TEK KİŞİ
-            'min_kelime': 40,
-            'max_kelime': 60,
+            'min_kelime': 50,
+            'max_kelime': 80,
             'senaryo_tipi': 'basit'
         }
     },
@@ -203,12 +203,12 @@ PISA_YETERLIK_SEVIYELERI = {
             'Temel grafik ve tablo okuma'
         ],
         'soru_ozellikleri': {
-            'adim_sayisi': '2-3',
+            'adim_sayisi': '3-4',
             'veri_sunumu': 'Tablo veya basit grafik',
             'hesaplama': 'Oran, yüzde, basit kesir',
             'karakter_sayisi': 1,  # TEK KİŞİ
-            'min_kelime': 50,
-            'max_kelime': 80,
+            'min_kelime': 70,
+            'max_kelime': 100,
             'senaryo_tipi': 'basit'
         }
     },
@@ -221,12 +221,12 @@ PISA_YETERLIK_SEVIYELERI = {
             'Basit modeller oluşturma ve kullanma'
         ],
         'soru_ozellikleri': {
-            'adim_sayisi': '2-3',
+            'adim_sayisi': '3-4',
             'veri_sunumu': 'Çoklu kaynak veya tablo',
             'hesaplama': 'Çok adımlı, ara sonuçlar',
             'karakter_sayisi': 1,  # TEK KİŞİ
-            'min_kelime': 60,
-            'max_kelime': 90,
+            'min_kelime': 70,
+            'max_kelime': 100,
             'senaryo_tipi': 'basit'
         }
     },
@@ -242,9 +242,9 @@ PISA_YETERLIK_SEVIYELERI = {
             'adim_sayisi': '3-4',
             'veri_sunumu': 'Çoklu temsil, grafik+tablo',
             'hesaplama': 'Model kurma, denklem',
-            'karakter_sayisi': 1,  # TEK KİŞİ
-            'min_kelime': 70,
-            'max_kelime': 100,
+            'karakter_sayisi': 2,  # TEK KİŞİ
+            'min_kelime': 80,
+            'max_kelime': 120,
             'senaryo_tipi': 'basit'
         }
     },
