@@ -45,7 +45,7 @@ jobs:
           SORU_PER_KAZANIM: ${{ github.event.inputs.soru_per_kazanim || '2' }}
           MAX_ISLEM_PER_RUN: ${{ github.event.inputs.max_islem || '50' }}
         run: |
-          python curriculum_pisa_bot_v3.py
+          python curriculum_pisa_bot.py
       
       - name: Summary
         run: |
