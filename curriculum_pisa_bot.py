@@ -52,7 +52,7 @@ MAX_DENEME = 4
 MIN_DEEPSEEK_PUAN = 65
 API_TIMEOUT = 30
 
-PROGRESS_TABLE = 'curriculum_pisa_progress'
+PROGRESS_TABLE = 'curriculum_pisa_progress'  # Artık kullanılmıyor, question_bank tabanlı
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # API BAĞLANTILARI
@@ -357,8 +357,92 @@ def bloom_seviye_sec(sinif):
     uygun_seviyeler = SINIF_BLOOM_ESLESTIRME.get(sinif, ['uygulama'])
     return random.choice(uygun_seviyeler)
 
-def uygun_baglam_sec(sinif):
-    """Sınıfa uygun yaşam becerisi bağlamı seç"""
+def uygun_baglam_sec(sinif, topic_name=''):
+    """Sınıfa ve KONUYA uygun yaşam becerisi bağlamı seç"""
+    topic_lower = topic_name.lower() if topic_name else ''
+    
+    # Geometri konuları için özel bağlamlar
+    geometri_kelimeleri = ['üçgen', 'dörtgen', 'çokgen', 'daire', 'çember', 'alan', 'çevre', 
+                           'hacim', 'prizma', 'silindir', 'koni', 'küre', 'açı', 'geometri',
+                           'dönüşüm', 'öteleme', 'yansıma', 'benzerlik', 'eşlik', 'koordinat']
+    
+    is_geometri = any(k in topic_lower for k in geometri_kelimeleri)
+    
+    if is_geometri:
+        # Geometri için uygun bağlamlar
+        geometri_baglamlari = [
+            {'kategori': 'ev_yonetimi', 'kategori_ad': 'Ev Yönetimi', 
+             'tema': 'ev_duzenleme', 'aciklama': 'Oda boyama, mobilya yerleşimi, bahçe düzenleme'},
+            {'kategori': 'mesleki_beceriler', 'kategori_ad': 'Mesleki Beceriler',
+             'tema': 'insaat_olcum', 'aciklama': 'Alan hesabı, malzeme miktarı, ölçüm'},
+            {'kategori': 'mesleki_beceriler', 'kategori_ad': 'Mesleki Beceriler',
+             'tema': 'tarim_planlama', 'aciklama': 'Ekim alanı, tarla ölçümü'},
+            {'kategori': 'bilimsel_dusunme', 'kategori_ad': 'Bilimsel Düşünme',
+             'tema': 'deney_olcum', 'aciklama': 'Ölçüm analizi, alan/hacim hesabı'},
+            {'kategori': 'cevre_surdurulebilirlik', 'kategori_ad': 'Çevre ve Sürdürülebilirlik',
+             'tema': 'dogal_kaynak', 'aciklama': 'Park alanı, yeşil alan hesabı'}
+        ]
+        return random.choice(geometri_baglamlari)
+    
+    # Sayılar/Cebir konuları için uygun bağlamlar
+    sayi_kelimeleri = ['sayı', 'kesir', 'ondalık', 'oran', 'yüzde', 'üslü', 'karekök',
+                       'denklem', 'eşitsizlik', 'cebir', 'özdeşlik', 'çarpan', 'bölünebilme']
+    
+    is_sayi = any(k in topic_lower for k in sayi_kelimeleri)
+    
+    if is_sayi:
+        sayi_baglamlari = [
+            {'kategori': 'finansal_okuryazarlik', 'kategori_ad': 'Finansal Okuryazarlık',
+             'tema': 'alısveris_butce', 'aciklama': 'İndirim hesaplama, bütçe planı'},
+            {'kategori': 'finansal_okuryazarlik', 'kategori_ad': 'Finansal Okuryazarlık',
+             'tema': 'tasarruf_birikim', 'aciklama': 'Birikim planı, faiz hesabı'},
+            {'kategori': 'finansal_okuryazarlik', 'kategori_ad': 'Finansal Okuryazarlık',
+             'tema': 'fiyat_karsilastirma', 'aciklama': 'Birim fiyat karşılaştırma'},
+            {'kategori': 'saglik_beslenme', 'kategori_ad': 'Sağlık ve Beslenme',
+             'tema': 'kalori_hesaplama', 'aciklama': 'Günlük kalori ihtiyacı, besin değerleri'},
+            {'kategori': 'zaman_yonetimi', 'kategori_ad': 'Zaman Yönetimi',
+             'tema': 'ders_programi', 'aciklama': 'Ders çalışma planı, zaman dağılımı'}
+        ]
+        return random.choice(sayi_baglamlari)
+    
+    # Olasılık/İstatistik konuları için
+    istatistik_kelimeleri = ['olasılık', 'istatistik', 'veri', 'grafik', 'ortalama', 
+                             'medyan', 'mod', 'permütasyon', 'kombinasyon']
+    
+    is_istatistik = any(k in topic_lower for k in istatistik_kelimeleri)
+    
+    if is_istatistik:
+        istatistik_baglamlari = [
+            {'kategori': 'bilimsel_dusunme', 'kategori_ad': 'Bilimsel Düşünme',
+             'tema': 'istatistik_analiz', 'aciklama': 'Veri toplama, grafik yorumlama'},
+            {'kategori': 'bilimsel_dusunme', 'kategori_ad': 'Bilimsel Düşünme',
+             'tema': 'hava_durumu', 'aciklama': 'Sıcaklık değişimi, tahmin doğruluğu'},
+            {'kategori': 'dijital_okuryazarlik', 'kategori_ad': 'Dijital Okuryazarlık',
+             'tema': 'sosyal_medya', 'aciklama': 'İstatistik analizi, etkileşim oranı'},
+            {'kategori': 'saglik_beslenme', 'kategori_ad': 'Sağlık ve Beslenme',
+             'tema': 'spor_performans', 'aciklama': 'Performans takibi, istatistik'}
+        ]
+        return random.choice(istatistik_baglamlari)
+    
+    # Türev/İntegral/Limit için
+    analiz_kelimeleri = ['türev', 'integral', 'limit', 'fonksiyon', 'logaritma', 'üstel']
+    
+    is_analiz = any(k in topic_lower for k in analiz_kelimeleri)
+    
+    if is_analiz:
+        analiz_baglamlari = [
+            {'kategori': 'bilimsel_dusunme', 'kategori_ad': 'Bilimsel Düşünme',
+             'tema': 'doga_gozlemi', 'aciklama': 'Popülasyon değişimi, büyüme oranı'},
+            {'kategori': 'bilimsel_dusunme', 'kategori_ad': 'Bilimsel Düşünme',
+             'tema': 'hava_durumu', 'aciklama': 'Sıcaklık değişim hızı'},
+            {'kategori': 'mesleki_beceriler', 'kategori_ad': 'Mesleki Beceriler',
+             'tema': 'uretim_planlama', 'aciklama': 'Maliyet optimizasyonu, verimlilik'},
+            {'kategori': 'cevre_surdurulebilirlik', 'kategori_ad': 'Çevre ve Sürdürülebilirlik',
+             'tema': 'enerji_tasarrufu', 'aciklama': 'Enerji tüketim değişimi'}
+        ]
+        return random.choice(analiz_baglamlari)
+    
+    # Genel durum - sınıfa uygun bağlam
     uygun_baglamlar = []
     for baglam_key, baglam_bilgi in YASAM_BECERILERI_BAGLAMLARI.items():
         if sinif in baglam_bilgi['siniflar']:
@@ -430,70 +514,72 @@ def curriculum_getir():
         return []
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# PROGRESS TAKİP SİSTEMİ
+# PROGRESS TAKİP SİSTEMİ - QUESTION_BANK TABANLI
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def progress_tablosu_kontrol():
-    """Progress tablosunun var olup olmadığını kontrol et"""
-    try:
-        supabase.table(PROGRESS_TABLE).select('id').limit(1).execute()
-        return True
-    except Exception as e:
-        print(f"⚠️ Progress tablosu bulunamadı: {str(e)[:50]}")
-        return False
+# Progress için ayrı tablo yerine question_bank'taki mevcut soruları sayıyoruz
+PROGRESS_CACHE = {}
 
-def progress_getir(curriculum_id):
-    """Bir kazanım için mevcut progress'i getir"""
+def progress_tablosu_kontrol():
+    """Her zaman True döner - question_bank tablosunu kullanıyoruz"""
+    return True
+
+def question_bank_soru_sayisi_getir(curriculum_id):
+    """Bir kazanım için question_bank'taki mevcut soru sayısını getir"""
+    global PROGRESS_CACHE
+    
+    # Cache'de varsa döndür
+    if curriculum_id in PROGRESS_CACHE:
+        return PROGRESS_CACHE[curriculum_id]
+    
     try:
-        result = supabase.table(PROGRESS_TABLE)\
-            .select('*')\
-            .eq('curriculum_id', curriculum_id)\
+        result = supabase.table('question_bank')\
+            .select('id', count='exact')\
+            .eq('kazanim_id', curriculum_id)\
+            .eq('subject', 'Matematik')\
             .execute()
         
-        if result.data:
-            return result.data[0]
-        return None
+        count = result.count if result.count else 0
+        PROGRESS_CACHE[curriculum_id] = count
+        return count
     except:
-        return None
+        return 0
+
+def progress_getir(curriculum_id):
+    """Bir kazanım için mevcut progress'i getir (question_bank tabanlı)"""
+    soru_sayisi = question_bank_soru_sayisi_getir(curriculum_id)
+    
+    # Tur hesapla: Her SORU_PER_KAZANIM soru = 1 tur
+    tur = (soru_sayisi // SORU_PER_KAZANIM) + 1
+    kalan = soru_sayisi % SORU_PER_KAZANIM
+    
+    return {
+        'curriculum_id': curriculum_id,
+        'current_tur': tur,
+        'questions_in_current_tur': kalan,
+        'total_questions': soru_sayisi
+    }
 
 def progress_guncelle(curriculum_id, tur, soru_sayisi):
-    """Progress güncelle veya oluştur"""
-    try:
-        mevcut = progress_getir(curriculum_id)
-        
-        if mevcut:
-            supabase.table(PROGRESS_TABLE)\
-                .update({
-                    'current_tur': tur,
-                    'questions_in_current_tur': soru_sayisi,
-                    'updated_at': datetime.now().isoformat()
-                })\
-                .eq('curriculum_id', curriculum_id)\
-                .execute()
-        else:
-            supabase.table(PROGRESS_TABLE)\
-                .insert({
-                    'curriculum_id': curriculum_id,
-                    'current_tur': tur,
-                    'questions_in_current_tur': soru_sayisi
-                })\
-                .execute()
-    except Exception as e:
-        print(f"   ⚠️ Progress güncelleme hatası: {str(e)[:30]}")
+    """Cache'i güncelle (artık ayrı tablo yok)"""
+    global PROGRESS_CACHE
+    # Cache'i güncelle - yeni soru eklendiyse
+    if curriculum_id in PROGRESS_CACHE:
+        PROGRESS_CACHE[curriculum_id] += 1
+    else:
+        PROGRESS_CACHE[curriculum_id] = soru_sayisi
 
 def mevcut_turu_hesapla(curriculum_data):
-    """Mevcut turu hesapla - en düşük tur numarasını bul"""
+    """Mevcut turu hesapla - tüm kazanımların en düşük turu"""
     min_tur = float('inf')
     
     for item in curriculum_data:
         progress = progress_getir(item['id'])
-        if progress:
-            tur = progress.get('current_tur', 1)
-            soru = progress.get('questions_in_current_tur', 0)
-            if soru < SORU_PER_KAZANIM:
-                min_tur = min(min_tur, tur)
-        else:
-            min_tur = 1
+        tur = progress.get('current_tur', 1)
+        soru = progress.get('questions_in_current_tur', 0)
+        
+        if soru < SORU_PER_KAZANIM:
+            min_tur = min(min_tur, tur)
     
     return min_tur if min_tur != float('inf') else 1
 
@@ -501,11 +587,12 @@ def tur_tamamlandi_mi(curriculum_data, tur):
     """Belirtilen turun tamamlanıp tamamlanmadığını kontrol et"""
     for item in curriculum_data:
         progress = progress_getir(item['id'])
-        if not progress:
+        mevcut_tur = progress.get('current_tur', 1)
+        soru = progress.get('questions_in_current_tur', 0)
+        
+        if mevcut_tur < tur:
             return False
-        if progress.get('current_tur', 0) < tur:
-            return False
-        if progress.get('current_tur') == tur and progress.get('questions_in_current_tur', 0) < SORU_PER_KAZANIM:
+        if mevcut_tur == tur and soru < SORU_PER_KAZANIM:
             return False
     return True
 
@@ -520,23 +607,15 @@ def sonraki_kazanimlari_getir(curriculum_data, tur, limit):
         sinif = item.get('grade_level', 8)
         progress = progress_getir(item['id'])
         
-        if not progress:
+        mevcut_tur = progress.get('current_tur', 1)
+        mevcut_soru = progress.get('questions_in_current_tur', 0)
+        
+        # Bu turda henüz tamamlanmamış kazanımları ekle
+        if mevcut_tur < tur or (mevcut_tur == tur and mevcut_soru < SORU_PER_KAZANIM):
             sinif_gruplari[sinif].append({
                 'curriculum': item,
                 'tur': tur,
-                'mevcut_soru': 0
-            })
-        elif progress.get('current_tur', 0) < tur:
-            sinif_gruplari[sinif].append({
-                'curriculum': item,
-                'tur': tur,
-                'mevcut_soru': 0
-            })
-        elif progress.get('current_tur') == tur and progress.get('questions_in_current_tur', 0) < SORU_PER_KAZANIM:
-            sinif_gruplari[sinif].append({
-                'curriculum': item,
-                'tur': tur,
-                'mevcut_soru': progress.get('questions_in_current_tur', 0)
+                'mevcut_soru': mevcut_soru if mevcut_tur == tur else 0
             })
     
     # Dengeli dağılım: Her sınıftan eşit sayıda al
@@ -548,6 +627,7 @@ def sonraki_kazanimlari_getir(curriculum_data, tur, limit):
     
     per_sinif = max(1, limit // sinif_sayisi)
     
+    # Önce her sınıftan eşit sayıda al
     for sinif in sorted(sinif_gruplari.keys()):
         items = sinif_gruplari[sinif]
         random.shuffle(items)  # Rastgele sıralama
@@ -743,10 +823,19 @@ def soru_uretim_prompt_olustur(curriculum_row, params):
         secenek_harfleri = "A, B, C, D, E"
         secenek_json = '"A": "...", "B": "...", "C": "...", "D": "...", "E": "..."'
     
-    prompt = f'''Sen {format_adi} sınavı formatında uzman bir soru yazarısın.
+    prompt = f'''Sen {format_adi} sınavı formatında uzman bir matematik soru yazarısın.
 
 ## 🎯 GÖREV
-{sinif}. sınıf {topic} konusunda, {bloom_seviye.upper()} basamağında, günlük yaşam becerilerini ölçen bir soru üret.
+{sinif}. sınıf **{topic}** konusunda, günlük yaşam becerilerini ölçen bir soru üret.
+
+## ⚠️ EN ÖNEMLİ KURAL - KONU UYUMU
+Soru MUTLAKA **{topic}** konusuyla DOĞRUDAN ilgili olmalı!
+- Senaryo {topic} konusunun MATEMATİKSEL kavramlarını içermeli
+- Çözüm adımları {topic} konusundaki formül/yöntemleri kullanmalı
+- Soru {sub_topic if sub_topic else topic} alt konusuna odaklanmalı
+
+❌ YANLIŞ: Konuyla ilgisiz basit işlemler
+✅ DOĞRU: Konunun matematiksel kavramlarını gerçek yaşama uygulama
 
 ## 📚 KAZANIM BİLGİSİ
 • Sınıf: {sinif}. Sınıf
@@ -757,11 +846,9 @@ def soru_uretim_prompt_olustur(curriculum_row, params):
 • Anahtar Kavramlar: {', '.join(key_concepts) if key_concepts else topic}
 • Gerçek Yaşam Bağlamları: {', '.join(real_life) if real_life else 'Günlük yaşam'}
 
-## 🧠 BLOOM TAKSONOMİSİ - {bloom_seviye.upper()}
-Seviye: {bloom_bilgi['seviye']}/6
-Açıklama: {bloom_bilgi['aciklama']}
-Eylemler: {', '.join(bloom_bilgi['eylemler'])}
-Soru Kipleri: {' / '.join(bloom_bilgi['soru_kipleri'])}
+## 🧠 BLOOM SEVİYESİ (Referans)
+Hedef: {bloom_seviye} ({bloom_bilgi['seviye']}/6)
+Not: Soru konuya uygunsa Bloom seviyesi ikincil önceliktir.
 
 ## 📊 ZORLUK: {zorluk.upper()}
 {"• Basit işlemler, tek adım" if zorluk == "kolay" else "• Orta karmaşıklık, 2-3 adım" if zorluk == "orta" else "• Çok adımlı, analiz gerektiren"}
@@ -786,12 +873,13 @@ Ana Karakter: {isim1}
 
 ## ⚠️ KRİTİK KURALLAR
 
-1. ❌ ÜST SINIF KAVRAMLARI KULLANMA
-2. ✅ Tüm veriler senaryoda açıkça belirtilmeli
-3. ✅ Gerçekçi, hesaplanabilir sayılar (1-100 arası tercih et)
-4. ✅ Tek karakter üzerinden basit senaryo
-5. ✅ {format_adi} gerçek soru formatına uygun
-6. ✅ Bloom {bloom_seviye} basamağına uygun soru
+1. ✅ Soru MUTLAKA "{topic}" konusunun kavramlarını kullanmalı
+2. ✅ Çözüm adımları konuya özgü formül/yöntemleri içermeli
+3. ❌ ÜST SINIF KAVRAMLARI KULLANMA
+4. ✅ Tüm veriler senaryoda açıkça belirtilmeli
+5. ✅ Gerçekçi, hesaplanabilir sayılar
+6. ✅ Tek karakter üzerinden basit senaryo
+7. ✅ {format_adi} gerçek soru formatına uygun
 
 ## 📋 JSON ÇIKTI FORMATI
 
@@ -1174,7 +1262,7 @@ def toplu_uret():
             # Parametreleri belirle
             bloom_seviye = bloom_seviye_sec(grade_level)
             zorluk = zorluk_sec(format_bilgi)
-            baglam = uygun_baglam_sec(grade_level)
+            baglam = uygun_baglam_sec(grade_level, topic_name)  # Konuya göre bağlam
             
             params = {
                 'bloom_seviye': bloom_seviye,
