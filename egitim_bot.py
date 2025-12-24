@@ -1812,7 +1812,9 @@ def generate_report() -> str:
             break
         icon = "🔴" if news.get('is_exam_related') else "📰"
         report.append(f"\n{icon} {news['title']}")
-        report.append(f"   📍 {news['source']} | 🔗 {news.get('link', '')[:60]}...")
+        report.append(f"   📍 {news['source']}")
+        if news.get('link'):
+            report.append(f"   🔗 {news.get('link', '')}")
         shown += 1
     
     report.append("")
@@ -1849,7 +1851,9 @@ def generate_report() -> str:
             }.get(news.get('category', ''), '🔹')
             
             report.append(f"\n{category_icon} {title_tr[:90]}")
-            report.append(f"   📍 {news['source']} ({news.get('category', '')}) | 🔗 {news.get('link', '')[:45]}...")
+            report.append(f"   📍 {news['source']} ({news.get('category', '')})")
+            if news.get('link'):
+                report.append(f"   🔗 {news.get('link', '')}")
     
     # EdTech Haberleri
     if edtech_news:
@@ -1863,7 +1867,9 @@ def generate_report() -> str:
                 title_tr = news['title']
             
             report.append(f"\n🔹 {title_tr[:90]}")
-            report.append(f"   📍 {news['source']} | 🔗 {news.get('link', '')[:50]}...")
+            report.append(f"   📍 {news['source']}")
+            if news.get('link'):
+                report.append(f"   🔗 {news.get('link', '')}")
     
     # Gemini ile AI gelişmelerinin eğitimde kullanım analizi
     if ai_news and GEMINI_KEY and genai:
@@ -1922,7 +1928,7 @@ Kurallar:
         report.append(f"\n📐 {title_tr[:90]}")
         report.append(f"   📍 {news['source']}")
         if news.get('link'):
-            report.append(f"   🔗 {news['link'][:60]}...")
+            report.append(f"   🔗 {news['link']}")
     
     report.append("")
     
@@ -1945,7 +1951,9 @@ Kurallar:
             
             report.append(f"\n{news['flag']} {news['country']} ({news['rank']})")
             report.append(f"   {title_tr[:85]}")
-            report.append(f"   📍 {news['source']} | 🔗 {news.get('link', '')[:50]}...")
+            report.append(f"   📍 {news['source']}")
+            if news.get('link'):
+                report.append(f"   🔗 {news.get('link', '')}")
     
     report.append("")
     
@@ -2118,7 +2126,7 @@ Kurallar:
                 report.append(line)
                 report.append(f"   📍 {' | '.join(meta)}")
                 if link:
-                    report.append(f"   🔗 {link[:60]}...")
+                    report.append(f"   🔗 {link}")
             else:
                 report.append(line)
     else:
