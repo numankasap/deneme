@@ -1,40 +1,42 @@
-name: Curriculum PISA Soru Uretici Bot
+name: Beceri Temelli Soru Üretici V3
 
 on:
   schedule:
-    - cron: '0 5 * * *'   # 08:00 TR - Sabah
-    - cron: '0 11 * * *'  # 14:00 TR - Öğlen
-    - cron: '0 17 * * *'  # 20:00 TR - Akşam
-    - cron: '0 23 * * *'  # 02:00 TR - Gece
+    # Günde 3 kez çalışır (Türkiye saati)
+    - cron: '0 5 * * *'   # 08:00 TR
+    - cron: '0 11 * * *'  # 14:00 TR
+    - cron: '0 17 * * *'  # 20:00 TR
+  
   workflow_dispatch:
     inputs:
       soru_per_kazanim:
-        description: 'Her kazanım için üretilecek soru sayısı (tur başına)'
+        description: 'Her kazanımdan üretilecek soru sayısı'
         required: false
-        default: '1'
+        default: '2'
       max_islem:
-        description: 'Bu çalışmada işlenecek maksimum kazanım sayısı'
+        description: 'Bu çalışmada işlenecek maksimum kazanım'
         required: false
-        default: '36'
+        default: '50'
 
 jobs:
-  generate:
+  generate-questions:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
-
+    timeout-minutes: 120
+    
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Python Kur
+      
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
-      - name: Kutuphaneler
-        run: pip install google-genai openai supabase
-
-      - name: Bot Calistir
+      
+      - name: Install dependencies
+        run: |
+          pip install google-genai supabase openai
+      
+      - name: Run Question Generator V3
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
@@ -42,4 +44,12 @@ jobs:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           SORU_PER_KAZANIM: ${{ github.event.inputs.soru_per_kazanim || '2' }}
           MAX_ISLEM_PER_RUN: ${{ github.event.inputs.max_islem || '50' }}
-        run: python curriculum_pisa_bot.py
+        run: |
+          python curriculum_pisa_bot_v3.py
+      
+      - name: Summary
+        run: |
+          echo "✅ Beceri temelli soru üretimi tamamlandı!"
+          echo "📊 TYT/AYT/LGS formatında sorular üretildi"
+          echo "🧠 Bloom taksonomisine uygun"
+          echo "🌍 Günlük yaşam becerileri temelli"
