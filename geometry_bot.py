@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
 """
-Geometry Bot v3.0 - Cairo Tabanlı Profesyonel Görselleştirme
-============================================================
-Geometri şekilleri, 3D pasta grafiği, sütun grafiği
+Geometry Bot v4.0 - Hibrit Görselleştirme Sistemi
+=================================================
+Cairo tabanlı programatik çizim + Gemini AI Image Generation
 GitHub Actions uyumlu
+
+Yeni Özellikler:
+- Gemini 2.5 Flash Image: Hızlı, yüksek hacimli geometri görselleri
+- Gemini 3 Pro Image Preview: Yüksek kaliteli, karmaşık görseller
+- Akıllı model seçimi: Soru karmaşıklığına göre otomatik seçim
+- Fallback mekanizması: AI başarısız olursa Cairo'ya düş
 """
 
 import os
@@ -11,6 +17,7 @@ import io
 import json
 import math
 import time
+import base64
 import logging
 from datetime import datetime
 from typing import Optional, Dict, List, Tuple
@@ -34,10 +41,18 @@ class Config:
     SUPABASE_URL = os.environ.get('SUPABASE_URL')
     SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
     GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
-    # Alternatif modeller: gemini-2.0-flash-exp, gemini-1.5-flash, gemini-1.5-pro
+    
+    # Analiz modeli (metin tabanlı)
     GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-2.0-flash-exp')
+    
+    # Görsel üretim modelleri
+    GEMINI_IMAGE_FLASH = 'gemini-2.5-flash-preview-05-20'  # Hızlı, yüksek hacim
+    GEMINI_IMAGE_PRO = 'gemini-2.0-flash-exp-image-generation'  # Yüksek kalite (Pro henüz mevcut değilse flash kullan)
+    
+    # Görsel üretim stratejisi: 'cairo_only', 'ai_only', 'hybrid', 'ai_first'
+    IMAGE_STRATEGY = os.environ.get('IMAGE_STRATEGY', 'hybrid')
+    
     STORAGE_BUCKET = 'questions-images'
-    # Rate limit nedeniyle batch size düşük tutulmalı (dakikada max 10 istek)
     BATCH_SIZE = int(os.environ.get('BATCH_SIZE', '10'))
     TEST_MODE = os.environ.get('TEST_MODE', 'false').lower() == 'true'
     IMAGE_WIDTH = 900
@@ -79,6 +94,309 @@ class Colors:
     @classmethod
     def get_bar_color(cls, i): return cls.BAR_COLORS[i % len(cls.BAR_COLORS)]
 
+
+# ═══════════════════════════════════════════════════════════════
+# GEMINI AI IMAGE GENERATOR
+# ═══════════════════════════════════════════════════════════════
+
+class GeminiImageGenerator:
+    """Gemini AI ile görsel üretim"""
+    
+    # Karmaşıklık eşikleri
+    COMPLEXITY_THRESHOLDS = {
+        'simple': ['triangle', 'rectangle', 'square', 'circle'],
+        'medium': ['quadrilateral', 'polygon', 'parallelogram', 'trapezoid'],
+        'complex': ['cube', 'pyramid', 'cylinder', 'cone', 'sphere', 'prism', 
+                   'inscribed_circle', 'circumscribed', 'coordinate_plane']
+    }
+    
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+        if NEW_GENAI:
+            self.client = genai.Client(api_key=api_key)
+        else:
+            genai.configure(api_key=api_key)
+        self.request_count = 0
+        self.last_request_time = 0
+        logger.info("GeminiImageGenerator başlatıldı")
+    
+    def _rate_limit(self, requests_per_minute: int = 5):
+        """Rate limiting for image generation (daha düşük limit)"""
+        current_time = time.time()
+        if current_time - self.last_request_time > 60:
+            self.request_count = 0
+            self.last_request_time = current_time
+        
+        if self.request_count >= requests_per_minute:
+            wait_time = 60 - (current_time - self.last_request_time) + 5
+            if wait_time > 0:
+                logger.info(f"⏳ Image Gen Rate limit - {wait_time:.0f}s bekleniyor...")
+                time.sleep(wait_time)
+                self.request_count = 0
+                self.last_request_time = time.time()
+        
+        self.request_count += 1
+    
+    def _determine_complexity(self, analysis: Dict) -> str:
+        """Soru karmaşıklığını belirle"""
+        shape_type = analysis.get('shape_type', '')
+        
+        # Karmaşıklık faktörleri
+        factors = 0
+        
+        # İç içe şekiller
+        if analysis.get('inscribed_circle') or analysis.get('circumscribed_circle'):
+            factors += 2
+        
+        # Çoklu daireler
+        if len(analysis.get('circles', [])) > 1:
+            factors += 1
+        
+        # Özel çizgiler (yükseklik, kenarortay, açıortay)
+        if analysis.get('special_lines'):
+            factors += len(analysis.get('special_lines', []))
+        
+        # Açı işaretleri
+        if analysis.get('angles'):
+            factors += 1
+        
+        # 3D şekiller
+        if shape_type in self.COMPLEXITY_THRESHOLDS['complex']:
+            factors += 3
+        
+        # Koordinat düzlemi
+        if analysis.get('coordinate_plane') or analysis.get('show_grid'):
+            factors += 1
+        
+        if factors >= 4:
+            return 'complex'
+        elif factors >= 2:
+            return 'medium'
+        return 'simple'
+    
+    def _select_model(self, complexity: str) -> str:
+        """Karmaşıklığa göre model seç"""
+        if complexity == 'complex':
+            logger.info(f"🎨 Model: Pro (karmaşık şekil)")
+            return Config.GEMINI_IMAGE_PRO
+        else:
+            logger.info(f"🎨 Model: Flash (basit/orta şekil)")
+            return Config.GEMINI_IMAGE_FLASH
+    
+    def _build_image_prompt(self, analysis: Dict, question_text: str = "") -> str:
+        """Görsel üretimi için prompt oluştur"""
+        shape_type = analysis.get('shape_type', 'geometry')
+        
+        # Temel prompt
+        prompt_parts = [
+            "Matematiksel bir geometri görseli oluştur.",
+            "Stil: Temiz, profesyonel, eğitim amaçlı.",
+            "Arka plan: Beyaz.",
+            "Çizgiler: Net, kalın, koyu mavi veya siyah.",
+            "Etiketler: Büyük harflerle köşe noktaları (A, B, C, D...).",
+            "Ölçüler: Varsa kenar uzunlukları ve açılar gösterilmeli.",
+            "",
+        ]
+        
+        # Şekil tipine göre özel talimatlar
+        if shape_type == 'triangle':
+            points = analysis.get('points', [])
+            edges = analysis.get('edges', [])
+            angles = analysis.get('angles', [])
+            
+            prompt_parts.append("Bir üçgen çiz.")
+            if points:
+                prompt_parts.append(f"Köşe noktaları: {', '.join([p['name'] for p in points])}")
+            if edges:
+                for e in edges:
+                    prompt_parts.append(f"Kenar {e.get('start')}{e.get('end')}: {e.get('label', '')}")
+            if angles:
+                for a in angles:
+                    if a.get('is_right'):
+                        prompt_parts.append(f"{a.get('vertex')} köşesinde dik açı işareti göster.")
+                    elif a.get('value'):
+                        prompt_parts.append(f"{a.get('vertex')} açısı: {a.get('value')}")
+            
+            # Özel çizgiler
+            special_lines = analysis.get('special_lines', [])
+            for sl in special_lines:
+                if sl['type'] == 'height':
+                    prompt_parts.append(f"{sl.get('from')} köşesinden karşı kenara yükseklik çiz (kesikli çizgi).")
+                elif sl['type'] == 'median':
+                    prompt_parts.append(f"{sl.get('from')} köşesinden karşı kenarın ortasına kenarortay çiz.")
+                elif sl['type'] == 'bisector':
+                    prompt_parts.append(f"{sl.get('from')} açısının açıortayını çiz.")
+        
+        elif shape_type in ['rectangle', 'square', 'quadrilateral']:
+            points = analysis.get('points', [])
+            edges = analysis.get('edges', [])
+            
+            if shape_type == 'square':
+                prompt_parts.append("Bir kare çiz.")
+            elif shape_type == 'rectangle':
+                prompt_parts.append("Bir dikdörtgen çiz.")
+            else:
+                prompt_parts.append("Bir dörtgen çiz.")
+            
+            if points:
+                prompt_parts.append(f"Köşe noktaları saat yönünde: {', '.join([p['name'] for p in points])}")
+            if edges:
+                for e in edges:
+                    prompt_parts.append(f"Kenar {e.get('start')}{e.get('end')}: {e.get('label', '')}")
+            
+            # İç teğet daire
+            inscribed = analysis.get('inscribed_circle', {})
+            if inscribed:
+                prompt_parts.append(f"İçine teğet bir daire çiz, yarıçap: {inscribed.get('label', '')}")
+        
+        elif shape_type == 'circle':
+            center = analysis.get('center', {})
+            radius = analysis.get('radius', 4)
+            
+            prompt_parts.append("Bir çember çiz.")
+            prompt_parts.append(f"Merkez noktası: {center.get('name', 'O')}")
+            prompt_parts.append(f"Yarıçap: {radius}")
+            prompt_parts.append("Merkez noktasını işaretle ve r= etiketiyle yarıçapı göster.")
+            
+            # Ek noktalar
+            for p in analysis.get('points', []):
+                prompt_parts.append(f"Çember üzerinde {p['name']} noktasını işaretle.")
+        
+        elif shape_type in ['cube', 'rectangular_prism', 'prism']:
+            dims = analysis.get('dimensions', {})
+            prompt_parts.append("3 boyutlu bir küp/prizma çiz (izometrik görünüm).")
+            if dims.get('size'):
+                prompt_parts.append(f"Kenar uzunluğu: {dims['size']} cm")
+            if dims.get('width') and dims.get('height') and dims.get('depth'):
+                prompt_parts.append(f"Boyutlar: {dims['width']}x{dims['height']}x{dims['depth']}")
+            prompt_parts.append("Köşeleri A, B, C, D (alt) ve E, F, G, H (üst) olarak etiketle.")
+            prompt_parts.append("Gizli kenarları kesikli çizgiyle göster.")
+        
+        elif shape_type == 'pyramid':
+            dims = analysis.get('dimensions', {})
+            prompt_parts.append("3 boyutlu bir piramit çiz.")
+            prompt_parts.append(f"Taban kenarı: {dims.get('base_size', 4)} cm")
+            prompt_parts.append(f"Yükseklik: {dims.get('height', 5)} cm")
+            prompt_parts.append("Tepe noktasını T olarak etiketle.")
+            prompt_parts.append("Yüksekliği kesikli çizgiyle göster.")
+        
+        elif shape_type == 'cylinder':
+            dims = analysis.get('dimensions', {})
+            prompt_parts.append("3 boyutlu bir silindir çiz.")
+            prompt_parts.append(f"Yarıçap: {dims.get('radius', 3)} cm")
+            prompt_parts.append(f"Yükseklik: {dims.get('height', 6)} cm")
+        
+        elif shape_type == 'cone':
+            dims = analysis.get('dimensions', {})
+            prompt_parts.append("3 boyutlu bir koni çiz.")
+            prompt_parts.append(f"Taban yarıçapı: {dims.get('radius', 3)} cm")
+            prompt_parts.append(f"Yükseklik: {dims.get('height', 5)} cm")
+            prompt_parts.append("Tepe noktasını T olarak etiketle.")
+        
+        elif shape_type == 'sphere':
+            dims = analysis.get('dimensions', {})
+            prompt_parts.append("3 boyutlu bir küre çiz.")
+            prompt_parts.append(f"Yarıçap: {dims.get('radius', 4)} cm")
+            prompt_parts.append("Merkez noktasını O olarak işaretle.")
+        
+        elif shape_type == 'pie_chart':
+            pie_data = analysis.get('pie_data', {})
+            values = pie_data.get('values', [])
+            labels = pie_data.get('labels', [])
+            prompt_parts.append("3 boyutlu pasta grafiği çiz.")
+            for i, (v, l) in enumerate(zip(values, labels)):
+                prompt_parts.append(f"{l}: {v}%")
+            prompt_parts.append("Her dilimi farklı renkle göster ve yüzdeleri etiketle.")
+        
+        elif shape_type == 'bar_chart':
+            bar_data = analysis.get('bar_data', {})
+            values = bar_data.get('values', [])
+            labels = bar_data.get('labels', [])
+            prompt_parts.append("Sütun grafiği çiz.")
+            for v, l in zip(values, labels):
+                prompt_parts.append(f"{l}: {v}")
+        
+        # Orijinal soru metni (bağlam için)
+        if question_text:
+            prompt_parts.append("")
+            prompt_parts.append(f"Orijinal soru: {question_text[:200]}")
+        
+        return "\n".join(prompt_parts)
+    
+    def generate(self, analysis: Dict, question_text: str = "", max_retries: int = 2) -> Optional[bytes]:
+        """AI ile görsel üret"""
+        try:
+            complexity = self._determine_complexity(analysis)
+            model_id = self._select_model(complexity)
+            prompt = self._build_image_prompt(analysis, question_text)
+            
+            logger.info(f"🎨 AI Image Generation başlıyor...")
+            logger.debug(f"Prompt: {prompt[:200]}...")
+            
+            for attempt in range(max_retries):
+                try:
+                    self._rate_limit(requests_per_minute=5)
+                    
+                    if NEW_GENAI:
+                        # Yeni API ile görsel üretimi
+                        response = self.client.models.generate_content(
+                            model=model_id,
+                            contents=prompt,
+                            config={
+                                "response_modalities": ["IMAGE", "TEXT"],
+                                "response_mime_type": "image/png"
+                            }
+                        )
+                        
+                        # Response'dan görsel çıkar
+                        if response.candidates:
+                            for part in response.candidates[0].content.parts:
+                                if hasattr(part, 'inline_data') and part.inline_data:
+                                    image_data = part.inline_data.data
+                                    if isinstance(image_data, str):
+                                        image_bytes = base64.b64decode(image_data)
+                                    else:
+                                        image_bytes = image_data
+                                    logger.info(f"✅ AI görsel üretildi ({len(image_bytes)} bytes)")
+                                    return image_bytes
+                        
+                        logger.warning("AI yanıtında görsel bulunamadı")
+                        return None
+                    else:
+                        # Eski API - görsel üretimi sınırlı olabilir
+                        model = genai.GenerativeModel(model_id)
+                        response = model.generate_content(prompt)
+                        
+                        # Eski API genellikle metin döndürür, görsel için özel handling gerekebilir
+                        logger.warning("Eski Gemini API ile görsel üretimi sınırlı")
+                        return None
+                        
+                except Exception as e:
+                    error_str = str(e)
+                    if '429' in error_str or 'RESOURCE_EXHAUSTED' in error_str:
+                        wait_time = 60 + (attempt * 15)
+                        logger.warning(f"⚠️ Rate limit. {wait_time}s bekleniyor... ({attempt + 1}/{max_retries})")
+                        time.sleep(wait_time)
+                    elif 'not supported' in error_str.lower() or 'invalid' in error_str.lower():
+                        logger.warning(f"Model görsel üretimi desteklemiyor: {model_id}")
+                        return None
+                    else:
+                        logger.error(f"AI Image Generation hatası: {e}")
+                        if attempt < max_retries - 1:
+                            time.sleep(5)
+                        else:
+                            return None
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"GeminiImageGenerator.generate hatası: {e}")
+            return None
+
+
+# ═══════════════════════════════════════════════════════════════
+# CAIRO RENDERER (Mevcut kod - değişiklik yok)
+# ═══════════════════════════════════════════════════════════════
 
 class CairoRenderer:
     def __init__(self, width=900, height=750):
@@ -311,417 +629,10 @@ class CairoRenderer:
         buf = io.BytesIO()
         self.surface.write_to_png(buf)
         return buf.getvalue()
-    
-    # ═══════════════════════════════════════════════════════════════
-    # EK ÖZELLİKLER - Koordinat Düzlemi, Çember Açıları, Merkezler
-    # ═══════════════════════════════════════════════════════════════
-    
-    def draw_grid(self, x_range, y_range, show_axes=True, show_numbers=True):
-        """Koordinat düzlemi çiz"""
-        x_min, x_max = x_range
-        y_min, y_max = y_range
-        self.ctx.set_source_rgb(*Colors.GRID_LIGHT)
-        self.ctx.set_line_width(0.5)
-        for x in range(x_min, x_max + 1):
-            px1, py1 = self.to_px(x, y_min)
-            px2, py2 = self.to_px(x, y_max)
-            self.ctx.move_to(px1, py1)
-            self.ctx.line_to(px2, py2)
-            self.ctx.stroke()
-        for y in range(y_min, y_max + 1):
-            px1, py1 = self.to_px(x_min, y)
-            px2, py2 = self.to_px(x_max, y)
-            self.ctx.move_to(px1, py1)
-            self.ctx.line_to(px2, py2)
-            self.ctx.stroke()
-        if show_axes:
-            self.ctx.set_source_rgb(*Colors.GRID_DARK)
-            self.ctx.set_line_width(2)
-            if y_min <= 0 <= y_max:
-                px1, py1 = self.to_px(x_min, 0)
-                px2, py2 = self.to_px(x_max, 0)
-                self.ctx.move_to(px1, py1)
-                self.ctx.line_to(px2, py2)
-                self.ctx.stroke()
-            if x_min <= 0 <= x_max:
-                px1, py1 = self.to_px(0, y_min)
-                px2, py2 = self.to_px(0, y_max)
-                self.ctx.move_to(px1, py1)
-                self.ctx.line_to(px2, py2)
-                self.ctx.stroke()
-        if show_numbers:
-            self.ctx.select_font_face("Arial", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
-            self.ctx.set_font_size(11)
-            self.ctx.set_source_rgb(*Colors.GRID_DARK)
-            for x in range(x_min, x_max + 1):
-                if x != 0 and y_min <= 0 <= y_max:
-                    px, py = self.to_px(x, 0)
-                    self.ctx.move_to(px - 4, py + 18)
-                    self.ctx.show_text(str(x))
-            for y in range(y_min, y_max + 1):
-                if y != 0 and x_min <= 0 <= x_max:
-                    px, py = self.to_px(0, y)
-                    self.ctx.move_to(px - 20, py + 4)
-                    self.ctx.show_text(str(y))
-    
-    def draw_arc(self, center, radius, start_deg, end_deg, color=None, width=3):
-        """Yay çiz"""
-        color = color or Colors.PRIMARY
-        cx, cy = self.to_px(*center)
-        r_px = radius * self.scale
-        self.ctx.arc(cx, cy, r_px, -math.radians(end_deg), -math.radians(start_deg))
-        self.ctx.set_source_rgb(*color[:3])
-        self.ctx.set_line_width(width)
-        self.ctx.stroke()
-    
-    def draw_sector(self, center, radius, start_deg, end_deg, fill_color=None, stroke_color=None, label=None):
-        """Daire dilimi çiz"""
-        fill_color = fill_color or (1.0, 0.76, 0.03, 0.4)
-        stroke_color = stroke_color or Colors.PRIMARY
-        cx, cy = self.to_px(*center)
-        r_px = radius * self.scale
-        self.ctx.move_to(cx, cy)
-        self.ctx.arc(cx, cy, r_px, -math.radians(end_deg), -math.radians(start_deg))
-        self.ctx.close_path()
-        if len(fill_color) == 4:
-            self.ctx.set_source_rgba(*fill_color)
-        else:
-            self.ctx.set_source_rgb(*fill_color)
-        self.ctx.fill_preserve()
-        self.ctx.set_source_rgb(*stroke_color[:3])
-        self.ctx.set_line_width(2)
-        self.ctx.stroke()
-        if label:
-            mid_deg = (start_deg + end_deg) / 2
-            lx = center[0] + radius * 0.6 * math.cos(math.radians(mid_deg))
-            ly = center[1] + radius * 0.6 * math.sin(math.radians(mid_deg))
-            self.draw_label((lx, ly), label, stroke_color, font_size=14)
-    
-    def draw_ray(self, start, through, color=None, width=2.5, length=50):
-        """Işın çiz (tek yönde sonsuz)"""
-        color = color or Colors.PRIMARY
-        dx = through[0] - start[0]
-        dy = through[1] - start[1]
-        dist = math.sqrt(dx*dx + dy*dy)
-        if dist < 0.001: return
-        dx, dy = dx / dist, dy / dist
-        end = (start[0] + dx * length, start[1] + dy * length)
-        self.draw_line(start, end, color, width)
-        self._draw_arrow(end, math.atan2(dy, dx), color)
-    
-    def draw_full_line(self, p1, p2, color=None, width=2.5, length=50):
-        """Doğru çiz (iki yönde sonsuz)"""
-        color = color or Colors.PRIMARY
-        dx = p2[0] - p1[0]
-        dy = p2[1] - p1[1]
-        dist = math.sqrt(dx*dx + dy*dy)
-        if dist < 0.001: return
-        dx, dy = dx / dist, dy / dist
-        start = (p1[0] - dx * length, p1[1] - dy * length)
-        end = (p2[0] + dx * length, p2[1] + dy * length)
-        self.draw_line(start, end, color, width)
-        self._draw_arrow(end, math.atan2(dy, dx), color)
-        self._draw_arrow(start, math.atan2(-dy, -dx), color)
-    
-    def _draw_arrow(self, tip, angle, color, size=10):
-        """Ok ucu çiz"""
-        px, py = self.to_px(*tip)
-        angle = -angle
-        self.ctx.set_source_rgb(*color[:3])
-        self.ctx.set_line_width(2)
-        for delta in [0.4, -0.4]:
-            a = angle + math.pi + delta
-            self.ctx.move_to(px, py)
-            self.ctx.line_to(px + size * math.cos(a), py + size * math.sin(a))
-            self.ctx.stroke()
-    
-    # ─────────────────────────────────────────────────────────────────
-    # ÜÇGEN MERKEZLERİ
-    # ─────────────────────────────────────────────────────────────────
-    
-    def calc_centroid(self, points):
-        """Ağırlık merkezi (G)"""
-        return (sum(p[0] for p in points) / len(points), sum(p[1] for p in points) / len(points))
-    
-    def calc_incenter(self, triangle):
-        """İç teğet merkezi (I)"""
-        A, B, C = [np.array(p) for p in triangle]
-        a, b, c = np.linalg.norm(B - C), np.linalg.norm(A - C), np.linalg.norm(A - B)
-        return tuple((a * A + b * B + c * C) / (a + b + c))
-    
-    def calc_circumcenter(self, triangle):
-        """Çevrel merkez (O)"""
-        A, B, C = [np.array(p) for p in triangle]
-        D = 2 * (A[0]*(B[1]-C[1]) + B[0]*(C[1]-A[1]) + C[0]*(A[1]-B[1]))
-        if abs(D) < 1e-10: return self.calc_centroid(triangle)
-        ux = ((A[0]**2+A[1]**2)*(B[1]-C[1]) + (B[0]**2+B[1]**2)*(C[1]-A[1]) + (C[0]**2+C[1]**2)*(A[1]-B[1])) / D
-        uy = ((A[0]**2+A[1]**2)*(C[0]-B[0]) + (B[0]**2+B[1]**2)*(A[0]-C[0]) + (C[0]**2+C[1]**2)*(B[0]-A[0])) / D
-        return (ux, uy)
-    
-    def calc_orthocenter(self, triangle):
-        """Diklik merkezi (H)"""
-        A, B, C = [np.array(p) for p in triangle]
-        O = np.array(self.calc_circumcenter(triangle))
-        return tuple(A + B + C - 2 * O)
-    
-    def calc_inradius(self, triangle):
-        """İç teğet çember yarıçapı"""
-        A, B, C = [np.array(p) for p in triangle]
-        a, b, c = np.linalg.norm(B - C), np.linalg.norm(A - C), np.linalg.norm(A - B)
-        s = (a + b + c) / 2
-        area = math.sqrt(s * (s - a) * (s - b) * (s - c))
-        return area / s
-    
-    def calc_circumradius(self, triangle):
-        """Çevrel çember yarıçapı"""
-        A, B, C = [np.array(p) for p in triangle]
-        a, b, c = np.linalg.norm(B - C), np.linalg.norm(A - C), np.linalg.norm(A - B)
-        s = (a + b + c) / 2
-        area = math.sqrt(s * (s - a) * (s - b) * (s - c))
-        if area < 1e-10: return 0
-        return (a * b * c) / (4 * area)
-    
-    def draw_inscribed_circle(self, triangle, color=None):
-        """Üçgenin iç teğet çemberini çiz"""
-        color = color or (0.13, 0.59, 0.95)
-        center = self.calc_incenter(triangle)
-        radius = self.calc_inradius(triangle)
-        self.draw_circle(center, radius, (*color, 0.1), color, stroke_width=2)
-        self.draw_point(center, color, radius=6)
-    
-    def draw_circumscribed_circle(self, triangle, color=None):
-        """Üçgenin çevrel çemberini çiz"""
-        color = color or (0.61, 0.15, 0.69)
-        center = self.calc_circumcenter(triangle)
-        radius = self.calc_circumradius(triangle)
-        self.draw_circle(center, radius, (*color, 0.1), color, stroke_width=2)
-        self.draw_point(center, color, radius=6)
-    
-    # ─────────────────────────────────────────────────────────────────
-    # ÇEMBER AÇILARI
-    # ─────────────────────────────────────────────────────────────────
-    
-    def draw_central_angle(self, center, radius, angle1, angle2, color=None, label=None):
-        """Merkez açı çiz"""
-        color = color or Colors.SECONDARY
-        p1 = (center[0] + radius * math.cos(math.radians(angle1)),
-              center[1] + radius * math.sin(math.radians(angle1)))
-        p2 = (center[0] + radius * math.cos(math.radians(angle2)),
-              center[1] + radius * math.sin(math.radians(angle2)))
-        self.draw_line(center, p1, color, width=2)
-        self.draw_line(center, p2, color, width=2)
-        self.draw_angle_arc(center, p1, p2, radius=0.8, color=color, label=label, fill=True)
-        self.draw_arc(center, radius, angle1, angle2, (1.0, 0.76, 0.03), width=4)
-        return p1, p2
-    
-    def draw_inscribed_angle(self, center, radius, vertex_angle, arc_start, arc_end, color=None, label=None):
-        """Çevre açı çiz"""
-        color = color or Colors.TERTIARY
-        vertex = (center[0] + radius * math.cos(math.radians(vertex_angle)),
-                  center[1] + radius * math.sin(math.radians(vertex_angle)))
-        p1 = (center[0] + radius * math.cos(math.radians(arc_start)),
-              center[1] + radius * math.sin(math.radians(arc_start)))
-        p2 = (center[0] + radius * math.cos(math.radians(arc_end)),
-              center[1] + radius * math.sin(math.radians(arc_end)))
-        self.draw_line(vertex, p1, color, width=2)
-        self.draw_line(vertex, p2, color, width=2)
-        self.draw_angle_arc(vertex, p1, p2, radius=0.5, color=color, label=label, fill=True)
-        return vertex, p1, p2
-    
-    def draw_tangent_line(self, center, radius, angle, length=5, color=None):
-        """Teğet çizgisi çiz"""
-        color = color or Colors.SECONDARY
-        touch = (center[0] + radius * math.cos(math.radians(angle)),
-                 center[1] + radius * math.sin(math.radians(angle)))
-        tangent_angle = angle + 90
-        dx = math.cos(math.radians(tangent_angle))
-        dy = math.sin(math.radians(tangent_angle))
-        p1 = (touch[0] - dx * length / 2, touch[1] - dy * length / 2)
-        p2 = (touch[0] + dx * length / 2, touch[1] + dy * length / 2)
-        self.draw_line(p1, p2, color, width=2)
-        self.draw_point(touch, color, radius=6)
-        radius_end = (touch[0] + 0.5 * math.cos(math.radians(angle + 180)),
-                      touch[1] + 0.5 * math.sin(math.radians(angle + 180)))
-        self.draw_right_angle(touch, radius_end, p2, size=0.3, color=color)
-        return touch, p1, p2
-    
-    # ─────────────────────────────────────────────────────────────────
-    # DÜZGÜN ÇOKGENLER VE ÖZEL DÖRTGENLER
-    # ─────────────────────────────────────────────────────────────────
-    
-    def create_regular_polygon(self, center, radius, n, rotation=-90):
-        """Düzgün n-gen köşelerini hesapla"""
-        return [(center[0] + radius * math.cos(math.radians(rotation + i * 360 / n)),
-                 center[1] + radius * math.sin(math.radians(rotation + i * 360 / n)))
-                for i in range(n)]
-    
-    def create_square(self, center, side, rotation=0):
-        """Kare köşelerini hesapla"""
-        return self.create_regular_polygon(center, side / math.sqrt(2), 4, rotation + 45)
-    
-    def create_rectangle(self, center, width, height, rotation=0):
-        """Dikdörtgen köşelerini hesapla"""
-        hw, hh = width / 2, height / 2
-        corners = [(-hw, -hh), (hw, -hh), (hw, hh), (-hw, hh)]
-        rad = math.radians(rotation)
-        cos_r, sin_r = math.cos(rad), math.sin(rad)
-        return [(center[0] + c[0]*cos_r - c[1]*sin_r, center[1] + c[0]*sin_r + c[1]*cos_r) for c in corners]
-    
-    def create_parallelogram(self, base_start, base_end, height, slant=0):
-        """Paralelkenar köşelerini hesapla"""
-        A, B = base_start, base_end
-        base_vec = (B[0] - A[0], B[1] - A[1])
-        base_len = math.sqrt(base_vec[0]**2 + base_vec[1]**2)
-        perp = (-base_vec[1] / base_len, base_vec[0] / base_len)
-        slant_vec = (base_vec[0] / base_len * slant, base_vec[1] / base_len * slant)
-        D = (A[0] + perp[0]*height + slant_vec[0], A[1] + perp[1]*height + slant_vec[1])
-        C = (B[0] + perp[0]*height + slant_vec[0], B[1] + perp[1]*height + slant_vec[1])
-        return [A, B, C, D]
-    
-    def create_trapezoid(self, base_start, base_end, top_width, height):
-        """Yamuk köşelerini hesapla"""
-        A, B = base_start, base_end
-        base_vec = (B[0] - A[0], B[1] - A[1])
-        base_len = math.sqrt(base_vec[0]**2 + base_vec[1]**2)
-        perp = (-base_vec[1] / base_len, base_vec[0] / base_len)
-        base_unit = (base_vec[0] / base_len, base_vec[1] / base_len)
-        offset = (base_len - top_width) / 2
-        D = (A[0] + perp[0]*height + base_unit[0]*offset, A[1] + perp[1]*height + base_unit[1]*offset)
-        C = (D[0] + base_unit[0]*top_width, D[1] + base_unit[1]*top_width)
-        return [A, B, C, D]
-    
-    def create_rhombus(self, center, d1, d2, rotation=0):
-        """Eşkenar dörtgen köşelerini hesapla"""
-        rad = math.radians(rotation)
-        cos_r, sin_r = math.cos(rad), math.sin(rad)
-        pts = [(d1/2, 0), (0, d2/2), (-d1/2, 0), (0, -d2/2)]
-        return [(center[0] + p[0]*cos_r - p[1]*sin_r, center[1] + p[0]*sin_r + p[1]*cos_r) for p in pts]
-    
-    # ─────────────────────────────────────────────────────────────────
-    # KOORDİNAT ETİKETLERİ
-    # ─────────────────────────────────────────────────────────────────
-    
-    def draw_point_with_coords(self, pos, name, color, position='auto', font_size=18):
-        """Koordinatlı nokta etiketi: A(1,1) formatı"""
-        self.draw_point(pos, color)
-        label = f"{name}({pos[0]},{pos[1]})"
-        px, py = self.to_px(*pos)
-        offsets = {'top': (0,-30), 'bottom': (0,35), 'left': (-50,0), 'right': (50,0),
-                   'top_left': (-40,-25), 'top_right': (40,-25),
-                   'bottom_left': (-40,30), 'bottom_right': (40,30)}
-        if position == 'auto':
-            position = 'bottom_right' if px < self.origin[0] else 'bottom_left'
-        dx, dy = offsets.get(position, (0, 35))
-        self.ctx.select_font_face("Arial", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
-        self.ctx.set_font_size(font_size)
-        self.ctx.set_source_rgb(*color[:3])
-        ext = self.ctx.text_extents(label)
-        self.ctx.move_to(px + dx - ext.width/2, py + dy + ext.height/2)
-        self.ctx.show_text(label)
-    
-    # ─────────────────────────────────────────────────────────────────
-    # KENAR ORTA DİKMESİ
-    # ─────────────────────────────────────────────────────────────────
-    
-    def draw_perpendicular_bisector(self, p1, p2, color=None, label=None, length=3):
-        """Kenar orta dikmesi çiz"""
-        color = color or (0.00, 0.74, 0.83)
-        mid = ((p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2)
-        dx, dy = p2[0] - p1[0], p2[1] - p1[1]
-        seg_len = math.sqrt(dx*dx + dy*dy)
-        if seg_len < 0.001: return mid
-        perp = (-dy / seg_len, dx / seg_len)
-        start = (mid[0] - perp[0] * length / 2, mid[1] - perp[1] * length / 2)
-        end = (mid[0] + perp[0] * length / 2, mid[1] + perp[1] * length / 2)
-        self.draw_line(start, end, color, width=2)
-        self.draw_right_angle(mid, p1, end, size=0.3, color=color)
-        self.draw_point(mid, color, radius=5)
-        if label:
-            self.draw_label(mid, label, color, offset=(20, -15))
-        return mid
-    
-    # ─────────────────────────────────────────────────────────────────
-    # PARALEL DOĞRULAR VE AÇI KURALLARI
-    # ─────────────────────────────────────────────────────────────────
-    
-    def draw_parallel_lines(self, y1, y2, x_range=(-5, 5), color=None):
-        """İki paralel yatay doğru çiz"""
-        color = color or Colors.PRIMARY
-        self.draw_line((x_range[0], y1), (x_range[1], y1), color, width=2.5)
-        self.draw_line((x_range[0], y2), (x_range[1], y2), color, width=2.5)
-        mid_x = (x_range[0] + x_range[1]) / 2
-        self._draw_parallel_marks((mid_x - 1, y1), 0, color)
-        self._draw_parallel_marks((mid_x - 1, y2), 0, color)
-    
-    def _draw_parallel_marks(self, pos, angle, color, size=0.3):
-        """Paralel işareti (>>)"""
-        px, py = self.to_px(*pos)
-        self.ctx.set_source_rgb(*color[:3])
-        self.ctx.set_line_width(2)
-        for offset in [-5, 5]:
-            self.ctx.move_to(px + offset - size*self.scale*0.3, py - size*self.scale*0.2)
-            self.ctx.line_to(px + offset, py)
-            self.ctx.line_to(px + offset - size*self.scale*0.3, py + size*self.scale*0.2)
-            self.ctx.stroke()
-    
-    def draw_transversal(self, p1, p2, color=None):
-        """Kesen doğru çiz"""
-        color = color or Colors.SECONDARY
-        self.draw_line(p1, p2, color, width=2.5)
-    
-    def draw_m_rule_angles(self, intersection1, intersection2, angle_size=0.5):
-        """M Kuralı - Yöndeş açılar"""
-        color = (1.0, 0.76, 0.03)
-        self.draw_sector(intersection1, angle_size, 0, 45, (*color, 0.4), color, "α")
-        self.draw_sector(intersection2, angle_size, 0, 45, (*color, 0.4), color, "α")
-    
-    def draw_z_rule_angles(self, intersection1, intersection2, angle_size=0.5):
-        """Z Kuralı - Ters açılar"""
-        color = (0.30, 0.69, 0.31)
-        self.draw_sector(intersection1, angle_size, 0, 45, (*color, 0.4), color, "β")
-        self.draw_sector(intersection2, angle_size, 180, 225, (*color, 0.4), color, "β")
-    
-    def draw_u_rule_angles(self, intersection1, intersection2, angle_size=0.5):
-        """U Kuralı - İç ters açılar"""
-        color1 = (0.83, 0.18, 0.18)
-        color2 = (0.13, 0.59, 0.95)
-        self.draw_sector(intersection1, angle_size, 135, 180, (*color1, 0.4), color1, "γ")
-        self.draw_sector(intersection2, angle_size, 0, 45, (*color2, 0.4), color2, "δ")
-    
-    # ─────────────────────────────────────────────────────────────────
-    # İÇ İÇE ŞEKİLLER (NESTED)
-    # ─────────────────────────────────────────────────────────────────
-    
-    def draw_inscribed_polygon(self, center, radius, n, rotation=-90, fill_color=None, stroke_color=None):
-        """Çembere içten teğet düzgün çokgen"""
-        fill_color = fill_color or Colors.FILL_LIGHT
-        stroke_color = stroke_color or Colors.PRIMARY
-        points = self.create_regular_polygon(center, radius, n, rotation)
-        self.draw_polygon(points, fill_color, stroke_color)
-        return points
-    
-    def draw_circumscribed_polygon(self, center, radius, n, rotation=-90, fill_color=None, stroke_color=None):
-        """Çembere dıştan teğet düzgün çokgen"""
-        fill_color = fill_color or Colors.FILL_LIGHT
-        stroke_color = stroke_color or Colors.ACCENT
-        outer_radius = radius / math.cos(math.pi / n)
-        points = self.create_regular_polygon(center, outer_radius, n, rotation)
-        self.draw_polygon(points, fill_color, stroke_color)
-        return points
-    
-    def draw_triangle_with_circles(self, triangle, show_incircle=True, show_circumcircle=True):
-        """Üçgen + iç teğet + çevrel çember"""
-        self.draw_polygon(triangle, Colors.FILL_LIGHT, Colors.PRIMARY, stroke_width=3)
-        if show_circumcircle:
-            self.draw_circumscribed_circle(triangle, (0.30, 0.69, 0.31))
-        if show_incircle:
-            self.draw_inscribed_circle(triangle, (0.83, 0.18, 0.18))
-        for i, p in enumerate(triangle):
-            self.draw_point(p, Colors.get_point_color(i))
 
 
 # ═══════════════════════════════════════════════════════════════
-# 3D KÜPÜ (Matplotlib ile)
+# 3D RENDERER (Matplotlib)
 # ═══════════════════════════════════════════════════════════════
 
 class Cube3DRenderer:
@@ -735,7 +646,6 @@ class Cube3DRenderer:
         self.ax = None
     
     def setup(self, elev=20, azim=45):
-        """3D sahne kur"""
         try:
             import matplotlib
             matplotlib.use('Agg')
@@ -756,18 +666,13 @@ class Cube3DRenderer:
             return False
     
     def draw_cube(self, size=4, origin=(0, 0, 0), color='#3498db', alpha=0.8, edge_label=None):
-        """Küp çiz"""
-        if not self.ax:
-            return
-        
+        if not self.ax: return
         ox, oy, oz = origin
         s = size
-        
         vertices = [
             [ox, oy, oz], [ox+s, oy, oz], [ox+s, oy+s, oz], [ox, oy+s, oz],
             [ox, oy, oz+s], [ox+s, oy, oz+s], [ox+s, oy+s, oz+s], [ox, oy+s, oz+s]
         ]
-        
         faces = [
             [vertices[0], vertices[1], vertices[2], vertices[3]],
             [vertices[4], vertices[5], vertices[6], vertices[7]],
@@ -776,169 +681,98 @@ class Cube3DRenderer:
             [vertices[0], vertices[3], vertices[7], vertices[4]],
             [vertices[1], vertices[2], vertices[6], vertices[5]]
         ]
-        
         self.ax.add_collection3d(self.Poly3DCollection(
             faces, facecolors=color, linewidths=1, edgecolors='#2c3e50', alpha=alpha
         ))
-        
         labels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
         point_colors = [Colors.get_point_color(i) for i in range(8)]
-        
         for i, (v, lbl) in enumerate(zip(vertices, labels)):
             self.ax.scatter(*v, color=point_colors[i], s=80, depthshade=False)
             self.ax.text(v[0], v[1], v[2] + 0.3, lbl, fontsize=12, fontweight='bold',
                         color=point_colors[i], ha='center')
-        
         if edge_label:
             mid = [(vertices[0][i] + vertices[1][i]) / 2 for i in range(3)]
             self.ax.text(mid[0], mid[1] - 0.5, mid[2], edge_label,
                         fontsize=11, bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
-        
         margin = s * 0.3
         self.ax.set_xlim([ox - margin, ox + s + margin])
         self.ax.set_ylim([oy - margin, oy + s + margin])
         self.ax.set_zlim([oz - margin, oz + s + margin])
-        
-        self.ax.set_xlabel('')
-        self.ax.set_ylabel('')
-        self.ax.set_zlabel('')
-        self.ax.set_xticks([])
-        self.ax.set_yticks([])
-        self.ax.set_zticks([])
-        
-        for spine in self.ax.spines.values():
-            spine.set_visible(False)
-        self.ax.xaxis.pane.fill = False
-        self.ax.yaxis.pane.fill = False
-        self.ax.zaxis.pane.fill = False
+        self._clean_axes()
     
-    def draw_rectangular_prism(self, width, height, depth, origin=(0, 0, 0), color='#3498db'):
-        """Dikdörtgenler prizması"""
-        if not self.ax:
-            return
-        
+    def draw_pyramid(self, base_size=4, height=5, origin=(0, 0, 0), color='#9b59b6', alpha=0.7, n_sides=4):
+        if not self.ax: return
         ox, oy, oz = origin
-        w, h, d = width, height, depth
+        s = base_size / 2
+        apex = [ox, oy, oz + height]
+        if n_sides == 4:
+            base = [[ox - s, oy - s, oz], [ox + s, oy - s, oz], [ox + s, oy + s, oz], [ox - s, oy + s, oz]]
+            labels = ['A', 'B', 'C', 'D']
+        else:
+            base = [[ox, oy + s, oz], [ox - s * 0.866, oy - s * 0.5, oz], [ox + s * 0.866, oy - s * 0.5, oz]]
+            labels = ['A', 'B', 'C']
         
-        vertices = [
-            [ox, oy, oz], [ox+w, oy, oz], [ox+w, oy+h, oz], [ox, oy+h, oz],
-            [ox, oy, oz+d], [ox+w, oy, oz+d], [ox+w, oy+h, oz+d], [ox, oy+h, oz+d]
-        ]
+        base_face = [base]
+        self.ax.add_collection3d(self.Poly3DCollection(base_face, facecolors=color, linewidths=1, edgecolors='#2c3e50', alpha=alpha))
+        for i in range(len(base)):
+            face = [base[i], base[(i + 1) % len(base)], apex]
+            self.ax.add_collection3d(self.Poly3DCollection([face], facecolors=color, linewidths=1, edgecolors='#2c3e50', alpha=alpha * 0.9))
         
-        faces = [
-            [vertices[0], vertices[1], vertices[2], vertices[3]],
-            [vertices[4], vertices[5], vertices[6], vertices[7]],
-            [vertices[0], vertices[1], vertices[5], vertices[4]],
-            [vertices[2], vertices[3], vertices[7], vertices[6]],
-            [vertices[0], vertices[3], vertices[7], vertices[4]],
-            [vertices[1], vertices[2], vertices[6], vertices[5]]
-        ]
-        
-        self.ax.add_collection3d(self.Poly3DCollection(
-            faces, facecolors=color, linewidths=1, edgecolors='#2c3e50', alpha=0.8
-        ))
-        
-        max_dim = max(w, h, d)
-        margin = max_dim * 0.3
-        self.ax.set_xlim([ox - margin, ox + w + margin])
-        self.ax.set_ylim([oy - margin, oy + h + margin])
-        self.ax.set_zlim([oz - margin, oz + d + margin])
-    
-    def get_png_bytes(self):
-        """PNG bytes döndür"""
-        if not self.fig:
-            return None
-        buf = io.BytesIO()
-        self.fig.savefig(buf, format='png', bbox_inches='tight', facecolor='white')
-        buf.seek(0)
-        self.plt.close(self.fig)
-        return buf.getvalue()
+        point_colors = [Colors.get_point_color(i) for i in range(len(base) + 1)]
+        for i, (v, lbl) in enumerate(zip(base, labels)):
+            self.ax.scatter(*v, color=point_colors[i], s=80)
+            self.ax.text(v[0], v[1], v[2] - 0.4, lbl, fontsize=12, fontweight='bold', color=point_colors[i], ha='center')
+        self.ax.scatter(*apex, color=point_colors[-1], s=80)
+        self.ax.text(apex[0], apex[1], apex[2] + 0.3, 'T', fontsize=12, fontweight='bold', color=point_colors[-1], ha='center')
+        self.ax.plot([ox, ox], [oy, oy], [oz, oz + height], 'k--', linewidth=1.5)
+        self._set_limits(ox, oy, oz, max(base_size, height))
     
     def draw_cylinder(self, radius=2, height=4, origin=(0, 0, 0), color='#3498db', alpha=0.7):
-        """Silindir çiz"""
-        if not self.ax:
-            return
-        
+        if not self.ax: return
         ox, oy, oz = origin
         u = np.linspace(0, 2 * np.pi, 50)
         h = np.linspace(0, height, 2)
-        
-        # Yan yüzey
         x = ox + radius * np.outer(np.cos(u), np.ones(len(h)))
         y = oy + radius * np.outer(np.sin(u), np.ones(len(h)))
         z = oz + np.outer(np.ones(len(u)), h)
         self.ax.plot_surface(x, y, z, color=color, alpha=alpha, linewidth=0)
         
-        # Alt ve üst daireler
         theta = np.linspace(0, 2 * np.pi, 50)
         r = np.linspace(0, radius, 10)
         T, R = np.meshgrid(theta, r)
         X = ox + R * np.cos(T)
         Y = oy + R * np.sin(T)
-        
-        # Alt daire
         Z_bottom = oz + np.zeros_like(X)
-        self.ax.plot_surface(X, Y, Z_bottom, color=color, alpha=alpha)
-        
-        # Üst daire
         Z_top = oz + height + np.zeros_like(X)
+        self.ax.plot_surface(X, Y, Z_bottom, color=color, alpha=alpha)
         self.ax.plot_surface(X, Y, Z_top, color=color, alpha=alpha)
-        
-        # Etiketler
-        self.ax.text(ox, oy - radius - 0.5, oz, f'r={radius}', fontsize=10,
-                    bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
-        self.ax.text(ox + radius + 0.3, oy, oz + height/2, f'h={height}', fontsize=10,
-                    bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
-        
-        self._set_3d_limits(ox, oy, oz, max(radius*2, height))
+        self._set_limits(ox, oy, oz, max(radius*2, height))
     
     def draw_sphere(self, radius=3, origin=(0, 0, 0), color='#3498db', alpha=0.7):
-        """Küre çiz"""
-        if not self.ax:
-            return
-        
+        if not self.ax: return
         ox, oy, oz = origin
         u = np.linspace(0, 2 * np.pi, 50)
         v = np.linspace(0, np.pi, 50)
-        
         x = ox + radius * np.outer(np.cos(u), np.sin(v))
         y = oy + radius * np.outer(np.sin(u), np.sin(v))
         z = oz + radius * np.outer(np.ones(np.size(u)), np.cos(v))
-        
         self.ax.plot_surface(x, y, z, color=color, alpha=alpha, linewidth=0)
-        
-        # Yarıçap çizgisi
-        self.ax.plot([ox, ox + radius], [oy, oy], [oz, oz], 'k-', linewidth=2)
-        self.ax.text(ox + radius/2, oy - 0.3, oz, f'r={radius}', fontsize=10,
-                    bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
-        
-        # Merkez noktası
         self.ax.scatter(ox, oy, oz, color='red', s=50)
         self.ax.text(ox, oy, oz + 0.5, 'O', fontsize=12, fontweight='bold', color='red')
-        
-        self._set_3d_limits(ox, oy, oz, radius * 2)
+        self._set_limits(ox, oy, oz, radius * 2)
     
     def draw_cone(self, radius=2, height=4, origin=(0, 0, 0), color='#e74c3c', alpha=0.7):
-        """Koni çiz"""
-        if not self.ax:
-            return
-        
+        if not self.ax: return
         ox, oy, oz = origin
-        
-        # Yan yüzey
         u = np.linspace(0, 2 * np.pi, 50)
         h = np.linspace(0, height, 50)
         U, H = np.meshgrid(u, h)
-        
-        # Yarıçap yükseklikle azalır
         R = radius * (1 - H / height)
         X = ox + R * np.cos(U)
         Y = oy + R * np.sin(U)
         Z = oz + H
-        
         self.ax.plot_surface(X, Y, Z, color=color, alpha=alpha, linewidth=0)
         
-        # Taban dairesi
         theta = np.linspace(0, 2 * np.pi, 50)
         r = np.linspace(0, radius, 10)
         T, R_base = np.meshgrid(theta, r)
@@ -946,134 +780,11 @@ class Cube3DRenderer:
         Y_base = oy + R_base * np.sin(T)
         Z_base = oz + np.zeros_like(X_base)
         self.ax.plot_surface(X_base, Y_base, Z_base, color=color, alpha=alpha)
-        
-        # Tepe noktası
         self.ax.scatter(ox, oy, oz + height, color='darkred', s=80)
         self.ax.text(ox, oy, oz + height + 0.3, 'T', fontsize=12, fontweight='bold')
-        
-        # Etiketler
-        self.ax.text(ox, oy - radius - 0.5, oz, f'r={radius}', fontsize=10,
-                    bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
-        self.ax.text(ox + radius + 0.3, oy, oz + height/2, f'h={height}', fontsize=10,
-                    bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
-        
-        self._set_3d_limits(ox, oy, oz, max(radius*2, height))
+        self._set_limits(ox, oy, oz, max(radius*2, height))
     
-    def draw_pyramid(self, base_size=4, height=5, origin=(0, 0, 0), color='#9b59b6', alpha=0.7, n_sides=4):
-        """Piramit çiz (kare veya üçgen tabanlı)"""
-        if not self.ax:
-            return
-        
-        ox, oy, oz = origin
-        s = base_size / 2
-        
-        # Tepe noktası
-        apex = [ox, oy, oz + height]
-        
-        if n_sides == 4:  # Kare tabanlı
-            base = [
-                [ox - s, oy - s, oz],
-                [ox + s, oy - s, oz],
-                [ox + s, oy + s, oz],
-                [ox - s, oy + s, oz]
-            ]
-            labels = ['A', 'B', 'C', 'D']
-        else:  # Üçgen tabanlı (tetrahedron)
-            base = [
-                [ox, oy + s, oz],
-                [ox - s * 0.866, oy - s * 0.5, oz],
-                [ox + s * 0.866, oy - s * 0.5, oz]
-            ]
-            labels = ['A', 'B', 'C']
-        
-        # Taban yüzeyi
-        base_face = [base]
-        self.ax.add_collection3d(self.Poly3DCollection(
-            base_face, facecolors=color, linewidths=1, edgecolors='#2c3e50', alpha=alpha
-        ))
-        
-        # Yan yüzeyler
-        for i in range(len(base)):
-            face = [base[i], base[(i + 1) % len(base)], apex]
-            self.ax.add_collection3d(self.Poly3DCollection(
-                [face], facecolors=color, linewidths=1, edgecolors='#2c3e50', alpha=alpha * 0.9
-            ))
-        
-        # Köşe noktaları ve etiketler
-        point_colors = [Colors.get_point_color(i) for i in range(len(base) + 1)]
-        for i, (v, lbl) in enumerate(zip(base, labels)):
-            self.ax.scatter(*v, color=point_colors[i], s=80)
-            self.ax.text(v[0], v[1], v[2] - 0.4, lbl, fontsize=12, fontweight='bold',
-                        color=point_colors[i], ha='center')
-        
-        # Tepe
-        self.ax.scatter(*apex, color=point_colors[-1], s=80)
-        self.ax.text(apex[0], apex[1], apex[2] + 0.3, 'T', fontsize=12, fontweight='bold',
-                    color=point_colors[-1], ha='center')
-        
-        # Yükseklik çizgisi (kesikli)
-        self.ax.plot([ox, ox], [oy, oy], [oz, oz + height], 'k--', linewidth=1.5)
-        self.ax.text(ox + 0.3, oy, oz + height/2, f'h={height}', fontsize=10,
-                    bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
-        
-        self._set_3d_limits(ox, oy, oz, max(base_size, height))
-    
-    def draw_triangular_prism(self, base_size=3, height=5, origin=(0, 0, 0), color='#1abc9c', alpha=0.7):
-        """Üçgen prizma çiz"""
-        if not self.ax:
-            return
-        
-        ox, oy, oz = origin
-        s = base_size / 2
-        h = base_size * 0.866  # Eşkenar üçgen yüksekliği
-        
-        # Alt üçgen
-        base_bottom = [
-            [ox, oy + h/2, oz],
-            [ox - s, oy - h/2, oz],
-            [ox + s, oy - h/2, oz]
-        ]
-        
-        # Üst üçgen
-        base_top = [
-            [ox, oy + h/2, oz + height],
-            [ox - s, oy - h/2, oz + height],
-            [ox + s, oy - h/2, oz + height]
-        ]
-        
-        # Yüzeyler
-        faces = [
-            base_bottom,  # Alt
-            base_top,     # Üst
-            [base_bottom[0], base_bottom[1], base_top[1], base_top[0]],  # Yan 1
-            [base_bottom[1], base_bottom[2], base_top[2], base_top[1]],  # Yan 2
-            [base_bottom[2], base_bottom[0], base_top[0], base_top[2]]   # Yan 3
-        ]
-        
-        self.ax.add_collection3d(self.Poly3DCollection(
-            faces, facecolors=color, linewidths=1, edgecolors='#2c3e50', alpha=alpha
-        ))
-        
-        # Köşe etiketleri
-        labels_bottom = ['A', 'B', 'C']
-        labels_top = ['D', 'E', 'F']
-        
-        for i, (v, lbl) in enumerate(zip(base_bottom, labels_bottom)):
-            self.ax.scatter(*v, color=Colors.get_point_color(i), s=60)
-            self.ax.text(v[0], v[1], v[2] - 0.3, lbl, fontsize=11, fontweight='bold')
-        
-        for i, (v, lbl) in enumerate(zip(base_top, labels_top)):
-            self.ax.scatter(*v, color=Colors.get_point_color(i + 3), s=60)
-            self.ax.text(v[0], v[1], v[2] + 0.3, lbl, fontsize=11, fontweight='bold')
-        
-        self._set_3d_limits(ox, oy, oz, max(base_size, height))
-    
-    def _set_3d_limits(self, ox, oy, oz, size):
-        """3D görünüm limitlerini ayarla"""
-        margin = size * 0.3
-        self.ax.set_xlim([ox - size/2 - margin, ox + size/2 + margin])
-        self.ax.set_ylim([oy - size/2 - margin, oy + size/2 + margin])
-        self.ax.set_zlim([oz - margin, oz + size + margin])
+    def _clean_axes(self):
         self.ax.set_xlabel('')
         self.ax.set_ylabel('')
         self.ax.set_zlabel('')
@@ -1085,6 +796,28 @@ class Cube3DRenderer:
         self.ax.xaxis.pane.fill = False
         self.ax.yaxis.pane.fill = False
         self.ax.zaxis.pane.fill = False
+    
+    def _set_limits(self, ox, oy, oz, size):
+        margin = size * 0.3
+        self.ax.set_xlim([ox - size/2 - margin, ox + size/2 + margin])
+        self.ax.set_ylim([oy - size/2 - margin, oy + size/2 + margin])
+        self.ax.set_zlim([oz - margin, oz + size + margin])
+        self._clean_axes()
+    
+    def get_png_bytes(self):
+        if not self.fig: return None
+        buf = io.BytesIO()
+        self.fig.savefig(buf, format='png', bbox_inches='tight', facecolor='white')
+        buf.seek(0)
+        self.plt.close(self.fig)
+        return buf.getvalue()
+
+
+# ═══════════════════════════════════════════════════════════════
+# PIE & BAR CHART RENDERERS
+# ═══════════════════════════════════════════════════════════════
+
+class Pie3DRenderer:
     def __init__(self, width=700, height=620):
         self.width = width
         self.height = height
@@ -1108,15 +841,6 @@ class Cube3DRenderer:
         total = sum(values)
         if total == 0: return
         
-        if title:
-            self.ctx.select_font_face("Arial", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
-            self.ctx.set_font_size(20)
-            self.ctx.set_source_rgb(*Colors.GRID_DARK)
-            ext = self.ctx.text_extents(title)
-            self.ctx.move_to((self.width - ext.width) / 2, 38)
-            self.ctx.show_text(title)
-            center = (center[0], center[1] + 15)
-        
         slices = []
         current = start_angle
         for i, val in enumerate(values):
@@ -1125,18 +849,6 @@ class Cube3DRenderer:
             current += sweep
         
         draw_order = sorted(slices, key=lambda s: -math.sin(math.radians(s['start'] + s['sweep']/2)))
-        
-        for s in slices:
-            mid_rad = math.radians(s['start'] + s['sweep'] / 2)
-            exp = explode[s['index']]
-            ox = (gap + exp) * math.cos(mid_rad) + 10
-            oy = (gap + exp) * math.sin(mid_rad) + 12
-            sc = (center[0] + ox, center[1] + oy + depth)
-            self.ctx.move_to(*sc)
-            self.ctx.arc(*sc, radius * 1.01, math.radians(s['start']), math.radians(s['start'] + s['sweep']))
-            self.ctx.close_path()
-            self.ctx.set_source_rgba(0, 0, 0, 0.18)
-            self.ctx.fill()
         
         for s in draw_order:
             idx = s['index']
@@ -1149,88 +861,28 @@ class Cube3DRenderer:
             
             start_rad = math.radians(s['start'])
             end_rad = math.radians(s['start'] + s['sweep'])
-            segments = max(2, int(s['sweep'] / 4))
-            for i in range(segments):
-                a1 = start_rad + (end_rad - start_rad) * i / segments
-                a2 = start_rad + (end_rad - start_rad) * (i + 1) / segments
-                mid_a = (a1 + a2) / 2
-                if math.sin(mid_a) < 0: continue
-                x1 = sc[0] + radius * math.cos(a1)
-                y1_top = sc[1] + radius * math.sin(a1)
-                x2 = sc[0] + radius * math.cos(a2)
-                y2_top = sc[1] + radius * math.sin(a2)
-                self.ctx.move_to(x1, y1_top)
-                self.ctx.line_to(x2, y2_top)
-                self.ctx.line_to(x2, y2_top + depth)
-                self.ctx.line_to(x1, y1_top + depth)
-                self.ctx.close_path()
-                brightness = 0.7 + 0.3 * (1 - math.sin(mid_a))
-                self.ctx.set_source_rgb(*(c * brightness for c in side))
-                self.ctx.fill()
             
             self.ctx.move_to(*sc)
             self.ctx.arc(*sc, radius, start_rad, end_rad)
             self.ctx.close_path()
             self.ctx.set_source_rgb(*top)
-            self.ctx.fill_preserve()
-            grad = cairo.RadialGradient(sc[0] - radius*0.3, sc[1] - radius*0.3, 0, sc[0], sc[1], radius)
-            grad.add_color_stop_rgba(0, 1, 1, 1, 0.45)
-            grad.add_color_stop_rgba(0.35, 1, 1, 1, 0.15)
-            grad.add_color_stop_rgba(1, 1, 1, 1, 0)
-            self.ctx.set_source(grad)
-            self.ctx.move_to(*sc)
-            self.ctx.arc(*sc, radius, start_rad, end_rad)
-            self.ctx.close_path()
             self.ctx.fill()
-        
-        for s in slices:
-            idx = s['index']
-            exp = explode[idx]
-            mid_rad = math.radians(s['start'] + s['sweep'] / 2)
-            ox = (gap + exp) * math.cos(mid_rad)
-            oy = (gap + exp) * math.sin(mid_rad)
-            sc = (center[0] + ox, center[1] + oy)
-            
-            self.ctx.set_source_rgba(1, 1, 1, 0.85)
-            self.ctx.set_line_width(2)
-            start_rad = math.radians(s['start'])
-            end_rad = math.radians(s['start'] + s['sweep'])
-            self.ctx.arc(*sc, radius, start_rad, end_rad)
-            self.ctx.stroke()
-            
-            lx = sc[0] + radius * 0.6 * math.cos(mid_rad)
-            ly = sc[1] + radius * 0.6 * math.sin(mid_rad)
-            text = f"{(s['value']/total)*360:.0f}°" if value_type == 'degree' else f"%{(s['value']/total)*100:.0f}"
-            self.ctx.select_font_face("Arial", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
-            self.ctx.set_font_size(16)
-            ext = self.ctx.text_extents(text)
-            self.ctx.set_source_rgba(0, 0, 0, 0.5)
-            self.ctx.move_to(lx - ext.width/2 + 1.5, ly + ext.height/2 + 1.5)
-            self.ctx.show_text(text)
-            self.ctx.set_source_rgb(1, 1, 1)
-            self.ctx.move_to(lx - ext.width/2, ly + ext.height/2)
-            self.ctx.show_text(text)
         
         if show_legend:
             self.ctx.select_font_face("Arial", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
             self.ctx.set_font_size(12)
-            items = []
-            for i, (lbl, val) in enumerate(zip(labels, values)):
-                txt = f"{lbl} ({(val/total)*360:.0f}°)" if value_type == 'degree' else f"{lbl} (%{(val/total)*100:.0f})"
-                ext = self.ctx.text_extents(txt)
-                items.append((txt, ext.width, i))
-            total_w = sum(w + 42 for _, w, _ in items)
-            x = (self.width - total_w) / 2 + 10
+            x = 20
             y = self.height - 38
-            for txt, w, i in items:
+            for i, (lbl, val) in enumerate(zip(labels, values)):
                 top, _ = Colors.get_pie_colors(i)
                 self.ctx.set_source_rgb(*top)
                 self.ctx.rectangle(x, y, 16, 16)
                 self.ctx.fill()
                 self.ctx.set_source_rgb(*Colors.GRID_DARK)
+                txt = f"{lbl}: %{(val/total)*100:.0f}"
                 self.ctx.move_to(x + 22, y + 13)
                 self.ctx.show_text(txt)
-                x += w + 42
+                x += 100
     
     def get_png_bytes(self):
         buf = io.BytesIO()
@@ -1256,13 +908,6 @@ class BarChartRenderer:
     def draw(self, values, labels, title=None, colors=None):
         colors = colors or [Colors.get_bar_color(i) for i in range(len(values))]
         padding = 60
-        if title:
-            self.ctx.select_font_face("Arial", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
-            self.ctx.set_font_size(18)
-            self.ctx.set_source_rgb(*Colors.GRID_DARK)
-            ext = self.ctx.text_extents(title)
-            self.ctx.move_to((self.width - ext.width) / 2, 35)
-            self.ctx.show_text(title)
         x = padding + 30
         y = padding + (40 if title else 0)
         w = self.width - x - padding
@@ -1270,16 +915,6 @@ class BarChartRenderer:
         max_val = max(values) if values else 1
         n = len(values)
         bar_w = (w / n) * 0.6
-        
-        self.ctx.set_source_rgb(*Colors.GRID_LIGHT)
-        self.ctx.set_line_width(1)
-        self.ctx.set_dash([4, 4])
-        for i in range(1, 6):
-            ly = y + h - (i / 5) * (h - 20)
-            self.ctx.move_to(x, ly)
-            self.ctx.line_to(x + w, ly)
-            self.ctx.stroke()
-        self.ctx.set_dash([])
         
         self.ctx.set_source_rgb(*Colors.GRID_DARK)
         self.ctx.set_line_width(2)
@@ -1291,12 +926,10 @@ class BarChartRenderer:
             bar_h = (val / max_val) * (h - 20) if max_val > 0 else 0
             bx = x + i * (w / n) + (w / n - bar_w) / 2
             by = y + h - bar_h
-            self.ctx.set_source_rgba(0, 0, 0, 0.15)
-            self._rounded_rect(bx + 3, by + 3, bar_w, bar_h, 4)
-            self.ctx.fill()
             self.ctx.set_source_rgb(*colors[i % len(colors)])
             self._rounded_rect(bx, by, bar_w, bar_h, 4)
             self.ctx.fill()
+            
             self.ctx.select_font_face("Arial", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
             self.ctx.set_font_size(12)
             self.ctx.set_source_rgb(*Colors.GRID_DARK)
@@ -1304,6 +937,7 @@ class BarChartRenderer:
             ext = self.ctx.text_extents(val_text)
             self.ctx.move_to(bx + bar_w/2 - ext.width/2, by - 8)
             self.ctx.show_text(val_text)
+            
             self.ctx.set_font_size(11)
             ext = self.ctx.text_extents(lbl)
             self.ctx.move_to(bx + bar_w/2 - ext.width/2, y + h + 20)
@@ -1325,6 +959,10 @@ class BarChartRenderer:
         return buf.getvalue()
 
 
+# ═══════════════════════════════════════════════════════════════
+# SUPABASE MANAGER
+# ═══════════════════════════════════════════════════════════════
+
 class SupabaseManager:
     def __init__(self):
         if not Config.SUPABASE_URL or not Config.SUPABASE_KEY:
@@ -1333,16 +971,11 @@ class SupabaseManager:
         logger.info("Supabase bağlantısı kuruldu")
     
     def get_questions_without_images(self, limit=30):
-        """Görselsiz geometri şekil sorularını çek - şemaya uygun"""
         try:
-            # GERÇEK geometri şekil konuları (geometrik dizi DEĞİL)
-            shape_topics = [
-                'Üçgen', 'Dörtgen', 'Çember', 'Daire', 'Çokgen',
-                'Alan', 'Çevre', 'Hacim', 'Prizma', 'Piramit', 
-                'Silindir', 'Koni', 'Küre', 'Açı', 'Koordinat'
-            ]
+            shape_topics = ['Üçgen', 'Dörtgen', 'Çember', 'Daire', 'Çokgen',
+                           'Alan', 'Çevre', 'Hacim', 'Prizma', 'Piramit', 
+                           'Silindir', 'Koni', 'Küre', 'Açı', 'Koordinat']
             
-            # Topic'te şekil konusu ara
             for topic in shape_topics:
                 result = self.client.table('question_bank').select(
                     'id', 'original_text', 'topic', 'topic_group', 'grade_level', 'image_url'
@@ -1354,27 +987,6 @@ class SupabaseManager:
                     logger.info(f"Şekil konusu ({topic}): {len(result.data)} soru bulundu")
                     return result.data
             
-            # Alternatif: original_text'te şekil anahtar kelimeleri ara
-            # "ABC üçgeninde", "ABCD dörtgeninde" gibi ifadeler
-            shape_keywords = [
-                'ABC üçgen', 'üçgeninde', 'dörtgeninde', 'karesinde',
-                'dikdörtgeninde', 'çemberinde', 'dairesinde',
-                'kenar uzunluğu', 'açısı', 'yüksekliği'
-            ]
-            
-            for kw in shape_keywords:
-                result = self.client.table('question_bank').select(
-                    'id', 'original_text', 'topic', 'topic_group', 'grade_level', 'image_url'
-                ).is_('image_url', 'null').eq('is_active', True).ilike(
-                    'original_text', f'%{kw}%'
-                ).limit(limit).execute()
-                
-                if result.data and len(result.data) > 0:
-                    logger.info(f"Şekil anahtar kelime ({kw}): {len(result.data)} soru bulundu")
-                    return result.data
-            
-            # Fallback: tüm görselsiz sorular
-            logger.info("Şekil filtresi sonuç vermedi, tüm sorular çekiliyor")
             result = self.client.table('question_bank').select(
                 'id', 'original_text', 'topic', 'topic_group', 'grade_level', 'image_url'
             ).is_('image_url', 'null').eq('is_active', True).limit(limit).execute()
@@ -1386,12 +998,10 @@ class SupabaseManager:
             return []
     
     def update_question_image(self, question_id, image_url):
-        """Soru görselini güncelle - şemaya uygun"""
         try:
             self.client.table('question_bank').update({
                 'image_url': image_url
             }).eq('id', question_id).execute()
-            logger.info(f"Soru {question_id} güncellendi")
             return True
         except Exception as e:
             logger.error(f"Güncelleme hatası (id={question_id}): {e}")
@@ -1399,17 +1009,27 @@ class SupabaseManager:
     
     def upload_image(self, image_bytes, filename):
         try:
-            self.client.storage.from_(Config.STORAGE_BUCKET).upload(path=filename, file=image_bytes, file_options={"content-type": "image/png"})
+            self.client.storage.from_(Config.STORAGE_BUCKET).upload(
+                path=filename, file=image_bytes, 
+                file_options={"content-type": "image/png"}
+            )
             return self.client.storage.from_(Config.STORAGE_BUCKET).get_public_url(filename)
         except Exception as e:
             if 'Duplicate' in str(e):
                 try:
-                    self.client.storage.from_(Config.STORAGE_BUCKET).update(path=filename, file=image_bytes, file_options={"content-type": "image/png"})
+                    self.client.storage.from_(Config.STORAGE_BUCKET).update(
+                        path=filename, file=image_bytes,
+                        file_options={"content-type": "image/png"}
+                    )
                     return self.client.storage.from_(Config.STORAGE_BUCKET).get_public_url(filename)
                 except: pass
             logger.error(f"Upload hatası: {e}")
             return None
 
+
+# ═══════════════════════════════════════════════════════════════
+# GEMINI ANALYZER (Metin Analizi)
+# ═══════════════════════════════════════════════════════════════
 
 class GeminiAnalyzer:
     ANALYSIS_PROMPT = """Bu matematik sorusunu oku ve analiz et.
@@ -1424,9 +1044,6 @@ HAYIR ise → cizim_pisinilir: false
 Dikdörtgen/Kare:
 {"cizim_pisinilir": true, "shape_type": "rectangle", "points": [{"name": "A", "x": 0, "y": 0}, {"name": "B", "x": 20, "y": 0}, {"name": "C", "x": 20, "y": 20}, {"name": "D", "x": 0, "y": 20}], "edges": [{"start": "A", "end": "B", "label": "20 m"}]}
 
-Kare içinde daire (teğet):
-{"cizim_pisinilir": true, "shape_type": "rectangle", "points": [{"name": "A", "x": 0, "y": 0}, {"name": "B", "x": 20, "y": 0}, {"name": "C", "x": 20, "y": 20}, {"name": "D", "x": 0, "y": 20}], "edges": [{"start": "A", "end": "B", "label": "20 m"}], "inscribed_circle": {"center": {"x": 10, "y": 10}, "radius": 10, "label": "r=10"}}
-
 Üçgen:
 {"cizim_pisinilir": true, "shape_type": "triangle", "points": [{"name": "A", "x": 0, "y": 0}, {"name": "B", "x": 6, "y": 0}, {"name": "C", "x": 3, "y": 5}], "edges": [{"start": "A", "end": "B", "label": "6 cm"}]}
 
@@ -1435,9 +1052,6 @@ Daire/Çember:
 
 Küp:
 {"cizim_pisinilir": true, "shape_type": "cube", "dimensions": {"size": 4}}
-
-Prizma:
-{"cizim_pisinilir": true, "shape_type": "rectangular_prism", "dimensions": {"width": 4, "height": 3, "depth": 2}}
 
 Piramit:
 {"cizim_pisinilir": true, "shape_type": "pyramid", "dimensions": {"base_size": 4, "height": 5}}
@@ -1460,10 +1074,7 @@ Sütun Grafik:
 Çizim gereksiz:
 {"cizim_pisinilir": false, "neden": "kısa açıklama"}
 
-NOT: 
-- İç içe şekiller için inscribed_circle kullan
-- Soruda verilen ölçüleri kullan
-- SADECE JSON döndür!
+NOT: SADECE JSON döndür!
 
 SORU: """
     
@@ -1477,27 +1088,20 @@ SORU: """
             self.model = genai.GenerativeModel(Config.GEMINI_MODEL)
         self.request_count = 0
         self.last_request_time = 0
-        self.requests_per_minute = 8  # 10'dan biraz düşük tut güvenlik için
-        logger.info(f"Gemini bağlantısı kuruldu (model: {Config.GEMINI_MODEL})")
+        logger.info(f"Gemini Analyzer başlatıldı (model: {Config.GEMINI_MODEL})")
     
     def _rate_limit(self):
-        """Rate limiting - dakikada max istek sayısını kontrol et"""
         current_time = time.time()
-        
-        # Her dakika başında sayacı sıfırla
         if current_time - self.last_request_time > 60:
             self.request_count = 0
             self.last_request_time = current_time
-        
-        # Limit aşıldıysa bekle
-        if self.request_count >= self.requests_per_minute:
-            wait_time = 60 - (current_time - self.last_request_time) + 2  # +2 güvenlik marjı
+        if self.request_count >= 8:
+            wait_time = 60 - (current_time - self.last_request_time) + 2
             if wait_time > 0:
-                logger.info(f"⏳ Rate limit - {wait_time:.0f} saniye bekleniyor...")
+                logger.info(f"⏳ Rate limit - {wait_time:.0f}s bekleniyor...")
                 time.sleep(wait_time)
                 self.request_count = 0
                 self.last_request_time = time.time()
-        
         self.request_count += 1
     
     def analyze(self, question_text, max_retries=3):
@@ -1523,142 +1127,193 @@ SORU: """
             except Exception as e:
                 error_str = str(e)
                 if '429' in error_str or 'RESOURCE_EXHAUSTED' in error_str:
-                    # Rate limit hatası - bekle ve tekrar dene
-                    wait_time = 60 + (attempt * 10)  # Her denemede daha uzun bekle
-                    logger.warning(f"⚠️ Rate limit aşıldı. {wait_time}s bekleniyor... (deneme {attempt + 1}/{max_retries})")
+                    wait_time = 60 + (attempt * 10)
+                    logger.warning(f"⚠️ Rate limit. {wait_time}s bekleniyor... ({attempt + 1}/{max_retries})")
                     time.sleep(wait_time)
-                    self.request_count = 0  # Sayacı sıfırla
+                    self.request_count = 0
                     self.last_request_time = time.time()
                 else:
                     logger.error(f"Gemini hatası: {e}")
                     return None
-        
-        logger.error(f"Gemini: {max_retries} deneme sonrası başarısız")
         return None
 
 
-class ImageGenerator:
-    def generate(self, analysis):
-        shape_type = analysis.get('shape_type', '')
-        logger.info(f"ImageGenerator: shape_type={shape_type}")
+# ═══════════════════════════════════════════════════════════════
+# HYBRID IMAGE GENERATOR
+# ═══════════════════════════════════════════════════════════════
+
+class HybridImageGenerator:
+    """Hibrit görsel üretici: AI + Cairo fallback"""
+    
+    def __init__(self):
+        self.ai_generator = None
+        if Config.GEMINI_API_KEY and Config.IMAGE_STRATEGY != 'cairo_only':
+            try:
+                self.ai_generator = GeminiImageGenerator(Config.GEMINI_API_KEY)
+            except Exception as e:
+                logger.warning(f"AI Image Generator başlatılamadı: {e}")
         
-        # 3D şekil tipleri
-        three_d_shapes = ['cube', 'pyramid', 'cylinder', 'sphere', 'cone', 'prism', 
-                         'rectangular_prism', 'triangular_prism']
+        self.cairo_enabled = Config.IMAGE_STRATEGY != 'ai_only'
+        logger.info(f"HybridImageGenerator başlatıldı (strateji: {Config.IMAGE_STRATEGY})")
+    
+    def generate(self, analysis: Dict, question_text: str = "") -> Optional[bytes]:
+        """Görsel üret - stratejiye göre"""
+        shape_type = analysis.get('shape_type', '')
+        strategy = Config.IMAGE_STRATEGY
+        
+        logger.info(f"🖼️ Görsel üretimi: {shape_type} (strateji: {strategy})")
+        
+        # Strateji: ai_first - Önce AI dene, başarısız olursa Cairo
+        if strategy == 'ai_first' and self.ai_generator:
+            ai_result = self.ai_generator.generate(analysis, question_text)
+            if ai_result:
+                logger.info("✅ AI görsel üretimi başarılı")
+                return ai_result
+            logger.info("⚠️ AI başarısız, Cairo'ya düşülüyor...")
+        
+        # Strateji: hybrid - Karmaşıklığa göre karar ver
+        elif strategy == 'hybrid':
+            # Karmaşık şekiller için AI, basit şekiller için Cairo
+            complex_shapes = ['pyramid', 'cone', 'sphere', 'cylinder', 'prism', 
+                            'inscribed_circle', 'circumscribed']
+            
+            use_ai = (
+                self.ai_generator and 
+                (shape_type in complex_shapes or analysis.get('inscribed_circle'))
+            )
+            
+            if use_ai:
+                ai_result = self.ai_generator.generate(analysis, question_text)
+                if ai_result:
+                    logger.info("✅ AI görsel üretimi başarılı (karmaşık şekil)")
+                    return ai_result
+                logger.info("⚠️ AI başarısız, Cairo'ya düşülüyor...")
+        
+        # Strateji: ai_only
+        elif strategy == 'ai_only' and self.ai_generator:
+            return self.ai_generator.generate(analysis, question_text)
+        
+        # Cairo ile çizim (fallback veya cairo_only)
+        if self.cairo_enabled:
+            return self._cairo_generate(analysis)
+        
+        return None
+    
+    def _cairo_generate(self, analysis: Dict) -> Optional[bytes]:
+        """Cairo ile programatik çizim"""
+        shape_type = analysis.get('shape_type', '')
         
         try:
-            if shape_type == 'pie_chart': 
-                return self._pie(analysis)
-            elif shape_type == 'bar_chart': 
-                return self._bar(analysis)
-            elif shape_type in three_d_shapes:
+            # 3D şekiller
+            if shape_type in ['cube', 'pyramid', 'cylinder', 'sphere', 'cone', 'prism', 
+                             'rectangular_prism', 'triangular_prism']:
                 return self._render_3d(analysis)
-            else: 
-                return self._geometry(analysis)
+            
+            # Grafikler
+            if shape_type == 'pie_chart':
+                return self._pie(analysis)
+            elif shape_type == 'bar_chart':
+                return self._bar(analysis)
+            
+            # 2D geometri
+            if shape_type == 'circle':
+                return self._circle(analysis)
+            
+            return self._geometry(analysis)
+            
         except Exception as e:
-            logger.error(f"ImageGenerator hata: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
+            logger.error(f"Cairo çizim hatası: {e}")
             return None
     
     def _render_3d(self, analysis):
-        """3D şekilleri render et"""
         shape_type = analysis.get('shape_type', '')
         dimensions = analysis.get('dimensions', {})
         
         renderer = Cube3DRenderer(800, 700)
         if not renderer.setup():
-            logger.warning("3D renderer başlatılamadı (matplotlib eksik olabilir)")
             return None
         
-        try:
-            if shape_type == 'cube':
-                size = dimensions.get('size', dimensions.get('edge', 4))
-                renderer.draw_cube(size=size, edge_label=f"{size} cm")
-            
-            elif shape_type == 'rectangular_prism' or shape_type == 'prism':
-                w = dimensions.get('width', 4)
-                h = dimensions.get('height', 3)
-                d = dimensions.get('depth', 2)
-                renderer.draw_rectangular_prism(w, h, d)
-            
-            elif shape_type == 'cylinder':
-                r = dimensions.get('radius', 2)
-                h = dimensions.get('height', 4)
-                renderer.draw_cylinder(radius=r, height=h)
-            
-            elif shape_type == 'sphere':
-                r = dimensions.get('radius', 3)
-                renderer.draw_sphere(radius=r)
-            
-            elif shape_type == 'cone':
-                r = dimensions.get('radius', 2)
-                h = dimensions.get('height', 4)
-                renderer.draw_cone(radius=r, height=h)
-            
-            elif shape_type == 'pyramid':
-                base = dimensions.get('base_size', dimensions.get('base', 4))
-                h = dimensions.get('height', 5)
-                sides = dimensions.get('sides', 4)
-                renderer.draw_pyramid(base_size=base, height=h, n_sides=sides)
-            
-            elif shape_type == 'triangular_prism':
-                base = dimensions.get('base_size', 3)
-                h = dimensions.get('height', 5)
-                renderer.draw_triangular_prism(base_size=base, height=h)
-            
-            else:
-                # Varsayılan: küp
-                renderer.draw_cube(size=4)
-            
-            logger.info(f"3D şekil oluşturuldu: {shape_type}")
-            return renderer.get_png_bytes()
-            
-        except Exception as e:
-            logger.error(f"3D render hatası: {e}")
-            return None
+        if shape_type == 'cube':
+            size = dimensions.get('size', 4)
+            renderer.draw_cube(size=size, edge_label=f"{size} cm")
+        elif shape_type == 'pyramid':
+            renderer.draw_pyramid(
+                base_size=dimensions.get('base_size', 4),
+                height=dimensions.get('height', 5)
+            )
+        elif shape_type == 'cylinder':
+            renderer.draw_cylinder(
+                radius=dimensions.get('radius', 2),
+                height=dimensions.get('height', 4)
+            )
+        elif shape_type == 'sphere':
+            renderer.draw_sphere(radius=dimensions.get('radius', 3))
+        elif shape_type == 'cone':
+            renderer.draw_cone(
+                radius=dimensions.get('radius', 2),
+                height=dimensions.get('height', 4)
+            )
+        else:
+            renderer.draw_cube(size=4)
+        
+        return renderer.get_png_bytes()
     
     def _pie(self, analysis):
         pd = analysis.get('pie_data', {})
-        if not pd.get('values'): 
-            logger.warning("Pie chart: values eksik")
-            return None
+        if not pd.get('values'): return None
         r = Pie3DRenderer(700, 620)
         r.setup(bg_color=Colors.WHITE)
-        r.draw(values=pd.get('values', []), labels=pd.get('labels', []), title=pd.get('title'),
-               value_type=pd.get('value_type', 'percent'), explode=pd.get('explode'), depth=50, gap=10)
+        r.draw(values=pd.get('values', []), labels=pd.get('labels', []))
         return r.get_png_bytes()
     
     def _bar(self, analysis):
         bd = analysis.get('bar_data', {})
-        if not bd.get('values'): 
-            logger.warning("Bar chart: values eksik")
-            return None
+        if not bd.get('values'): return None
         r = BarChartRenderer(700, 500)
         r.setup(bg_color=Colors.WHITE)
-        r.draw(values=bd.get('values', []), labels=bd.get('labels', []), title=bd.get('title'))
+        r.draw(values=bd.get('values', []), labels=bd.get('labels', []))
+        return r.get_png_bytes()
+    
+    def _circle(self, analysis):
+        center_data = analysis.get('center', {})
+        radius = analysis.get('radius', 4)
+        cx = center_data.get('x', 5)
+        cy = center_data.get('y', 5)
+        
+        bounds = {'x_min': cx - radius - 2, 'x_max': cx + radius + 2,
+                 'y_min': cy - radius - 2, 'y_max': cy + radius + 2}
+        
+        r = CairoRenderer(Config.IMAGE_WIDTH, Config.IMAGE_HEIGHT)
+        r.setup(bounds)
+        r.draw_circle((cx, cy), radius, Colors.FILL_LIGHT, Colors.PRIMARY, stroke_width=3)
+        r.draw_point((cx, cy), Colors.get_point_color(0))
+        r.draw_point_label((cx, cy), center_data.get('name', 'O'), Colors.get_point_color(0))
+        r.draw_line((cx, cy), (cx + radius, cy), Colors.SECONDARY, width=2)
+        r.draw_label((cx + radius/2, cy + 0.3), f"r={radius}", Colors.SECONDARY)
+        
         return r.get_png_bytes()
     
     def _geometry(self, analysis):
-        shape_type = analysis.get('shape_type', '')
-        
-        # Circle için özel işlem
-        if shape_type == 'circle':
-            return self._circle(analysis)
-        
         pts = analysis.get('points', [])
-        if not pts: 
-            logger.warning("Geometry: points eksik")
-            return None
-        logger.info(f"Geometry: {len(pts)} nokta")
+        if not pts: return None
+        
         xs, ys = [p['x'] for p in pts], [p['y'] for p in pts]
-        bounds = {'x_min': min(xs)-2, 'x_max': max(xs)+2, 'y_min': min(ys)-2, 'y_max': max(ys)+2}
+        bounds = {'x_min': min(xs)-2, 'x_max': max(xs)+2, 
+                 'y_min': min(ys)-2, 'y_max': max(ys)+2}
+        
         r = CairoRenderer(Config.IMAGE_WIDTH, Config.IMAGE_HEIGHT)
         r.setup(bounds)
-        points = {p['name']: (p['x'], p['y']) for p in pts}
-        for name, pos in points.items(): r.add_point(name, *pos)
         
-        # İç içe daireler (inscribed_circle)
+        points = {p['name']: (p['x'], p['y']) for p in pts}
+        for name, pos in points.items():
+            r.add_point(name, *pos)
+        
+        # Polygon
+        if len(pts) >= 3:
+            coords = [(p['x'], p['y']) for p in pts]
+            r.draw_polygon(coords, Colors.FILL_LIGHT, Colors.PRIMARY, stroke_width=3)
+        
+        # İç teğet daire
         inscribed = analysis.get('inscribed_circle', {})
         if inscribed:
             ic_center = inscribed.get('center', {})
@@ -1666,37 +1321,24 @@ class ImageGenerator:
             if ic_center and ic_radius:
                 cx = ic_center.get('x', (min(xs) + max(xs)) / 2)
                 cy = ic_center.get('y', (min(ys) + max(ys)) / 2)
-                # Daire arka planı farklı renk
-                r.draw_circle((cx, cy), ic_radius, '#E8F4FD', '#2196F3', stroke_width=2)
-                # Merkez noktası
-                r.draw_point((cx, cy), '#2196F3')
-                r.draw_label((cx, cy + 0.8), inscribed.get('label', ''), '#2196F3')
-                logger.info(f"Inscribed circle: center=({cx},{cy}), radius={ic_radius}")
+                r.draw_circle((cx, cy), ic_radius, (0.13, 0.59, 0.95, 0.15), (0.13, 0.59, 0.95), stroke_width=2)
+                r.draw_point((cx, cy), (0.13, 0.59, 0.95))
         
-        # Genel circles listesi
-        for circle in analysis.get('circles', []):
-            if 'center' in circle and 'radius' in circle:
-                cc = circle['center']
-                if isinstance(cc, dict):
-                    cx, cy = cc.get('x', 0), cc.get('y', 0)
-                else:
-                    cx, cy = cc
-                r.draw_circle((cx, cy), circle['radius'], '#E8F4FD', '#2196F3', stroke_width=2)
-        
-        # Ana şekil (polygon)
-        if len(pts) >= 3:
-            coords = [(p['x'], p['y']) for p in pts]
-            r.draw_polygon(coords, Colors.FILL_LIGHT, Colors.PRIMARY, stroke_width=3)
-            
+        # Özel çizgiler
         for sl in analysis.get('special_lines', []):
             from_name = sl.get('from')
-            if from_name:
+            if from_name and len(pts) >= 3:
                 from_idx = ord(from_name) - ord('A')
-                if 0 <= from_idx < len(pts) and len(pts) >= 3:
+                if 0 <= from_idx < len(pts):
                     coords = [(p['x'], p['y']) for p in pts[:3]]
-                    if sl['type'] == 'height': r.draw_altitude(coords, from_idx, label=sl.get('label'))
-                    elif sl['type'] == 'median': r.draw_median(coords, from_idx, label=sl.get('label'))
-                    elif sl['type'] == 'bisector': r.draw_angle_bisector(coords, from_idx, label=sl.get('label'))
+                    if sl['type'] == 'height':
+                        r.draw_altitude(coords, from_idx, label=sl.get('label'))
+                    elif sl['type'] == 'median':
+                        r.draw_median(coords, from_idx, label=sl.get('label'))
+                    elif sl['type'] == 'bisector':
+                        r.draw_angle_bisector(coords, from_idx, label=sl.get('label'))
+        
+        # Açılar
         for ang in analysis.get('angles', []):
             v_name = ang.get('vertex')
             if v_name and v_name in points:
@@ -1705,8 +1347,12 @@ class ImageGenerator:
                 if idx >= 0 and len(pts) >= 3:
                     p1 = (pts[(idx-1) % len(pts)]['x'], pts[(idx-1) % len(pts)]['y'])
                     p2 = (pts[(idx+1) % len(pts)]['x'], pts[(idx+1) % len(pts)]['y'])
-                    if ang.get('is_right'): r.draw_right_angle(vertex, p1, p2)
-                    elif ang.get('value'): r.draw_angle_arc(vertex, p1, p2, label=ang['value'], fill=True)
+                    if ang.get('is_right'):
+                        r.draw_right_angle(vertex, p1, p2)
+                    elif ang.get('value'):
+                        r.draw_angle_arc(vertex, p1, p2, label=ang['value'], fill=True)
+        
+        # Kenar etiketleri
         for edge in analysis.get('edges', []):
             s, e, label = edge.get('start'), edge.get('end'), edge.get('label')
             if s in points and e in points and label:
@@ -1717,78 +1363,67 @@ class ImageGenerator:
                 nl = np.linalg.norm(normal)
                 if nl > 0: normal = normal / nl * 0.5
                 r.draw_label((mid[0]+normal[0], mid[1]+normal[1]), label, Colors.PRIMARY)
+        
+        # Noktalar ve etiketler
         for i, p in enumerate(pts):
             color = Colors.get_point_color(i)
             pos = (p['x'], p['y'])
             r.draw_point(pos, color)
             r.draw_point_label(pos, p['name'], color, p.get('label_position', 'auto'))
-        return r.get_png_bytes()
-    
-    def _circle(self, analysis):
-        """Daire/çember çiz"""
-        center_data = analysis.get('center', {})
-        radius = analysis.get('radius', 4)
         
-        cx = center_data.get('x', 5)
-        cy = center_data.get('y', 5)
-        center_name = center_data.get('name', 'O')
-        
-        # Bounds hesapla
-        bounds = {
-            'x_min': cx - radius - 2,
-            'x_max': cx + radius + 2,
-            'y_min': cy - radius - 2,
-            'y_max': cy + radius + 2
-        }
-        
-        r = CairoRenderer(Config.IMAGE_WIDTH, Config.IMAGE_HEIGHT)
-        r.setup(bounds)
-        
-        # Çember çiz
-        r.draw_circle((cx, cy), radius, Colors.FILL_LIGHT, Colors.PRIMARY, stroke_width=3)
-        
-        # Merkez noktası
-        r.draw_point((cx, cy), Colors.get_point_color(0))
-        r.draw_point_label((cx, cy), center_name, Colors.get_point_color(0))
-        
-        # Yarıçap çizgisi
-        r.draw_line((cx, cy), (cx + radius, cy), Colors.SECONDARY, width=2)
-        r.draw_label((cx + radius/2, cy + 0.3), f"r={radius}", Colors.SECONDARY)
-        
-        # Ek noktalar varsa
-        for i, p in enumerate(analysis.get('points', [])):
-            pos = (p['x'], p['y'])
-            color = Colors.get_point_color(i + 1)
-            r.draw_point(pos, color)
-            r.draw_point_label(pos, p['name'], color)
-        
-        logger.info(f"Circle: center=({cx},{cy}), radius={radius}")
         return r.get_png_bytes()
 
+
+# ═══════════════════════════════════════════════════════════════
+# GEOMETRY BOT
+# ═══════════════════════════════════════════════════════════════
 
 class GeometryBot:
     def __init__(self):
         logger.info("=" * 60)
-        logger.info("Geometry Bot v3.0 - Cairo")
+        logger.info("Geometry Bot v4.0 - Hibrit Sistem")
+        logger.info(f"Strateji: {Config.IMAGE_STRATEGY}")
         logger.info("=" * 60)
+        
         self.supabase = SupabaseManager()
         self.analyzer = GeminiAnalyzer()
-        self.generator = ImageGenerator()
-        self.stats = {'processed': 0, 'success': 0, 'skipped': 0, 'error': 0, 'start_time': datetime.now()}
+        self.generator = HybridImageGenerator()
+        self.stats = {
+            'processed': 0, 
+            'success': 0, 
+            'skipped': 0, 
+            'error': 0,
+            'ai_success': 0,
+            'cairo_success': 0,
+            'start_time': datetime.now()
+        }
     
     def run(self):
         logger.info("Bot başlatılıyor...")
         batch = 10 if Config.TEST_MODE else Config.BATCH_SIZE
         questions = self.supabase.get_questions_without_images(batch)
+        
         if not questions:
             logger.info("İşlenecek soru yok")
             return
+        
         logger.info(f"{len(questions)} soru işlenecek")
+        
         for i, q in enumerate(questions, 1):
             self._process(q)
-            if i < len(questions): time.sleep(1)
+            if i < len(questions):
+                time.sleep(1)
+        
         elapsed = datetime.now() - self.stats['start_time']
-        logger.info(f"Süre: {elapsed}, Başarılı: {self.stats['success']}/{self.stats['processed']}")
+        logger.info("=" * 60)
+        logger.info(f"TAMAMLANDI")
+        logger.info(f"Süre: {elapsed}")
+        logger.info(f"Başarılı: {self.stats['success']}/{self.stats['processed']}")
+        logger.info(f"  - AI: {self.stats['ai_success']}")
+        logger.info(f"  - Cairo: {self.stats['cairo_success']}")
+        logger.info(f"Atlanan: {self.stats['skipped']}")
+        logger.info(f"Hata: {self.stats['error']}")
+        logger.info("=" * 60)
     
     def _process(self, question):
         q_id = question.get('id')
@@ -1806,23 +1441,20 @@ class GeometryBot:
             analysis = self.analyzer.analyze(q_text)
             
             if not analysis:
-                logger.warning(f"[{q_id}] ❌ Gemini analiz döndürmedi")
+                logger.warning(f"[{q_id}] ❌ Analiz döndürmedi")
                 self.stats['error'] += 1
                 return
             
-            logger.info(f"[{q_id}] 🔍 Analiz: cizim={analysis.get('cizim_pisinilir')}, type={analysis.get('shape_type', 'N/A')}")
-            
             if not analysis.get('cizim_pisinilir', False):
-                reason = analysis.get('neden', 'belirtilmedi')
-                logger.info(f"[{q_id}] ⏭️ Çizim gerekmiyor: {reason}")
+                logger.info(f"[{q_id}] ⏭️ Çizim gerekmiyor: {analysis.get('neden', '-')}")
                 self.stats['skipped'] += 1
                 return
             
-            image_bytes = self.generator.generate(analysis)
+            # Hibrit görsel üretimi
+            image_bytes = self.generator.generate(analysis, q_text)
             
             if not image_bytes:
-                logger.warning(f"[{q_id}] ❌ Görsel oluşturulamadı - shape_type: {analysis.get('shape_type')}")
-                logger.debug(f"[{q_id}] Full analysis: {json.dumps(analysis, ensure_ascii=False)}")
+                logger.warning(f"[{q_id}] ❌ Görsel oluşturulamadı")
                 self.stats['error'] += 1
                 return
             

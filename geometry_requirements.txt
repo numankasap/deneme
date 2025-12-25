@@ -1,13 +1,15 @@
-# Geometry Bot v3.0 Requirements
-# Cairo tabanlı profesyonel geometri ve grafik çizimleri
+# Geometry Bot v4.0 Requirements
+# ================================
+# Hibrit Görsel Üretim Sistemi
+# Cairo (programatik) + Gemini AI Image Generation
 
 # Supabase
 supabase>=2.0.0
 
-# Google Gemini
+# Google Gemini (Analiz + Image Generation)
 google-genai>=1.0.0
 
-# Çizim - Cairo (2D)
+# Çizim - Cairo (2D geometri, grafikler)
 pycairo>=1.24.0
 
 # Çizim - Matplotlib (3D cisimler)
@@ -16,5 +18,5 @@ matplotlib>=3.7.0
 # Matematik
 numpy>=1.24.0
 
-# Resim işleme (opsiyonel)
+# Resim işleme
 Pillow>=10.0.0
