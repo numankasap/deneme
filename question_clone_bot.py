@@ -406,7 +406,7 @@ SADECE JSON döndür!"""
 class QuestionGenerator:
     """Benzer soru üretici - Kazanım bazlı"""
     
-    GENERATION_PROMPT = """Aşağıdaki soru analizine ve KAZANIM BİLGİLERİNE dayanarak, BENZER AMA FARKLI bir matematik sorusu üret.
+    GENERATION_PROMPT = """Aşağıdaki soru analizine ve KAZANIM BİLGİLERİNE dayanarak, AYNI ZORLUKTAve AYNI BİLİŞSEL SEVİYEDE bir matematik sorusu üret.
 
 ORIJINAL SORU ANALİZİ:
 {analysis}
@@ -421,8 +421,62 @@ KAZANIM BİLGİLERİ:
 - Ünite: {unit}
 - Anahtar Kelimeler: {keywords}
 - Bloom Seviyesi: {bloom_level}
+- Bilişsel Seviye: {cognitive_level}
 
-KURALLAR:
+═══════════════════════════════════════════════════════════════
+🎯 BLOOM TAKSONOMİSİ - KRİTİK KURALLAR
+═══════════════════════════════════════════════════════════════
+
+Orijinal sorunun Bloom seviyesi: {original_bloom_level}
+Orijinal sorunun bilişsel gereksinimleri: {original_cognitive}
+
+BLOOM SEVİYELERİ VE SORU ÖZELLİKLERİ:
+
+1️⃣ HATIRLA (Remember): Basit tanım, formül hatırlama
+   - "...nedir?", "...hangisidir?", "...tanımı..."
+   - Direkt bilgi soran sorular
+
+2️⃣ ANLA (Understand): Kavramı açıklama, yorumlama
+   - "...açıklayınız", "...ne anlama gelir?", "...gösterir"
+   - Grafik/tablo okuma, basit yorumlama
+
+3️⃣ UYGULA (Apply): Bilgiyi yeni durumda kullanma
+   - "...hesaplayınız", "...bulunuz", "...uygulayınız"
+   - Formül uygulama, basit problem çözme
+
+4️⃣ ANALİZ ET (Analyze): Parçalara ayırma, ilişki kurma
+   - "...karşılaştırınız", "...farkı nedir?", "...ilişkisi..."
+   - Çok adımlı problemler, veri analizi
+
+5️⃣ DEĞERLENDİR (Evaluate): Yargılama, karar verme
+   - "...en uygun...", "...hangisi doğrudur?", "...gerekçelendiriniz"
+   - Eleştirel düşünme gerektiren sorular
+
+6️⃣ YARAT (Create): Yeni ürün ortaya koyma
+   - "...tasarlayınız", "...oluşturunuz", "...üretiniz"
+   - Özgün çözüm stratejisi gerektiren sorular
+
+═══════════════════════════════════════════════════════════════
+⚠️ SEVİYE KORUMA KURALLARI - ÇOK ÖNEMLİ!
+═══════════════════════════════════════════════════════════════
+
+1. Orijinal soru {original_bloom_level} seviyesindeyse, yeni soru da AYNI seviyede olmalı
+2. Orijinal soruda çok adımlı çözüm varsa, yeni soruda da çok adımlı çözüm olmalı
+3. Orijinal soruda ilişkilendirme/analiz varsa, yeni soruda da olmalı
+4. SEVİYEYİ DÜŞÜRME! Basit "hesapla" sorusu yapma eğer orijinal analiz gerektiriyorsa
+5. Orijinal sorudaki BİLİŞSEL YÜKÜ koru
+
+YANLIŞ ÖRNEK (Seviye düşürme):
+❌ Orijinal: "Parkın toplam alanını gösteren CEBİRSEL İFADE hangisidir?" (Analiz + Uygula)
+❌ Yeni: "Alanı hesaplayınız" (Sadece Uygula) - SEVİYE DÜŞTÜ!
+
+DOĞRU ÖRNEK (Seviye koruma):
+✅ Orijinal: "Parkın toplam alanını gösteren CEBİRSEL İFADE hangisidir?" (Analiz + Uygula)  
+✅ Yeni: "Bahçenin tamamının alanını veren cebirsel ifade aşağıdakilerden hangisidir?" (Analiz + Uygula)
+
+═══════════════════════════════════════════════════════════════
+
+GENEL KURALLAR:
 1. Aynı soru tipini kullan ({question_type})
 2. Aynı görsel stili koru
 3. FARKLI sayılar/değerler kullan
@@ -431,6 +485,7 @@ KURALLAR:
 6. Türkçe olmalı
 7. LGS stilinde olmalı
 8. Zorluk: {difficulty}
+9. ⚠️ BLOOM SEVİYESİNİ KORU: {original_bloom_level}
 
 GÖRSEL VERİ FORMATLARI (soru tipine göre):
 
@@ -465,11 +520,12 @@ Eğer soru tipi "üçgen" ise:
 }}
 
 ÜRETİLECEK:
-1. Yeni soru metni (kazanıma uygun)
+1. Yeni soru metni (AYNI BLOOM SEVİYESİNDE, kazanıma uygun)
 2. Yeni değerler (görsel için - yukarıdaki formata uygun)
 3. Doğru cevap
 4. 4 şık (A, B, C, D) - çeldiriciler mantıklı olmalı
 5. Adım adım çözüm
+6. Bloom seviyesi analizi
 
 JSON formatında döndür:
 {{
@@ -482,7 +538,9 @@ JSON formatında döndür:
         "C": "seçenek 3 (doğru)",
         "D": "seçenek 4"
     }},
-    "solution": "Adım adım çözüm..."
+    "solution": "Adım adım çözüm...",
+    "bloom_level": "Analiz",
+    "cognitive_requirements": ["ilişkilendirme", "cebirsel ifade oluşturma", "alan hesaplama"]
 }}
 
 SADECE JSON döndür!"""
@@ -518,7 +576,7 @@ SADECE JSON döndür!"""
         self.request_count += 1
     
     def generate_variation(self, analysis: Dict, kazanim_info: Dict, difficulty: str = None) -> Optional[Dict]:
-        """Analiz ve kazanım bilgisine dayanarak yeni soru üret"""
+        """Analiz ve kazanım bilgisine dayanarak yeni soru üret - BLOOM SEVİYESİNİ KORU"""
         try:
             self._rate_limit()
             
@@ -532,10 +590,19 @@ SADECE JSON döndür!"""
             unit = kazanim_info.get('unit', '')
             keywords = kazanim_info.get('keywords', '')
             bloom_level = kazanim_info.get('bloom_level', '')
+            cognitive_level = kazanim_info.get('cognitive_level', '')
             
             # Zorluk seviyesi
             difficulty = difficulty or kazanim_info.get('difficulty_level', 'medium')
             question_type = analysis.get('question_type', 'unknown')
+            
+            # Orijinal sorunun Bloom seviyesini analiz et
+            original_question_text = analysis.get('question_text', '')
+            original_bloom = self._analyze_bloom_level(original_question_text, analysis)
+            original_cognitive = self._analyze_cognitive_requirements(original_question_text, analysis)
+            
+            logger.info(f"📊 Orijinal soru Bloom seviyesi: {original_bloom}")
+            logger.info(f"📊 Bilişsel gereksinimler: {', '.join(original_cognitive[:3])}")
             
             prompt = self.GENERATION_PROMPT.format(
                 analysis=json.dumps(analysis, ensure_ascii=False, indent=2),
@@ -548,8 +615,11 @@ SADECE JSON döndür!"""
                 unit=unit,
                 keywords=keywords,
                 bloom_level=bloom_level,
+                cognitive_level=cognitive_level,
                 question_type=question_type,
-                difficulty=difficulty
+                difficulty=difficulty,
+                original_bloom_level=original_bloom,
+                original_cognitive=', '.join(original_cognitive)
             )
             
             if NEW_GENAI:
@@ -584,13 +654,104 @@ SADECE JSON döndür!"""
             result['learning_domain'] = learning_domain
             result['unit'] = unit
             result['keywords'] = keywords
-            result['bloom_level'] = bloom_level
+            result['bloom_level'] = result.get('bloom_level', original_bloom)  # Üretilen veya orijinal
+            result['original_bloom_level'] = original_bloom
             
             return result
             
         except Exception as e:
             logger.error(f"Soru üretim hatası: {e}")
             return None
+    
+    def _analyze_bloom_level(self, question_text: str, analysis: Dict) -> str:
+        """Soru metninden Bloom taksonomisi seviyesini belirle"""
+        text = question_text.lower()
+        
+        # Bloom seviye belirleyicileri (Türkçe)
+        bloom_indicators = {
+            'Yarat': [
+                'tasarla', 'oluştur', 'üret', 'geliştir', 'planla', 'formüle et',
+                'sentezle', 'birleştir', 'yeni bir', 'özgün'
+            ],
+            'Değerlendir': [
+                'değerlendir', 'yargıla', 'eleştir', 'gerekçelendir', 'savun',
+                'karşılaştır ve seç', 'en uygun', 'en doğru', 'hangisi doğrudur',
+                'neden tercih', 'avantaj dezavantaj'
+            ],
+            'Analiz': [
+                'analiz et', 'karşılaştır', 'sınıflandır', 'ayır', 'ilişkilendir',
+                'bağlantı kur', 'farkı', 'benzerlik', 'ilişkisi', 'neden sonuç',
+                'cebirsel ifade', 'ifadeyi bul', 'gösteren ifade', 'hangisidir',
+                'modelle', 'yorumla'
+            ],
+            'Uygula': [
+                'hesapla', 'bul', 'uygula', 'çöz', 'göster', 'kullan',
+                'tamamla', 'yap', 'gerçekleştir', 'kaçtır', 'kaç tane',
+                'değeri nedir', 'sonucu', 'işlem'
+            ],
+            'Anla': [
+                'açıkla', 'özetle', 'yorumla', 'tahmin et', 'çıkar',
+                'ne anlama gelir', 'tanımla', 'betimle', 'gösterir',
+                'ifade eder', 'anlamı'
+            ],
+            'Hatırla': [
+                'tanımla', 'listele', 'hatırla', 'isimlendir', 'belirt',
+                'nedir', 'kimdir', 'hangisi', 'ne zaman', 'nerede'
+            ]
+        }
+        
+        # Öncelik sırasına göre kontrol (üstten alta)
+        for level, indicators in bloom_indicators.items():
+            for indicator in indicators:
+                if indicator in text:
+                    return level
+        
+        # Varsayılan - soru yapısına göre
+        if 'ifade' in text or 'gösteren' in text:
+            return 'Analiz'
+        elif '?' in question_text:
+            return 'Uygula'
+        
+        return 'Uygula'  # Varsayılan
+    
+    def _analyze_cognitive_requirements(self, question_text: str, analysis: Dict) -> list:
+        """Sorunun bilişsel gereksinimlerini belirle"""
+        requirements = []
+        text = question_text.lower()
+        
+        # Bilişsel beceri belirleyicileri
+        cognitive_map = {
+            'cebirsel düşünme': ['cebirsel', 'ifade', 'değişken', 'denklem', 'formül'],
+            'görsel-uzamsal': ['şekil', 'alan', 'çevre', 'geometri', 'grafik', 'diyagram'],
+            'ilişkilendirme': ['ilişki', 'bağlantı', 'karşılaştır', 'model'],
+            'soyutlama': ['genelle', 'kural', 'örüntü', 'sembol'],
+            'çok adımlı çözüm': ['önce', 'sonra', 'buna göre', 'ardından'],
+            'veri analizi': ['tablo', 'grafik', 'veri', 'istatistik', 'yüzde'],
+            'problem çözme': ['problem', 'çöz', 'bul', 'hesapla'],
+            'muhakeme': ['neden', 'niçin', 'açıkla', 'gerekçe'],
+            'transfer': ['gerçek hayat', 'günlük', 'uygula', 'senaryo'],
+            'matematiksel modelleme': ['modelle', 'gösteren', 'temsil', 'ifade eden']
+        }
+        
+        for skill, indicators in cognitive_map.items():
+            for indicator in indicators:
+                if indicator in text:
+                    if skill not in requirements:
+                        requirements.append(skill)
+                    break
+        
+        # Soru tipine göre ekle
+        q_type = analysis.get('question_type', '')
+        if 'özdeşlik' in q_type or 'cebirsel' in q_type:
+            if 'cebirsel düşünme' not in requirements:
+                requirements.append('cebirsel düşünme')
+            if 'matematiksel modelleme' not in requirements:
+                requirements.append('matematiksel modelleme')
+        
+        if not requirements:
+            requirements = ['problem çözme']
+        
+        return requirements
 
 
 class ImageGenerator:
