@@ -254,38 +254,62 @@ class VisionAnalyzer:
     ANALYSIS_PROMPT = """Bu matematik soru fotoğrafını detaylı analiz et.
 
 ÇIKART:
-1. SORU TİPİ: (pasta_grafik, sütun_grafik, üçgen, dörtgen, daire, piramit, vb.)
+1. SORU TİPİ - Aşağıdakilerden birini seç:
+   - pasta_grafik: Pasta/daire grafiği
+   - sütun_grafik: Sütun/bar grafiği
+   - çizgi_grafik: Çizgi grafiği
+   - üçgen: Üçgen geometri
+   - dörtgen: Kare, dikdörtgen
+   - daire: Çember, daire
+   - piramit: 3D piramit
+   - küp: Küp, prizma
+   - silindir: Silindir
+   - koni: Koni
+   - özdeşlik: Cebirsel özdeşlik, alan bölme (a+b)² gibi
+   - denklem: Denklem çözme
+   - kesir: Kesir işlemleri
+   - oran_orantı: Oran orantı
+   - sayı_doğrusu: Sayı doğrusu
+   - koordinat: Koordinat sistemi
+   - tablo: Tablo okuma
+   
 2. GÖRSEL STİL: (kareli zemin, düz arka plan, renkli, siyah-beyaz, 3D, 2D)
-3. VERİLEN BİLGİLER: (sayılar, açılar, uzunluklar, yüzdeler, etiketler)
-4. SORU METNİ: (görseldeki Türkçe metin)
-5. ŞEKİL DETAYLARI: (renkler, etiket pozisyonları, çizgi stilleri)
+3. VERİLEN BİLGİLER: (sayılar, açılar, uzunluklar, yüzdeler, değişkenler a, b, x, y)
+4. SORU METNİ: (görseldeki Türkçe metin - tam olarak)
+5. ŞEKİL DETAYLARI: (renkler, etiket pozisyonları, çizgi stilleri, bölgeler)
 6. ZORLUK: (easy, medium, hard)
 7. SINIF SEVİYESİ: (5, 6, 7, 8)
-8. KONU: (Veri Analizi, Geometri, Oran-Orantı, vb.)
+8. KONU: (Veri Analizi, Geometri, Cebir, Oran-Orantı, vb.)
+
+ÖNEMLİ: Eğer görselde kare/dikdörtgen bölgelere ayrılmış bir alan varsa ve a, b gibi değişkenler kullanılıyorsa, bu "özdeşlik" tipidir.
 
 JSON formatında döndür:
 {
-    "question_type": "pasta_grafik",
+    "question_type": "özdeşlik",
     "visual_style": {
-        "background": "kareli_zemin",
-        "colors": ["sarı", "mavi", "yeşil", "pembe"],
+        "background": "beyaz",
+        "colors": ["mavi", "yeşil", "sarı", "kırmızı"],
         "is_3d": false,
-        "has_legend": true,
-        "label_style": "inside"
+        "has_labels": true
     },
     "given_data": {
-        "type": "percentages",
-        "values": [{"label": "Futbol", "value": 30}, {"label": "Basketbol", "value": 25}],
-        "total": 100
+        "variables": ["a", "b"],
+        "regions": [
+            {"name": "sol_üst", "dimensions": "a × a", "area": "a²"},
+            {"name": "sağ_üst", "dimensions": "a × b", "area": "ab"},
+            {"name": "sol_alt", "dimensions": "b × a", "area": "ab"},
+            {"name": "sağ_alt", "dimensions": "b × b", "area": "b²"}
+        ],
+        "total_side": "a + b"
     },
-    "question_text": "Buna göre, bu kursa katılan öğrenciler arasından...",
-    "topic": "Veri Analizi",
-    "subtopic": "Pasta Grafiği",
+    "question_text": "Buna göre, bu bahçenin tamamının metrekare cinsinden alanını gösteren cebirsel ifade...",
+    "topic": "Cebir",
+    "subtopic": "Özdeşlikler",
     "difficulty": "medium",
-    "grade_level": 7,
+    "grade_level": 8,
     "shape_properties": {
-        "segments": 4,
-        "center_visible": false,
+        "main_shape": "kare",
+        "subdivisions": 4,
         "border_style": "solid"
     }
 }
@@ -404,9 +428,41 @@ KURALLAR:
 7. LGS stilinde olmalı
 8. Zorluk: {difficulty}
 
+GÖRSEL VERİ FORMATLARI (soru tipine göre):
+
+Eğer soru tipi "özdeşlik" ise:
+"visual_data": {{
+    "type": "özdeşlik",
+    "variables": ["x", "y"],
+    "regions": [
+        {{"name": "sol_üst", "dimensions": "x × x", "area": "x²"}},
+        {{"name": "sağ_üst", "dimensions": "x × y", "area": "xy"}},
+        {{"name": "sol_alt", "dimensions": "y × x", "area": "xy"}},
+        {{"name": "sağ_alt", "dimensions": "y × y", "area": "y²"}}
+    ],
+    "total_expression": "(x + y)²",
+    "description": "Kare şeklinde bahçe planı"
+}}
+
+Eğer soru tipi "pasta_grafik" ise:
+"visual_data": {{
+    "type": "pasta_grafik",
+    "values": [30, 25, 20, 25],
+    "labels": ["Futbol", "Basketbol", "Voleybol", "Tenis"],
+    "title": "Öğrencilerin Spor Tercihleri"
+}}
+
+Eğer soru tipi "üçgen" ise:
+"visual_data": {{
+    "type": "üçgen",
+    "points": ["A", "B", "C"],
+    "edges": [{{"from": "A", "to": "B", "value": 5}}, {{"from": "B", "to": "C", "value": 7}}],
+    "angles": [{{"vertex": "A", "value": 60}}]
+}}
+
 ÜRETİLECEK:
 1. Yeni soru metni (kazanıma uygun)
-2. Yeni değerler (görsel için)
+2. Yeni değerler (görsel için - yukarıdaki formata uygun)
 3. Doğru cevap
 4. 4 şık (A, B, C, D) - çeldiriciler mantıklı olmalı
 5. Adım adım çözüm
@@ -414,12 +470,7 @@ KURALLAR:
 JSON formatında döndür:
 {{
     "question_text": "Yeni soru metni...",
-    "visual_data": {{
-        "type": "{question_type}",
-        "values": [...],
-        "labels": [...],
-        "title": "Grafik başlığı"
-    }},
+    "visual_data": {{ ... soru tipine uygun format ... }},
     "answer": "C",
     "options": {{
         "A": "seçenek 1",
@@ -669,6 +720,56 @@ class ImageGenerator:
             prompt_parts.append(f"MERKEZ: {center}")
             prompt_parts.append(f"YARIÇAP: r = {radius}")
         
+        elif q_type in ['özdeşlik', 'cebirsel_ifade', 'alan', 'bahçe_planı', 'kare_bölme']:
+            # Kare içinde bölgeler (özdeşlik soruları için)
+            prompt_parts.append("")
+            prompt_parts.append("ŞEKİL: Kare şeklinde alan planı (bölgeli)")
+            prompt_parts.append("")
+            prompt_parts.append("ÇİZİM TALİMATI:")
+            prompt_parts.append("1. Büyük bir KARE çiz")
+            prompt_parts.append("2. Kareyi 4 bölgeye ayır (2x2 grid şeklinde)")
+            
+            # visual_data'dan bilgileri al
+            if visual_data.get('regions'):
+                prompt_parts.append("BÖLGELER:")
+                for region in visual_data.get('regions', []):
+                    prompt_parts.append(f"  - {region.get('name', '')}: {region.get('dimensions', '')}")
+            else:
+                prompt_parts.append("BÖLGELER:")
+                prompt_parts.append("  - Sol üst: a × a (kare)")
+                prompt_parts.append("  - Sağ üst: a × b (dikdörtgen)")
+                prompt_parts.append("  - Sol alt: b × a (dikdörtgen)")
+                prompt_parts.append("  - Sağ alt: b × b (kare)")
+            
+            prompt_parts.append("")
+            prompt_parts.append("ETİKETLER:")
+            prompt_parts.append("- Üst kenar: 'a' ve 'b' uzunlukları göster")
+            prompt_parts.append("- Sol kenar: 'a' ve 'b' uzunlukları göster")
+            prompt_parts.append("- Her bölgenin içine boyutlarını yaz (a², ab, b²)")
+            
+            prompt_parts.append("")
+            prompt_parts.append("STİL:")
+            prompt_parts.append("- Temiz siyah çizgiler")
+            prompt_parts.append("- Her bölge farklı açık renk (pastel)")
+            prompt_parts.append("- Etiketler okunabilir boyutta")
+            prompt_parts.append("- Matematiksel görsel (ders kitabı stili)")
+        
+        elif q_type in ['geometrik_şekil', 'karışık', 'unknown']:
+            # Genel geometrik şekil - visual_data'dan anlamaya çalış
+            prompt_parts.append("")
+            prompt_parts.append("ŞEKİL: Geometrik çizim")
+            
+            if visual_data.get('description'):
+                prompt_parts.append(f"AÇIKLAMA: {visual_data.get('description')}")
+            
+            if visual_data.get('shapes'):
+                prompt_parts.append("ŞEKİLLER:")
+                for shape in visual_data.get('shapes', []):
+                    prompt_parts.append(f"  - {shape}")
+            
+            prompt_parts.append("")
+            prompt_parts.append("TALİMAT: Sadece geometrik şekil çiz, matematiksel etiketlerle")
+        
         # Genel hatırlatma
         prompt_parts.append("")
         prompt_parts.append("HATIRLATMA: Soru metni veya açıklama YAZMA, sadece şekil!")
@@ -676,7 +777,7 @@ class ImageGenerator:
         return "\n".join(prompt_parts)
     
     def generate(self, visual_data: Dict, visual_style: Dict) -> Optional[bytes]:
-        """Görsel üret"""
+        """Görsel üret (sadece prompt ile)"""
         try:
             self._rate_limit()
             
@@ -694,27 +795,106 @@ class ImageGenerator:
                 )
                 
                 # Response'dan görsel çıkar
-                if response.candidates:
-                    for part in response.candidates[0].content.parts:
-                        if hasattr(part, 'inline_data') and part.inline_data:
-                            inline = part.inline_data
-                            if hasattr(inline, 'data') and inline.data:
-                                image_data = inline.data
-                                if isinstance(image_data, str):
-                                    image_bytes = base64.b64decode(image_data)
-                                else:
-                                    image_bytes = bytes(image_data) if not isinstance(image_data, bytes) else image_data
-                                logger.info(f"✅ Görsel üretildi ({len(image_bytes)} bytes)")
-                                return image_bytes
-                
-                logger.warning("Görsel response'da bulunamadı")
-                return None
+                return self._extract_image_from_response(response)
             else:
                 logger.warning("Eski API ile görsel üretimi desteklenmiyor")
                 return None
                 
         except Exception as e:
             logger.error(f"Görsel üretim hatası: {e}")
+            return None
+    
+    def generate_from_reference(self, original_image_bytes: bytes, new_question_text: str, visual_data: Dict) -> Optional[bytes]:
+        """Orijinal görseli referans alarak benzer görsel üret"""
+        try:
+            self._rate_limit()
+            
+            # Orijinal görseli base64'e çevir
+            original_b64 = base64.b64encode(original_image_bytes).decode('utf-8')
+            
+            # Prompt oluştur
+            prompt_text = f"""Bu referans görsele BENZER bir matematik sorusu görseli oluştur.
+
+REFERANS GÖRSEL: Yukarıdaki görsel
+
+YENİ SORU İÇİN GÖRSEL:
+{new_question_text}
+
+DEĞİŞECEK DEĞERLER:
+{json.dumps(visual_data, ensure_ascii=False, indent=2)}
+
+KRİTİK KURALLAR:
+1. Referans görselin STİLİNİ KORU (renkler, çizgi kalınlıkları, arka plan, genel düzen)
+2. Referans görselin ŞEKİL TİPİNİ KORU (aynı tür geometrik şekil veya grafik)
+3. SADECE değerleri/sayıları değiştir
+4. Soru metnini görsele YAZMA
+5. Sadece şekil/grafik çiz
+6. Temiz, profesyonel, eğitim kalitesinde
+
+ÖRNEK:
+- Referansta kare bölgelere ayrılmış alan varsa → aynı düzende ama farklı değişkenlerle çiz
+- Referansta pasta grafiği varsa → aynı stilde ama farklı yüzdelerle çiz
+- Referansta üçgen varsa → aynı tarz ama farklı ölçülerle çiz
+
+Referans görseldeki stilin AYNISINI kullan, sadece içindeki değerler farklı olsun."""
+
+            logger.info(f"🎨 Referans bazlı görsel üretiliyor...")
+            
+            if NEW_GENAI:
+                response = self.client.models.generate_content(
+                    model=Config.GEMINI_IMAGE,
+                    contents=[
+                        {
+                            "role": "user",
+                            "parts": [
+                                {
+                                    "inline_data": {
+                                        "mime_type": "image/png",
+                                        "data": original_b64
+                                    }
+                                },
+                                {
+                                    "text": prompt_text
+                                }
+                            ]
+                        }
+                    ],
+                    config={
+                        "response_modalities": ["IMAGE", "TEXT"],
+                    }
+                )
+                
+                return self._extract_image_from_response(response)
+            else:
+                logger.warning("Eski API ile görsel üretimi desteklenmiyor")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Referans bazlı görsel üretim hatası: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return None
+    
+    def _extract_image_from_response(self, response) -> Optional[bytes]:
+        """Response'dan görsel çıkar"""
+        try:
+            if response.candidates:
+                for part in response.candidates[0].content.parts:
+                    if hasattr(part, 'inline_data') and part.inline_data:
+                        inline = part.inline_data
+                        if hasattr(inline, 'data') and inline.data:
+                            image_data = inline.data
+                            if isinstance(image_data, str):
+                                image_bytes = base64.b64decode(image_data)
+                            else:
+                                image_bytes = bytes(image_data) if not isinstance(image_data, bytes) else image_data
+                            logger.info(f"✅ Görsel üretildi ({len(image_bytes)} bytes)")
+                            return image_bytes
+            
+            logger.warning("Görsel response'da bulunamadı")
+            return None
+        except Exception as e:
+            logger.error(f"Görsel çıkarma hatası: {e}")
             return None
 
 
@@ -836,11 +1016,22 @@ class QuestionCloneBot:
                 
                 logger.info(f"[{template_id}] ✅ Soru üretildi: {new_question.get('question_text', '')[:50]}...")
                 
-                # 4. Görsel üret
+                # 4. Görsel üret - ORİJİNAL GÖRSELİ REFERANS AL
                 visual_data = new_question.get('visual_data', {})
                 visual_style = analysis.get('visual_style', {})
+                question_text = new_question.get('question_text', '')
                 
-                image_bytes_new = self.image_gen.generate(visual_data, visual_style)
+                # Önce referans bazlı dene, başarısız olursa normal üret
+                image_bytes_new = self.image_gen.generate_from_reference(
+                    original_image_bytes=image_bytes,  # Orijinal görsel
+                    new_question_text=question_text,
+                    visual_data=visual_data
+                )
+                
+                # Referans bazlı başarısız olursa normal üretimi dene
+                if not image_bytes_new:
+                    logger.info(f"[{template_id}] Referans bazlı üretim başarısız, normal üretim deneniyor...")
+                    image_bytes_new = self.image_gen.generate(visual_data, visual_style)
                 
                 image_url_new = None
                 if image_bytes_new:
