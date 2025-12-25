@@ -977,33 +977,54 @@ class ImageGenerator:
             # Orijinal görseli base64'e çevir
             original_b64 = base64.b64encode(original_image_bytes).decode('utf-8')
             
-            # Prompt oluştur
-            prompt_text = f"""Bu referans görsele BENZER bir matematik sorusu görseli oluştur.
+            # visual_data'dan sadece şekil bilgilerini al (soru metni hariç)
+            shape_info = {
+                'type': visual_data.get('type', ''),
+                'variables': visual_data.get('variables', []),
+                'labels': visual_data.get('labels', []),
+                'values': visual_data.get('values', []),
+                'dimensions': visual_data.get('dimensions', {}),
+            }
+            
+            # Prompt oluştur - SORU METNİ YOK!
+            prompt_text = f"""Referans görseldeki ŞEKLİN AYNISINI çiz, sadece etiketleri değiştir.
 
-REFERANS GÖRSEL: Yukarıdaki görsel
+════════════════════════════════════════════════════════════════
+🚫 KESİNLİKLE YAPMA - ÇOK ÖNEMLİ!
+════════════════════════════════════════════════════════════════
+❌ SORU METNİ YAZMA (Türkçe cümle yazma)
+❌ "Buna göre..." gibi ifadeler YAZMA  
+❌ "...ifadesinin değeri kaçtır?" YAZMA
+❌ Madde işaretleri (•) YAZMA
+❌ Uzun açıklamalar YAZMA
+❌ Formül açıklamaları YAZMA
+════════════════════════════════════════════════════════════════
 
-YENİ SORU İÇİN GÖRSEL:
-{new_question_text}
+✅ SADECE BUNLARI ÇİZ:
+1. Geometrik şekil (referanstaki gibi)
+2. Kısa etiketler: P, Q, R veya a, b, x, y gibi
+3. Boyut göstergeleri: "P metre", "Q metre" gibi KISA etiketler
+4. Oklar ve çizgiler
 
-DEĞİŞECEK DEĞERLER:
-{json.dumps(visual_data, ensure_ascii=False, indent=2)}
+ŞEKİL BİLGİLERİ:
+{json.dumps(shape_info, ensure_ascii=False, indent=2)}
 
-KRİTİK KURALLAR:
-1. Referans görselin STİLİNİ KORU (renkler, çizgi kalınlıkları, arka plan, genel düzen)
-2. Referans görselin ŞEKİL TİPİNİ KORU (aynı tür geometrik şekil veya grafik)
-3. SADECE değerleri/sayıları değiştir
-4. Soru metnini görsele YAZMA
-5. Sadece şekil/grafik çiz
-6. Temiz, profesyonel, eğitim kalitesinde
+ÖRNEK DOĞRU GÖRSEL:
+- 3 tane dikdörtgen/kiriş şekli yan yana
+- Altlarında sadece "P metre", "Q metre", "R metre" yazısı
+- Boyut okları
+- HİÇBİR SORU METNİ YOK
 
-ÖRNEK:
-- Referansta kare bölgelere ayrılmış alan varsa → aynı düzende ama farklı değişkenlerle çiz
-- Referansta pasta grafiği varsa → aynı stilde ama farklı yüzdelerle çiz
-- Referansta üçgen varsa → aynı tarz ama farklı ölçülerle çiz
+ÖRNEK YANLIŞ GÖRSEL:
+- Şekillerin yanında uzun Türkçe cümleler
+- "Bu meyvelerin kütleleri ile ilgili..." gibi metinler
+- Madde işaretli listeler
+- Formül açıklamaları
 
-Referans görseldeki stilin AYNISINI kullan, sadece içindeki değerler farklı olsun."""
+Referans görseldeki ŞEKLİ kopyala, sadece etiketleri ({', '.join(shape_info.get('variables', ['P', 'Q', 'R']))}) kullan.
+METİN YAZMA, SADECE ŞEKİL ÇİZ!"""
 
-            logger.info(f"🎨 Referans bazlı görsel üretiliyor...")
+            logger.info(f"🎨 Referans bazlı görsel üretiliyor (metin yok)...")
             
             if NEW_GENAI:
                 response = self.client.models.generate_content(
@@ -1068,63 +1089,59 @@ class QualityValidator:
     
     VALIDATION_PROMPT = """Bu matematik sorusu için üretilen görseli değerlendir.
 
-SORU METNİ:
-{question_text}
+════════════════════════════════════════════════════════════════
+🔴 EN ÖNEMLİ KONTROL: SORU METNİ VAR MI?
+════════════════════════════════════════════════════════════════
 
-BEKLENEN GÖRSEL İÇERİĞİ:
-{expected_content}
+Görselde aşağıdakilerden BİRİ bile varsa has_question_text = TRUE yap:
+- Türkçe cümleler ("Bu meyvelerin...", "Buna göre...", "...kaçtır?" gibi)
+- Madde işaretleri (•) ile başlayan satırlar
+- "=" işareti ile başlayan denklem açıklamaları
+- 10 kelimeden uzun herhangi bir metin
+- Soru işareti (?) içeren cümleler
 
-ORİJİNAL REFERANS GÖRSEL AÇIKLAMASI:
-{original_description}
+Görselde SADECE bunlar olmalı:
+✅ Geometrik şekiller (kiriş, kare, üçgen, daire vb.)
+✅ Kısa etiketler: P, Q, R, a, b, x, y, P metre, Q metre
+✅ Sayılar ve matematiksel semboller
+✅ Boyut okları
+✅ Maksimum 3-4 kelimelik kısa etiketler
+
+════════════════════════════════════════════════════════════════
 
 DEĞERLENDİRME KRİTERLERİ (her biri 1-10 puan):
 
-1. MATEMATİKSEL DOĞRULUK (mathematical_accuracy):
-   - Şekil doğru çizilmiş mi?
-   - Değişkenler/etiketler doğru yerleştirilmiş mi?
-   - Matematiksel notasyon doğru mu?
+1. SORU METNİ KONTROLÜ (no_question_text) - EN ÖNEMLİ!
+   - 10 = Hiç soru metni yok, sadece şekil ve kısa etiketler
+   - 5 = Biraz fazla metin var ama soru cümlesi yok
+   - 0 = Soru metni/cümleleri görsel içinde yazılmış → REDDET!
 
-2. SORU İLE UYUM (question_alignment):
-   - Görsel soruyla ilgili mi?
-   - Soruda bahsedilen şekil/grafik türü doğru mu?
+2. MATEMATİKSEL DOĞRULUK (mathematical_accuracy):
+   - Şekil doğru çizilmiş mi?
+   - Etiketler doğru yerleştirilmiş mi?
 
 3. GÖRSEL KALİTE (visual_quality):
-   - Çizimler temiz ve profesyonel mi?
-   - Etiketler okunabilir mi?
+   - Çizimler temiz mi?
+   - Profesyonel görünüyor mu?
 
-4. EĞİTİM UYGUNLUĞU (educational_suitability):
-   - Öğrenci için anlaşılır mı?
-   - LGS/ders kitabı kalitesinde mi?
-
-5. ALAKASIZLIK KONTROLÜ (irrelevance_check):
-   - 10 = Tamamen alakalı, sadece matematiksel içerik
-   - 5 = Bazı alakasız unsurlar var
-   - 0 = Tamamen alakasız (genel infografik, clipart, vb.)
-
-ÖZEL KONTROLLER - bunlar varsa DÜŞÜK puan ver:
-❌ Görselde soru metni yazıyorsa → düşük puan
-❌ Alakasız metin varsa (bölge isimleri: "Bahçe", "Alan" gibi) → düşük puan  
-❌ Genel matematik infografiği/clipart ise → çok düşük puan
-❌ Venn diyagramı, akış şeması gibi alakasız şekiller → çok düşük puan
-✅ Sadece geometrik şekil + matematiksel etiketler (a, b, x, y, a², ab) → yüksek puan
+4. SORU İLE UYUM (question_alignment):
+   - Doğru şekil türü mü?
 
 JSON formatında döndür:
 {{
     "scores": {{
+        "no_question_text": 10,
         "mathematical_accuracy": 8,
-        "question_alignment": 7,
         "visual_quality": 9,
-        "educational_suitability": 8,
-        "irrelevance_check": 10
+        "question_alignment": 8
     }},
-    "overall_score": 8.4,
-    "issues": ["varsa sorunları listele"],
-    "suggestions": ["iyileştirme önerileri"],
-    "has_irrelevant_content": false,
-    "has_question_text": false
+    "overall_score": 8.75,
+    "issues": [],
+    "has_question_text": false,
+    "detected_text": ["varsa görseldeki metinleri listele"]
 }}
 
-ÖNEMLİ: Genel matematik görselleri (pergel, cetvel, venn şeması, infografik) için 3 veya altı puan ver!
+🚨 EĞER has_question_text = TRUE İSE, overall_score OTOMATİK OLARAK 3 VEYA ALTI OLMALI!
 
 SADECE JSON döndür!"""
 
@@ -1138,16 +1155,13 @@ SADECE JSON döndür!"""
     
     def validate_image(self, image_bytes: bytes, question_text: str, 
                        expected_content: str, original_description: str) -> Dict:
-        """Üretilen görseli Gemini ile değerlendir"""
+        """Üretilen görseli Gemini ile değerlendir - SORU METNİ KONTROLÜ ÖNCELİKLİ"""
         try:
             # Base64 encode
             image_b64 = base64.b64encode(image_bytes).decode('utf-8')
             
-            prompt = self.VALIDATION_PROMPT.format(
-                question_text=question_text[:500],  # Çok uzun olmasın
-                expected_content=expected_content[:500],
-                original_description=original_description[:300]
-            )
+            # Prompt'a parametre geçmiyoruz artık
+            prompt = self.VALIDATION_PROMPT
             
             if NEW_GENAI:
                 response = self.client.models.generate_content(
@@ -1196,21 +1210,22 @@ SADECE JSON döndür!"""
                 else:
                     validation['overall_score'] = 5
             
-            # Pass/fail kontrolü
             overall = validation.get('overall_score', 0)
             
-            # Özel kontroller - alakasız içerik varsa otomatik fail
-            if validation.get('has_irrelevant_content', False):
-                overall = min(overall, 4)
-                validation['overall_score'] = overall
-            
+            # 🚨 SORU METNİ VARSA OTOMATİK RED!
             if validation.get('has_question_text', False):
-                overall = min(overall, 5)
+                detected = validation.get('detected_text', [])
+                logger.warning(f"🚨 Görselde soru metni tespit edildi: {detected[:2]}")
+                overall = min(overall, 3)  # Maksimum 3 puan
                 validation['overall_score'] = overall
+                if 'issues' not in validation:
+                    validation['issues'] = []
+                validation['issues'].insert(0, "Görselde soru metni/cümleleri var!")
             
-            # irrelevance_check düşükse fail
-            irrelevance = validation.get('scores', {}).get('irrelevance_check', 10)
-            if irrelevance < 6:
+            # no_question_text skoru düşükse
+            no_text_score = validation.get('scores', {}).get('no_question_text', 10)
+            if no_text_score < 7:
+                logger.warning(f"⚠️ Metin skoru düşük: {no_text_score}/10")
                 overall = min(overall, 4)
                 validation['overall_score'] = overall
             
@@ -1222,14 +1237,17 @@ SADECE JSON döndür!"""
                 issues = validation.get('issues', [])
                 if issues:
                     logger.info(f"   Sorunlar: {', '.join(issues[:2])}")
+                detected = validation.get('detected_text', [])
+                if detected:
+                    logger.info(f"   Tespit edilen metin: {detected[:2]}")
             
             return validation
             
         except Exception as e:
             logger.error(f"Kalite değerlendirme hatası: {e}")
-            # Hata durumunda geçir (fail-safe) - ama uyarı ver
+            # Hata durumunda RED (güvenli taraf)
             return {
-                "overall_score": 6, 
+                "overall_score": 4, 
                 "pass": False, 
                 "issues": [f"Değerlendirme hatası: {str(e)}"],
                 "error": True
