@@ -1200,61 +1200,76 @@ METİN YAZMA, SADECE ŞEKİL ÇİZ!"""
 class QualityValidator:
     """Gemini ile görsel kalite kontrolü"""
     
-    VALIDATION_PROMPT = """Bu matematik sorusu için üretilen görseli değerlendir.
+    VALIDATION_PROMPT = """Bu matematik sorusu için üretilen görseli SIKI bir şekilde değerlendir.
 
 ════════════════════════════════════════════════════════════════
-🔴 EN ÖNEMLİ KONTROL: SORU METNİ VAR MI?
+🚨 OTOMATİK RED SEBEPLERİ - BİRİ BİLE VARSA REDDET!
 ════════════════════════════════════════════════════════════════
 
-Görselde aşağıdakilerden BİRİ bile varsa has_question_text = TRUE yap:
-- Türkçe cümleler ("Bu meyvelerin...", "Buna göre...", "...kaçtır?" gibi)
-- Madde işaretleri (•) ile başlayan satırlar
-- "=" işareti ile başlayan denklem açıklamaları
-- 10 kelimeden uzun herhangi bir metin
-- Soru işareti (?) içeren cümleler
+Aşağıdakilerden HERHANGİ BİRİ varsa has_disqualifying_content = TRUE yap:
 
-Görselde SADECE bunlar olmalı:
-✅ Geometrik şekiller (kiriş, kare, üçgen, daire vb.)
-✅ Kısa etiketler: P, Q, R, a, b, x, y, P metre, Q metre
-✅ Sayılar ve matematiksel semboller
-✅ Boyut okları
-✅ Maksimum 3-4 kelimelik kısa etiketler
+1. SORU METNİ / CÜMLELER:
+   ❌ Türkçe cümleler (5+ kelime)
+   ❌ "Buna göre...", "...kaçtır?", "...nedir?" gibi soru kalıpları
+   ❌ Madde işaretleri (•, -, *) ile listeler
+
+2. FORMÜLLER VE DENKLEMLER:
+   ❌ "x/y = ?", "a + b = ?", "... = ?" gibi denklemler
+   ❌ Çözüm adımları
+   ❌ Matematiksel işlem açıklamaları
+
+3. ŞIKLAR:
+   ❌ A), B), C), D) şıkları
+   ❌ Seçenek listesi
+   ❌ Cevap seçenekleri
+
+4. TABLOLAR VE LİSTELER:
+   ❌ Fiyat tabloları (X: 50, Y: 75 gibi)
+   ❌ Menü listeleri
+   ❌ "VALUES", "LABEL" gibi başlıklar
+
+5. KARISIK İÇERİK:
+   ❌ Birden fazla alakasız öğe bir arada
+   ❌ Karmaşık infografikler
+   ❌ Çok fazla metin
+
+════════════════════════════════════════════════════════════════
+✅ KABUL EDİLEBİLİR İÇERİK (SADECE BUNLAR!)
+════════════════════════════════════════════════════════════════
+
+- Geometrik şekiller (üçgen, kare, daire, vb.)
+- Basit nesneler (kavanoz, kiriş, kutu - etiketli)
+- Grafikler (pasta, sütun, çizgi)
+- KISA etiketler: P, Q, R, x, y, "P metre", "x TL", "y gram"
+- Boyut okları
+- Maksimum 2-3 kelimelik etiketler
 
 ════════════════════════════════════════════════════════════════
 
-DEĞERLENDİRME KRİTERLERİ (her biri 1-10 puan):
-
-1. SORU METNİ KONTROLÜ (no_question_text) - EN ÖNEMLİ!
-   - 10 = Hiç soru metni yok, sadece şekil ve kısa etiketler
-   - 5 = Biraz fazla metin var ama soru cümlesi yok
-   - 0 = Soru metni/cümleleri görsel içinde yazılmış → REDDET!
-
-2. MATEMATİKSEL DOĞRULUK (mathematical_accuracy):
-   - Şekil doğru çizilmiş mi?
-   - Etiketler doğru yerleştirilmiş mi?
-
-3. GÖRSEL KALİTE (visual_quality):
-   - Çizimler temiz mi?
-   - Profesyonel görünüyor mu?
-
-4. SORU İLE UYUM (question_alignment):
-   - Doğru şekil türü mü?
+PUANLAMA:
+- no_question_text: Soru metni/cümle yoksa 10, varsa 0
+- no_formulas: Formül/denklem yoksa 10, varsa 0
+- no_options: Şık yoksa 10, varsa 0
+- simplicity: Basit ve temiz görsel 10, karmaşık 0
+- relevance: Alakalı matematiksel içerik 10, alakasız 0
 
 JSON formatında döndür:
 {{
     "scores": {{
-        "no_question_text": 10,
-        "mathematical_accuracy": 8,
-        "visual_quality": 9,
-        "question_alignment": 8
+        "no_question_text": 0,
+        "no_formulas": 0,
+        "no_options": 0,
+        "simplicity": 0,
+        "relevance": 0
     }},
-    "overall_score": 8.75,
-    "issues": [],
-    "has_question_text": false,
-    "detected_text": ["varsa görseldeki metinleri listele"]
+    "overall_score": 0,
+    "has_disqualifying_content": true,
+    "disqualifying_reasons": ["formül var", "şıklar var", "tablo var"],
+    "detected_text": ["LABEL", "VALUES", "MENÜ", "x/y = ?", "A)", "B)"],
+    "issues": ["Görselde formüller ve şıklar mevcut"]
 }}
 
-🚨 EĞER has_question_text = TRUE İSE, overall_score OTOMATİK OLARAK 3 VEYA ALTI OLMALI!
+🚨 has_disqualifying_content = TRUE ise overall_score = 0 olmalı!
 
 SADECE JSON döndür!"""
 
@@ -1325,23 +1340,38 @@ SADECE JSON döndür!"""
             
             overall = validation.get('overall_score', 0)
             
-            # 🚨 SORU METNİ VARSA OTOMATİK RED!
+            # 🚨 DİSKALİFİYE EDİCİ İÇERİK VARSA OTOMATİK 0 PUAN!
+            if validation.get('has_disqualifying_content', False):
+                reasons = validation.get('disqualifying_reasons', [])
+                detected = validation.get('detected_text', [])
+                logger.warning(f"🚨 DİSKALİFİYE: {', '.join(reasons[:3])}")
+                if detected:
+                    logger.warning(f"   Tespit edilen: {detected[:5]}")
+                overall = 0
+                validation['overall_score'] = 0
+                if 'issues' not in validation:
+                    validation['issues'] = []
+                validation['issues'] = reasons + validation['issues']
+            
+            # Eski kontroller (geriye uyumluluk)
             if validation.get('has_question_text', False):
                 detected = validation.get('detected_text', [])
                 logger.warning(f"🚨 Görselde soru metni tespit edildi: {detected[:2]}")
-                overall = min(overall, 3)  # Maksimum 3 puan
-                validation['overall_score'] = overall
-                if 'issues' not in validation:
-                    validation['issues'] = []
-                validation['issues'].insert(0, "Görselde soru metni/cümleleri var!")
-            
-            # no_question_text skoru düşükse
-            no_text_score = validation.get('scores', {}).get('no_question_text', 10)
-            if no_text_score < 7:
-                logger.warning(f"⚠️ Metin skoru düşük: {no_text_score}/10")
-                overall = min(overall, 4)
+                overall = min(overall, 2)
                 validation['overall_score'] = overall
             
+            # Skorlar çok düşükse
+            scores = validation.get('scores', {})
+            if scores.get('no_question_text', 10) < 5:
+                overall = min(overall, 2)
+            if scores.get('no_formulas', 10) < 5:
+                overall = min(overall, 2)
+            if scores.get('no_options', 10) < 5:
+                overall = min(overall, 2)
+            if scores.get('simplicity', 10) < 5:
+                overall = min(overall, 3)
+            
+            validation['overall_score'] = overall
             validation['pass'] = overall >= Config.QUALITY_THRESHOLD
             
             logger.info(f"📊 Kalite puanı: {overall:.1f}/10 - {'✅ KABUL' if validation['pass'] else '❌ RED'}")
@@ -1349,10 +1379,10 @@ SADECE JSON döndür!"""
             if not validation['pass']:
                 issues = validation.get('issues', [])
                 if issues:
-                    logger.info(f"   Sorunlar: {', '.join(issues[:2])}")
+                    logger.info(f"   Sorunlar: {', '.join(str(i) for i in issues[:3])}")
                 detected = validation.get('detected_text', [])
                 if detected:
-                    logger.info(f"   Tespit edilen metin: {detected[:2]}")
+                    logger.info(f"   Tespit edilen: {detected[:5]}")
             
             return validation
             
