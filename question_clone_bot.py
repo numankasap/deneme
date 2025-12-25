@@ -45,7 +45,7 @@ class Config:
     GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
     
     # Modeller
-    GEMINI_VISION = os.environ.get('GEMINI_VISION', 'gemini-2.5-flash')  # Fotoğraf analizi
+    GEMINI_VISION = os.environ.get('GEMINI_VISION', 'gemini-2.5-flash')  # Fotoğraf analizi + Kalite kontrolü
     GEMINI_TEXT = os.environ.get('GEMINI_TEXT', 'gemini-2.5-flash')  # Soru üretimi
     GEMINI_IMAGE = 'gemini-2.5-flash-image'  # Görsel üretimi
     
@@ -55,6 +55,10 @@ class Config:
     
     BATCH_SIZE = int(os.environ.get('BATCH_SIZE', '5'))
     VARIATIONS_PER_TEMPLATE = int(os.environ.get('VARIATIONS', '3'))  # Her şablondan kaç varyasyon
+    
+    # Kalite kontrol ayarları
+    QUALITY_THRESHOLD = int(os.environ.get('QUALITY_THRESHOLD', '7'))  # Minimum kabul puanı (1-10)
+    MAX_RETRY_ATTEMPTS = int(os.environ.get('MAX_RETRIES', '3'))  # Maksimum yeniden üretim denemesi
     
     # Zorluk seviyeleri
     DIFFICULTY_LEVELS = ['easy', 'medium', 'hard']
@@ -898,6 +902,179 @@ Referans görseldeki stilin AYNISINI kullan, sadece içindeki değerler farklı 
             return None
 
 
+class QualityValidator:
+    """Gemini ile görsel kalite kontrolü"""
+    
+    VALIDATION_PROMPT = """Bu matematik sorusu için üretilen görseli değerlendir.
+
+SORU METNİ:
+{question_text}
+
+BEKLENEN GÖRSEL İÇERİĞİ:
+{expected_content}
+
+ORİJİNAL REFERANS GÖRSEL AÇIKLAMASI:
+{original_description}
+
+DEĞERLENDİRME KRİTERLERİ (her biri 1-10 puan):
+
+1. MATEMATİKSEL DOĞRULUK (mathematical_accuracy):
+   - Şekil doğru çizilmiş mi?
+   - Değişkenler/etiketler doğru yerleştirilmiş mi?
+   - Matematiksel notasyon doğru mu?
+
+2. SORU İLE UYUM (question_alignment):
+   - Görsel soruyla ilgili mi?
+   - Soruda bahsedilen şekil/grafik türü doğru mu?
+
+3. GÖRSEL KALİTE (visual_quality):
+   - Çizimler temiz ve profesyonel mi?
+   - Etiketler okunabilir mi?
+
+4. EĞİTİM UYGUNLUĞU (educational_suitability):
+   - Öğrenci için anlaşılır mı?
+   - LGS/ders kitabı kalitesinde mi?
+
+5. ALAKASIZLIK KONTROLÜ (irrelevance_check):
+   - 10 = Tamamen alakalı, sadece matematiksel içerik
+   - 5 = Bazı alakasız unsurlar var
+   - 0 = Tamamen alakasız (genel infografik, clipart, vb.)
+
+ÖZEL KONTROLLER - bunlar varsa DÜŞÜK puan ver:
+❌ Görselde soru metni yazıyorsa → düşük puan
+❌ Alakasız metin varsa (bölge isimleri: "Bahçe", "Alan" gibi) → düşük puan  
+❌ Genel matematik infografiği/clipart ise → çok düşük puan
+❌ Venn diyagramı, akış şeması gibi alakasız şekiller → çok düşük puan
+✅ Sadece geometrik şekil + matematiksel etiketler (a, b, x, y, a², ab) → yüksek puan
+
+JSON formatında döndür:
+{{
+    "scores": {{
+        "mathematical_accuracy": 8,
+        "question_alignment": 7,
+        "visual_quality": 9,
+        "educational_suitability": 8,
+        "irrelevance_check": 10
+    }},
+    "overall_score": 8.4,
+    "issues": ["varsa sorunları listele"],
+    "suggestions": ["iyileştirme önerileri"],
+    "has_irrelevant_content": false,
+    "has_question_text": false
+}}
+
+ÖNEMLİ: Genel matematik görselleri (pergel, cetvel, venn şeması, infografik) için 3 veya altı puan ver!
+
+SADECE JSON döndür!"""
+
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+        if NEW_GENAI:
+            self.client = genai.Client(api_key=api_key)
+        else:
+            genai.configure(api_key=api_key)
+        logger.info("QualityValidator başlatıldı (Gemini)")
+    
+    def validate_image(self, image_bytes: bytes, question_text: str, 
+                       expected_content: str, original_description: str) -> Dict:
+        """Üretilen görseli Gemini ile değerlendir"""
+        try:
+            # Base64 encode
+            image_b64 = base64.b64encode(image_bytes).decode('utf-8')
+            
+            prompt = self.VALIDATION_PROMPT.format(
+                question_text=question_text[:500],  # Çok uzun olmasın
+                expected_content=expected_content[:500],
+                original_description=original_description[:300]
+            )
+            
+            if NEW_GENAI:
+                response = self.client.models.generate_content(
+                    model=Config.GEMINI_VISION,
+                    contents=[
+                        {
+                            "role": "user",
+                            "parts": [
+                                {
+                                    "inline_data": {
+                                        "mime_type": "image/png",
+                                        "data": image_b64
+                                    }
+                                },
+                                {
+                                    "text": prompt
+                                }
+                            ]
+                        }
+                    ]
+                )
+                content = response.text
+            else:
+                model = genai.GenerativeModel(Config.GEMINI_VISION)
+                response = model.generate_content([
+                    {"mime_type": "image/png", "data": image_b64},
+                    prompt
+                ])
+                content = response.text
+            
+            # JSON parse
+            content = content.strip()
+            if content.startswith('```'):
+                lines = content.split('\n')
+                content = '\n'.join(lines[1:-1])
+                if content.startswith('json'):
+                    content = content[4:].strip()
+            
+            validation = json.loads(content)
+            
+            # Overall score hesapla (yoksa)
+            if 'overall_score' not in validation:
+                scores = validation.get('scores', {})
+                if scores:
+                    validation['overall_score'] = sum(scores.values()) / len(scores)
+                else:
+                    validation['overall_score'] = 5
+            
+            # Pass/fail kontrolü
+            overall = validation.get('overall_score', 0)
+            
+            # Özel kontroller - alakasız içerik varsa otomatik fail
+            if validation.get('has_irrelevant_content', False):
+                overall = min(overall, 4)
+                validation['overall_score'] = overall
+            
+            if validation.get('has_question_text', False):
+                overall = min(overall, 5)
+                validation['overall_score'] = overall
+            
+            # irrelevance_check düşükse fail
+            irrelevance = validation.get('scores', {}).get('irrelevance_check', 10)
+            if irrelevance < 6:
+                overall = min(overall, 4)
+                validation['overall_score'] = overall
+            
+            validation['pass'] = overall >= Config.QUALITY_THRESHOLD
+            
+            logger.info(f"📊 Kalite puanı: {overall:.1f}/10 - {'✅ KABUL' if validation['pass'] else '❌ RED'}")
+            
+            if not validation['pass']:
+                issues = validation.get('issues', [])
+                if issues:
+                    logger.info(f"   Sorunlar: {', '.join(issues[:2])}")
+            
+            return validation
+            
+        except Exception as e:
+            logger.error(f"Kalite değerlendirme hatası: {e}")
+            # Hata durumunda geçir (fail-safe) - ama uyarı ver
+            return {
+                "overall_score": 6, 
+                "pass": False, 
+                "issues": [f"Değerlendirme hatası: {str(e)}"],
+                "error": True
+            }
+
+
 class QuestionCloneBot:
     """Ana bot - tüm bileşenleri koordine eder"""
     
@@ -911,11 +1088,16 @@ class QuestionCloneBot:
         self.vision = VisionAnalyzer(Config.GEMINI_API_KEY)
         self.generator = QuestionGenerator(Config.GEMINI_API_KEY)
         self.image_gen = ImageGenerator(Config.GEMINI_API_KEY)
+        self.quality_validator = QualityValidator(Config.GEMINI_API_KEY)
+        
+        logger.info("✅ Kalite kontrolü: Gemini aktif")
         
         self.stats = {
             'templates_processed': 0,
             'questions_generated': 0,
             'images_created': 0,
+            'images_rejected': 0,  # Kalite kontrolünde reddedilen
+            'quality_retries': 0,  # Yeniden üretim denemeleri
             'errors': 0,
             'start_time': datetime.now()
         }
@@ -953,6 +1135,8 @@ class QuestionCloneBot:
         logger.info(f"Şablonlar: {self.stats['templates_processed']}")
         logger.info(f"Üretilen Sorular: {self.stats['questions_generated']}")
         logger.info(f"Üretilen Görseller: {self.stats['images_created']}")
+        logger.info(f"Reddedilen Görseller: {self.stats['images_rejected']}")
+        logger.info(f"Kalite Yeniden Denemeleri: {self.stats['quality_retries']}")
         logger.info(f"Hatalar: {self.stats['errors']}")
         logger.info("=" * 60)
     
@@ -1016,22 +1200,20 @@ class QuestionCloneBot:
                 
                 logger.info(f"[{template_id}] ✅ Soru üretildi: {new_question.get('question_text', '')[:50]}...")
                 
-                # 4. Görsel üret - ORİJİNAL GÖRSELİ REFERANS AL
+                # 4. Görsel üret - KALİTE KONTROLÜ İLE
                 visual_data = new_question.get('visual_data', {})
                 visual_style = analysis.get('visual_style', {})
                 question_text = new_question.get('question_text', '')
                 
-                # Önce referans bazlı dene, başarısız olursa normal üret
-                image_bytes_new = self.image_gen.generate_from_reference(
-                    original_image_bytes=image_bytes,  # Orijinal görsel
-                    new_question_text=question_text,
-                    visual_data=visual_data
+                # Kalite kontrollü görsel üretimi
+                image_bytes_new = self._generate_image_with_quality_check(
+                    original_image_bytes=image_bytes,
+                    question_text=question_text,
+                    visual_data=visual_data,
+                    visual_style=visual_style,
+                    original_analysis=analysis,
+                    template_id=template_id
                 )
-                
-                # Referans bazlı başarısız olursa normal üretimi dene
-                if not image_bytes_new:
-                    logger.info(f"[{template_id}] Referans bazlı üretim başarısız, normal üretim deneniyor...")
-                    image_bytes_new = self.image_gen.generate(visual_data, visual_style)
                 
                 image_url_new = None
                 if image_bytes_new:
@@ -1080,6 +1262,81 @@ class QuestionCloneBot:
             import traceback
             logger.error(traceback.format_exc())
             self.stats['errors'] += 1
+    
+    def _generate_image_with_quality_check(self, original_image_bytes: bytes, question_text: str,
+                                           visual_data: Dict, visual_style: Dict, 
+                                           original_analysis: Dict, template_id: str) -> Optional[bytes]:
+        """Kalite kontrolü ile görsel üret - başarısız olursa yeniden dene"""
+        
+        expected_content = json.dumps(visual_data, ensure_ascii=False)[:500]
+        original_description = json.dumps(original_analysis, ensure_ascii=False)[:300]
+        
+        best_image = None
+        best_score = 0
+        
+        for attempt in range(Config.MAX_RETRY_ATTEMPTS):
+            logger.info(f"[{template_id}] 🎨 Görsel üretimi deneme {attempt + 1}/{Config.MAX_RETRY_ATTEMPTS}")
+            
+            # 1. Görsel üret - önce referans bazlı
+            image_bytes_new = self.image_gen.generate_from_reference(
+                original_image_bytes=original_image_bytes,
+                new_question_text=question_text,
+                visual_data=visual_data
+            )
+            
+            # Referans bazlı başarısız olursa normal üret
+            if not image_bytes_new:
+                logger.info(f"[{template_id}] Referans bazlı üretim başarısız, normal üretim deneniyor...")
+                image_bytes_new = self.image_gen.generate(visual_data, visual_style)
+            
+            if not image_bytes_new:
+                logger.warning(f"[{template_id}] Görsel üretilemedi, deneme {attempt + 1}")
+                self.stats['quality_retries'] += 1
+                continue
+            
+            # 2. Kalite kontrolü (Gemini ile)
+            logger.info(f"[{template_id}] 📊 Kalite kontrolü yapılıyor...")
+            
+            validation = self.quality_validator.validate_image(
+                image_bytes=image_bytes_new,
+                question_text=question_text,
+                expected_content=expected_content,
+                original_description=original_description
+            )
+            
+            score = validation.get('overall_score', 0)
+            
+            # En iyi skoru takip et
+            if score > best_score:
+                best_score = score
+                best_image = image_bytes_new
+            
+            # 3. Sonucu değerlendir
+            if validation.get('pass', False):
+                logger.info(f"[{template_id}] ✅ Görsel KABUL EDİLDİ (Puan: {score:.1f}/10)")
+                return image_bytes_new
+            else:
+                self.stats['images_rejected'] += 1
+                issues = validation.get('issues', [])
+                logger.warning(f"[{template_id}] ❌ Görsel REDDEDİLDİ (Puan: {score:.1f}/10)")
+                if issues:
+                    logger.warning(f"[{template_id}]    Sorunlar: {', '.join(issues[:2])}")
+                
+                # Son deneme değilse bekle ve tekrar dene
+                if attempt < Config.MAX_RETRY_ATTEMPTS - 1:
+                    self.stats['quality_retries'] += 1
+                    logger.info(f"[{template_id}] ⏳ 3s bekleyip yeniden denenecek...")
+                    time.sleep(3)
+        
+        # Tüm denemeler başarısız
+        if best_image and best_score >= 5:
+            # En iyi skoru 5 ve üzeriyse kullan (ama uyarı ver)
+            logger.warning(f"[{template_id}] ⚠️ Kalite eşiği ({Config.QUALITY_THRESHOLD}) aşılamadı")
+            logger.warning(f"[{template_id}] En iyi skor ({best_score:.1f}/10) ile devam ediliyor")
+            return best_image
+        else:
+            logger.error(f"[{template_id}] ❌ Tüm denemeler başarısız - görsel atlanıyor")
+            return None
 
 
 # Veritabanı şeması için SQL
