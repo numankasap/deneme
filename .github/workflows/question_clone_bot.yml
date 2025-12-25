@@ -1,0 +1,90 @@
+# Question Clone Bot Workflow
+# ============================
+# Fotoğraftan benzer soru üretici
+#
+# Akış:
+# 1. question_templates tablosundaki fotoğrafları al
+# 2. Gemini Vision ile analiz et
+# 3. Benzer ama farklı sorular üret
+# 4. Görselleri Gemini Image ile çiz
+# 5. question_bank'a kaydet
+
+name: Question Clone Bot
+
+on:
+  # Manuel tetikleme
+  workflow_dispatch:
+    inputs:
+      batch_size:
+        description: 'İşlenecek şablon sayısı'
+        required: false
+        default: '3'
+        type: string
+      variations:
+        description: 'Her şablondan üretilecek varyasyon sayısı'
+        required: false
+        default: '3'
+        type: string
+      test_mode:
+        description: 'Test modu (1 şablon, 1 varyasyon)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+          
+  # Günlük çalışma (isteğe bağlı)
+  # schedule:
+  #   - cron: '0 6 * * *'  # Her gün 09:00 TR
+
+jobs:
+  generate-questions:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: 📦 Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r question_clone_requirements.txt
+      
+      - name: 🤖 Run Question Clone Bot
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BATCH_SIZE: ${{ github.event.inputs.test_mode == 'true' && '1' || github.event.inputs.batch_size || '3' }}
+          VARIATIONS: ${{ github.event.inputs.test_mode == 'true' && '1' || github.event.inputs.variations || '3' }}
+        run: |
+          echo "🤖 Question Clone Bot Başlatılıyor..."
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📅 Tarih: $(date)"
+          echo "📊 Batch Size: $BATCH_SIZE şablon"
+          echo "🔄 Varyasyonlar: $VARIATIONS / şablon"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          python question_clone_bot.py
+      
+      - name: 📊 Job Summary
+        if: always()
+        run: |
+          echo "## 🤖 Question Clone Bot Sonuçları" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Parametre | Değer |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 📅 Tarih | $(date) |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📊 Batch Size | ${{ github.event.inputs.batch_size || '3' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔄 Varyasyonlar | ${{ github.event.inputs.variations || '3' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Nasıl Kullanılır" >> $GITHUB_STEP_SUMMARY
+          echo "1. Beğendiğin soru fotoğrafını \`question_templates\` tablosuna ekle" >> $GITHUB_STEP_SUMMARY
+          echo "2. Bu workflow'u çalıştır" >> $GITHUB_STEP_SUMMARY
+          echo "3. Bot her fotoğraftan 3 benzer soru üretir" >> $GITHUB_STEP_SUMMARY
