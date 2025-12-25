@@ -331,21 +331,24 @@ SADECE JSON döndür!"""
             image_b64 = base64.b64encode(image_bytes).decode('utf-8')
             
             if NEW_GENAI:
+                # Yeni google-genai SDK için
                 response = self.client.models.generate_content(
                     model=Config.GEMINI_VISION,
                     contents=[
-                        types.Content(
-                            role="user",
-                            parts=[
-                                types.Part.from_image(
-                                    image=types.Image(
-                                        image_bytes=image_bytes,
-                                        mime_type="image/png"
-                                    )
-                                ),
-                                types.Part.from_text(self.ANALYSIS_PROMPT)
+                        {
+                            "role": "user",
+                            "parts": [
+                                {
+                                    "inline_data": {
+                                        "mime_type": "image/png",
+                                        "data": image_b64
+                                    }
+                                },
+                                {
+                                    "text": self.ANALYSIS_PROMPT
+                                }
                             ]
-                        )
+                        }
                     ]
                 )
                 text = response.text
@@ -681,12 +684,13 @@ class ImageGenerator:
             logger.info(f"🎨 Görsel üretiliyor: {visual_data.get('type', 'unknown')}")
             
             if NEW_GENAI:
+                # Yeni SDK için config dict olarak
                 response = self.client.models.generate_content(
                     model=Config.GEMINI_IMAGE,
                     contents=prompt,
-                    config=types.GenerateContentConfig(
-                        response_modalities=["IMAGE", "TEXT"],
-                    )
+                    config={
+                        "response_modalities": ["IMAGE", "TEXT"],
+                    }
                 )
                 
                 # Response'dan görsel çıkar
