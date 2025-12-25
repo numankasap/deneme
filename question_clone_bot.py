@@ -276,45 +276,54 @@ class VisionAnalyzer:
    - sayı_doğrusu: Sayı doğrusu
    - koordinat: Koordinat sistemi
    - tablo: Tablo okuma
-   
-2. GÖRSEL STİL: (kareli zemin, düz arka plan, renkli, siyah-beyaz, 3D, 2D)
-3. VERİLEN BİLGİLER: (sayılar, açılar, uzunluklar, yüzdeler, değişkenler a, b, x, y)
-4. SORU METNİ: (görseldeki Türkçe metin - tam olarak)
-5. ŞEKİL DETAYLARI: (renkler, etiket pozisyonları, çizgi stilleri, bölgeler)
-6. ZORLUK: (easy, medium, hard)
-7. SINIF SEVİYESİ: (5, 6, 7, 8)
-8. KONU: (Veri Analizi, Geometri, Cebir, Oran-Orantı, vb.)
+   - kavanoz: Kavanoz, şişe, kap görseli
+   - kiriş: Kiriş, çubuk, metal profil
+   - nesne: Diğer nesneler (meyve, araç, vb.)
 
-ÖNEMLİ: Eğer görselde kare/dikdörtgen bölgelere ayrılmış bir alan varsa ve a, b gibi değişkenler kullanılıyorsa, bu "özdeşlik" tipidir.
+2. GÖRSELDEKİ NESNELER (ÇOK ÖNEMLİ!):
+   - Görselde tam olarak NE var? (kavanoz, kiriş, meyve, pasta grafiği, üçgen, vb.)
+   - Kaç tane nesne var?
+   - Nesnelerin özellikleri neler?
+
+3. GÖRSEL STİL: (kareli zemin, düz arka plan, renkli, siyah-beyaz, 3D, 2D)
+4. VERİLEN BİLGİLER: (sayılar, açılar, uzunluklar, yüzdeler, değişkenler a, b, x, y)
+5. SORU METNİ: (görseldeki Türkçe metin - tam olarak)
+6. ŞEKİL DETAYLARI: (renkler, etiket pozisyonları, çizgi stilleri, bölgeler)
+7. ZORLUK: (easy, medium, hard)
+8. SINIF SEVİYESİ: (5, 6, 7, 8)
+9. KONU: (Veri Analizi, Geometri, Cebir, Oran-Orantı, vb.)
+
+ÖNEMLİ: Görseldeki NESNELER çok önemli! Yeni soru bu nesnelerle uyumlu olacak.
 
 JSON formatında döndür:
 {
-    "question_type": "özdeşlik",
+    "question_type": "kavanoz",
+    "visual_objects": {
+        "type": "kavanoz",
+        "count": 2,
+        "description": "İki farklı boyutta reçel kavanozu",
+        "labels": ["P", "Q"],
+        "properties": ["farklı boyutlar", "etiketli", "fiyat/ağırlık bilgisi"]
+    },
     "visual_style": {
         "background": "beyaz",
-        "colors": ["mavi", "yeşil", "sarı", "kırmızı"],
-        "is_3d": false,
+        "colors": ["kahverengi", "sarı"],
+        "is_3d": true,
         "has_labels": true
     },
     "given_data": {
-        "variables": ["a", "b"],
-        "regions": [
-            {"name": "sol_üst", "dimensions": "a × a", "area": "a²"},
-            {"name": "sağ_üst", "dimensions": "a × b", "area": "ab"},
-            {"name": "sol_alt", "dimensions": "b × a", "area": "ab"},
-            {"name": "sağ_alt", "dimensions": "b × b", "area": "b²"}
-        ],
-        "total_side": "a + b"
+        "variables": ["x", "y", "z", "w"],
+        "labels": ["P", "Q"],
+        "values": [{"label": "P", "price": "x TL", "weight": "y g"}, {"label": "Q", "price": "z TL", "weight": "w g"}]
     },
-    "question_text": "Buna göre, bu bahçenin tamamının metrekare cinsinden alanını gösteren cebirsel ifade...",
+    "question_text": "...",
     "topic": "Cebir",
-    "subtopic": "Özdeşlikler",
+    "subtopic": "Cebirsel İfadeler",
     "difficulty": "medium",
     "grade_level": 8,
     "shape_properties": {
-        "main_shape": "kare",
-        "subdivisions": 4,
-        "border_style": "solid"
+        "main_shape": "kavanoz",
+        "count": 2
     }
 }
 
@@ -406,10 +415,30 @@ SADECE JSON döndür!"""
 class QuestionGenerator:
     """Benzer soru üretici - Kazanım bazlı"""
     
-    GENERATION_PROMPT = """Aşağıdaki soru analizine ve KAZANIM BİLGİLERİNE dayanarak, AYNI ZORLUKTAve AYNI BİLİŞSEL SEVİYEDE bir matematik sorusu üret.
+    GENERATION_PROMPT = """Aşağıdaki soru analizine ve KAZANIM BİLGİLERİNE dayanarak, AYNI ZORLUKTA ve AYNI BİLİŞSEL SEVİYEDE bir matematik sorusu üret.
 
 ORIJINAL SORU ANALİZİ:
 {analysis}
+
+════════════════════════════════════════════════════════════════
+🖼️ GÖRSEL UYUMU - ÇOK ÖNEMLİ!
+════════════════════════════════════════════════════════════════
+
+Orijinal görseldeki NESNELER: {visual_objects}
+Orijinal görseldeki ETİKETLER: {visual_labels}
+
+⚠️ KRİTİK KURAL: Yeni soru, ORİJİNAL GÖRSELDEKİ NESNELERLE UYUMLU olmalı!
+
+ÖRNEKLER:
+- Orijinal görselde REÇEL KAVANOZU varsa → soru reçel, bal, kavanoz, ağırlık, fiyat hakkında olmalı
+- Orijinal görselde KİRİŞ varsa → soru inşaat, uzunluk, metal hakkında olmalı
+- Orijinal görselde PASTA GRAFİĞİ varsa → soru yüzde, oran, dağılım hakkında olmalı
+- Orijinal görselde KARE BÖLGELER varsa → soru alan, bahçe, park hakkında olmalı
+
+❌ YANLIŞ: Görselde reçel kavanozları var ama soru otobüs hatları hakkında
+✅ DOĞRU: Görselde reçel kavanozları var ve soru reçel fiyatı/ağırlığı hakkında
+
+════════════════════════════════════════════════════════════════
 
 KAZANIM BİLGİLERİ:
 - Kazanım Kodu: {kazanim_code}
@@ -601,8 +630,15 @@ SADECE JSON döndür!"""
             original_bloom = self._analyze_bloom_level(original_question_text, analysis)
             original_cognitive = self._analyze_cognitive_requirements(original_question_text, analysis)
             
+            # Görsel nesnelerini çıkar
+            visual_objects = self._extract_visual_objects(analysis)
+            visual_labels = analysis.get('given_data', {}).get('labels', [])
+            if not visual_labels:
+                visual_labels = analysis.get('visual_style', {}).get('labels', [])
+            
             logger.info(f"📊 Orijinal soru Bloom seviyesi: {original_bloom}")
             logger.info(f"📊 Bilişsel gereksinimler: {', '.join(original_cognitive[:3])}")
+            logger.info(f"🖼️ Görsel nesneleri: {visual_objects}")
             
             prompt = self.GENERATION_PROMPT.format(
                 analysis=json.dumps(analysis, ensure_ascii=False, indent=2),
@@ -619,7 +655,9 @@ SADECE JSON döndür!"""
                 question_type=question_type,
                 difficulty=difficulty,
                 original_bloom_level=original_bloom,
-                original_cognitive=', '.join(original_cognitive)
+                original_cognitive=', '.join(original_cognitive),
+                visual_objects=visual_objects,
+                visual_labels=', '.join(visual_labels) if visual_labels else 'belirtilmemiş'
             )
             
             if NEW_GENAI:
@@ -752,6 +790,81 @@ SADECE JSON döndür!"""
             requirements = ['problem çözme']
         
         return requirements
+    
+    def _extract_visual_objects(self, analysis: Dict) -> str:
+        """Görsel analizinden nesneleri çıkar"""
+        objects = []
+        
+        # question_type'dan
+        q_type = analysis.get('question_type', '').lower()
+        
+        # given_data'dan
+        given_data = analysis.get('given_data', {})
+        
+        # visual_style'dan
+        visual_style = analysis.get('visual_style', {})
+        
+        # shape_properties'den
+        shape_props = analysis.get('shape_properties', {})
+        
+        # Soru metninden nesne çıkarma
+        question_text = analysis.get('question_text', '').lower()
+        
+        # Nesne anahtar kelimeleri
+        object_keywords = {
+            'kavanoz': ['kavanoz', 'şişe', 'kap'],
+            'reçel': ['reçel', 'bal', 'marmelat', 'pekmez'],
+            'kiriş': ['kiriş', 'çubuk', 'demir', 'metal', 'profil'],
+            'kutu': ['kutu', 'paket', 'koli'],
+            'pasta grafiği': ['pasta', 'daire grafiği', 'dilim'],
+            'sütun grafiği': ['sütun', 'çubuk grafik', 'bar'],
+            'üçgen': ['üçgen', 'piramit'],
+            'kare': ['kare', 'bahçe', 'alan', 'park'],
+            'dikdörtgen': ['dikdörtgen', 'tarla', 'arsa'],
+            'daire': ['daire', 'çember', 'tekerlek'],
+            'meyve': ['elma', 'armut', 'portakal', 'meyve'],
+            'hayvan': ['kedi', 'köpek', 'kuş', 'hayvan'],
+            'araç': ['araba', 'otobüs', 'tren', 'uçak'],
+            'bina': ['ev', 'bina', 'okul', 'hastane'],
+            'para': ['lira', 'TL', 'para', 'fiyat', 'maliyet']
+        }
+        
+        # Soru metninden nesne bul
+        for obj_name, keywords in object_keywords.items():
+            for kw in keywords:
+                if kw in question_text:
+                    if obj_name not in objects:
+                        objects.append(obj_name)
+                    break
+        
+        # Soru tipinden nesne çıkar
+        type_to_object = {
+            'pasta_grafik': 'pasta grafiği',
+            'sütun_grafik': 'sütun grafiği',
+            'çizgi_grafik': 'çizgi grafiği',
+            'üçgen': 'üçgen',
+            'dörtgen': 'dörtgen',
+            'kare': 'kare',
+            'dikdörtgen': 'dikdörtgen',
+            'daire': 'daire',
+            'özdeşlik': 'kare bölgeler (alan)',
+            'kavanoz': 'kavanoz',
+            'kiriş': 'kiriş/çubuk'
+        }
+        
+        if q_type in type_to_object:
+            obj = type_to_object[q_type]
+            if obj not in objects:
+                objects.append(obj)
+        
+        # given_data'dan değişkenler
+        if given_data.get('variables'):
+            objects.append(f"değişkenler: {', '.join(given_data['variables'])}")
+        
+        if not objects:
+            objects = ['geometrik şekil']
+        
+        return ', '.join(objects)
 
 
 class ImageGenerator:
