@@ -1,0 +1,20 @@
+# Question Clone Bot v1.0 Requirements
+# =====================================
+# Fotoğraftan Benzer Soru Üretici
+#
+# Kullanılan API'ler:
+# - Gemini Vision: Fotoğraf analizi
+# - Gemini Text: Soru üretimi  
+# - Gemini Image: Görsel üretimi
+
+# Supabase (veritabanı + storage)
+supabase>=2.0.0
+
+# Google Gemini (Vision + Text + Image Generation)
+google-genai>=1.0.0
+
+# Resim işleme (opsiyonel - local işlemler için)
+Pillow>=10.0.0
+
+# HTTP istekleri (görsel indirme için)
+requests>=2.28.0
