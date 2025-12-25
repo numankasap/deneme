@@ -45,9 +45,13 @@ class Config:
     # Analiz modeli (metin tabanlı)
     GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-2.0-flash-exp')
     
-    # Görsel üretim modelleri
+    # Görsel üretim modelleri (Nano Banana serisi)
     GEMINI_IMAGE_FLASH = 'gemini-2.5-flash-preview-05-20'  # Hızlı, yüksek hacim
-    GEMINI_IMAGE_PRO = 'gemini-2.0-flash-exp-image-generation'  # Yüksek kalite (Pro henüz mevcut değilse flash kullan)
+    GEMINI_IMAGE_PRO = 'gemini-2.0-flash-exp-image-generation'  # Yüksek kalite
+    
+    # Alternatif model ID'leri (eğer yukarıdakiler çalışmazsa)
+    # GEMINI_IMAGE_FLASH = 'gemini-2.5-flash-image'
+    # GEMINI_IMAGE_PRO = 'gemini-3-pro-image-preview'
     
     # Görsel üretim stratejisi: 'cairo_only', 'ai_only', 'hybrid', 'ai_first'
     IMAGE_STRATEGY = os.environ.get('IMAGE_STRATEGY', 'hybrid')
@@ -330,7 +334,7 @@ class GeminiImageGenerator:
             model_id = self._select_model(complexity)
             prompt = self._build_image_prompt(analysis, question_text)
             
-            logger.info(f"🎨 AI Image Generation başlıyor...")
+            logger.info(f"🎨 AI Image Generation başlıyor (model: {model_id})...")
             logger.debug(f"Prompt: {prompt[:200]}...")
             
             for attempt in range(max_retries):
@@ -338,50 +342,65 @@ class GeminiImageGenerator:
                     self._rate_limit(requests_per_minute=5)
                     
                     if NEW_GENAI:
-                        # Yeni API ile görsel üretimi
+                        # Yeni google-genai API ile görsel üretimi
+                        from google.genai import types
+                        
                         response = self.client.models.generate_content(
                             model=model_id,
                             contents=prompt,
-                            config={
-                                "response_modalities": ["IMAGE", "TEXT"],
-                                "response_mime_type": "image/png"
-                            }
+                            config=types.GenerateContentConfig(
+                                response_modalities=["IMAGE", "TEXT"],
+                            )
                         )
                         
                         # Response'dan görsel çıkar
                         if response.candidates:
                             for part in response.candidates[0].content.parts:
+                                # inline_data kontrolü
                                 if hasattr(part, 'inline_data') and part.inline_data:
-                                    image_data = part.inline_data.data
-                                    if isinstance(image_data, str):
-                                        image_bytes = base64.b64decode(image_data)
-                                    else:
-                                        image_bytes = image_data
-                                    logger.info(f"✅ AI görsel üretildi ({len(image_bytes)} bytes)")
-                                    return image_bytes
+                                    inline = part.inline_data
+                                    if hasattr(inline, 'data') and inline.data:
+                                        image_data = inline.data
+                                        if isinstance(image_data, str):
+                                            image_bytes = base64.b64decode(image_data)
+                                        else:
+                                            image_bytes = bytes(image_data) if not isinstance(image_data, bytes) else image_data
+                                        logger.info(f"✅ AI görsel üretildi ({len(image_bytes)} bytes)")
+                                        return image_bytes
                         
-                        logger.warning("AI yanıtında görsel bulunamadı")
+                        # Alternatif: parts içinde doğrudan image blob
+                        if hasattr(response, 'parts'):
+                            for part in response.parts:
+                                if hasattr(part, 'inline_data'):
+                                    image_bytes = part.inline_data.data
+                                    if image_bytes:
+                                        logger.info(f"✅ AI görsel üretildi (alt) ({len(image_bytes)} bytes)")
+                                        return image_bytes
+                        
+                        logger.warning(f"AI yanıtında görsel bulunamadı. Response type: {type(response)}")
+                        if hasattr(response, 'text'):
+                            logger.debug(f"Response text: {response.text[:200] if response.text else 'None'}")
                         return None
                     else:
-                        # Eski API - görsel üretimi sınırlı olabilir
-                        model = genai.GenerativeModel(model_id)
-                        response = model.generate_content(prompt)
-                        
-                        # Eski API genellikle metin döndürür, görsel için özel handling gerekebilir
-                        logger.warning("Eski Gemini API ile görsel üretimi sınırlı")
+                        # Eski API - görsel üretimi sınırlı
+                        logger.warning("Eski Gemini API ile görsel üretimi desteklenmiyor")
                         return None
                         
                 except Exception as e:
                     error_str = str(e)
+                    logger.error(f"AI Image Gen hatası (deneme {attempt + 1}): {error_str[:200]}")
+                    
                     if '429' in error_str or 'RESOURCE_EXHAUSTED' in error_str:
                         wait_time = 60 + (attempt * 15)
-                        logger.warning(f"⚠️ Rate limit. {wait_time}s bekleniyor... ({attempt + 1}/{max_retries})")
+                        logger.warning(f"⏳ Rate limit. {wait_time}s bekleniyor...")
                         time.sleep(wait_time)
                     elif 'not supported' in error_str.lower() or 'invalid' in error_str.lower():
                         logger.warning(f"Model görsel üretimi desteklemiyor: {model_id}")
                         return None
+                    elif 'INVALID_ARGUMENT' in error_str:
+                        logger.warning(f"Geçersiz parametre hatası - model image gen desteklemiyor olabilir")
+                        return None
                     else:
-                        logger.error(f"AI Image Generation hatası: {e}")
                         if attempt < max_retries - 1:
                             time.sleep(5)
                         else:
@@ -391,6 +410,8 @@ class GeminiImageGenerator:
             
         except Exception as e:
             logger.error(f"GeminiImageGenerator.generate hatası: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return None
 
 
@@ -1154,7 +1175,12 @@ class HybridImageGenerator:
                 logger.warning(f"AI Image Generator başlatılamadı: {e}")
         
         self.cairo_enabled = Config.IMAGE_STRATEGY != 'ai_only'
+        self._last_method = None  # 'ai' veya 'cairo'
         logger.info(f"HybridImageGenerator başlatıldı (strateji: {Config.IMAGE_STRATEGY})")
+    
+    def get_last_method(self) -> Optional[str]:
+        """Son kullanılan görsel üretim yöntemini döndür"""
+        return self._last_method
     
     def generate(self, analysis: Dict, question_text: str = "") -> Optional[bytes]:
         """Görsel üret - stratejiye göre"""
@@ -1168,6 +1194,7 @@ class HybridImageGenerator:
             ai_result = self.ai_generator.generate(analysis, question_text)
             if ai_result:
                 logger.info("✅ AI görsel üretimi başarılı")
+                self._last_method = 'ai'
                 return ai_result
             logger.info("⚠️ AI başarısız, Cairo'ya düşülüyor...")
         
@@ -1186,16 +1213,23 @@ class HybridImageGenerator:
                 ai_result = self.ai_generator.generate(analysis, question_text)
                 if ai_result:
                     logger.info("✅ AI görsel üretimi başarılı (karmaşık şekil)")
+                    self._last_method = 'ai'
                     return ai_result
                 logger.info("⚠️ AI başarısız, Cairo'ya düşülüyor...")
         
         # Strateji: ai_only
         elif strategy == 'ai_only' and self.ai_generator:
-            return self.ai_generator.generate(analysis, question_text)
+            result = self.ai_generator.generate(analysis, question_text)
+            if result:
+                self._last_method = 'ai'
+            return result
         
         # Cairo ile çizim (fallback veya cairo_only)
         if self.cairo_enabled:
-            return self._cairo_generate(analysis)
+            result = self._cairo_generate(analysis)
+            if result:
+                self._last_method = 'cairo'
+            return result
         
         return None
     
@@ -1466,6 +1500,12 @@ class GeometryBot:
             if image_url and self.supabase.update_question_image(q_id, image_url):
                 logger.info(f"[{q_id}] ✅ Başarılı: {image_url}")
                 self.stats['success'] += 1
+                # Hangi yöntemle üretildiğini kaydet
+                method = self.generator.get_last_method()
+                if method == 'ai':
+                    self.stats['ai_success'] += 1
+                elif method == 'cairo':
+                    self.stats['cairo_success'] += 1
             else:
                 logger.warning(f"[{q_id}] ❌ Yükleme/güncelleme başarısız")
                 self.stats['error'] += 1
