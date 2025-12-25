@@ -64,12 +64,15 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           BATCH_SIZE: ${{ github.event.inputs.test_mode == 'true' && '1' || github.event.inputs.batch_size || '3' }}
           VARIATIONS: ${{ github.event.inputs.test_mode == 'true' && '1' || github.event.inputs.variations || '3' }}
+          QUALITY_THRESHOLD: '7'
+          MAX_RETRIES: '3'
         run: |
           echo "🤖 Question Clone Bot Başlatılıyor..."
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "📅 Tarih: $(date)"
           echo "📊 Batch Size: $BATCH_SIZE şablon"
           echo "🔄 Varyasyonlar: $VARIATIONS / şablon"
+          echo "🔍 Kalite Kontrolü: Gemini (threshold: $QUALITY_THRESHOLD)"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           python question_clone_bot.py
       
