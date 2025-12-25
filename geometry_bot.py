@@ -120,20 +120,27 @@ class GeminiImageGenerator:
         self.last_request_time = 0
         logger.info("GeminiImageGenerator başlatıldı")
     
-    def _rate_limit(self, requests_per_minute: int = 5):
-        """Rate limiting for image generation (daha düşük limit)"""
+    def _rate_limit(self, requests_per_minute: int = 4):
+        """Rate limiting for image generation - daha yavaş ve güvenli"""
         current_time = time.time()
+        
+        # Her dakika sayacı sıfırla
         if current_time - self.last_request_time > 60:
             self.request_count = 0
             self.last_request_time = current_time
         
+        # Limit aşıldıysa bekle
         if self.request_count >= requests_per_minute:
-            wait_time = 60 - (current_time - self.last_request_time) + 5
+            wait_time = 65 - (current_time - self.last_request_time)
             if wait_time > 0:
-                logger.info(f"⏳ Image Gen Rate limit - {wait_time:.0f}s bekleniyor...")
+                logger.info(f"⏳ Image Gen rate limit - {wait_time:.0f}s bekleniyor...")
                 time.sleep(wait_time)
                 self.request_count = 0
                 self.last_request_time = time.time()
+        
+        # Her istek arasında minimum 5 saniye bekle (image gen daha yavaş)
+        if self.request_count > 0:
+            time.sleep(5)
         
         self.request_count += 1
     
@@ -187,14 +194,22 @@ class GeminiImageGenerator:
         """Görsel üretimi için prompt oluştur"""
         shape_type = analysis.get('shape_type', 'geometry')
         
-        # Temel prompt
+        # Temel prompt - KRİTİK KURALLAR
         prompt_parts = [
             "Matematiksel bir geometri görseli oluştur.",
-            "Stil: Temiz, profesyonel, eğitim amaçlı.",
-            "Arka plan: Beyaz.",
-            "Çizgiler: Net, kalın, koyu mavi veya siyah.",
-            "Etiketler: Büyük harflerle köşe noktaları (A, B, C, D...).",
-            "Ölçüler: Varsa kenar uzunlukları ve açılar gösterilmeli.",
+            "",
+            "KRİTİK KURALLAR:",
+            "1. SADECE soruda açıkça verilen değerleri göster (kenar uzunlukları, açılar).",
+            "2. Hesaplanması gereken veya çözüm olan değerleri ASLA gösterme.",
+            "3. Soru metnini görsele YAZMA - sadece geometrik şekil ve verilen ölçüler.",
+            "4. Bilinmeyen veya hesaplanacak değerler için '?' veya 'x' kullan.",
+            "5. Şekil temiz, profesyonel ve eğitim amaçlı olmalı.",
+            "",
+            "STİL:",
+            "- Arka plan: Beyaz",
+            "- Çizgiler: Net, kalın, koyu mavi veya siyah",
+            "- Etiketler: Büyük harflerle köşe noktaları (A, B, C, D...)",
+            "- Gizli/kesikli kenarlar: Kesikli çizgi ile göster",
             "",
         ]
         
@@ -204,122 +219,142 @@ class GeminiImageGenerator:
             edges = analysis.get('edges', [])
             angles = analysis.get('angles', [])
             
-            prompt_parts.append("Bir üçgen çiz.")
+            prompt_parts.append("ŞEKİL: Üçgen")
             if points:
-                prompt_parts.append(f"Köşe noktaları: {', '.join([p['name'] for p in points])}")
+                names = [p['name'] for p in points]
+                prompt_parts.append(f"Köşeler: {', '.join(names)}")
+            
+            # Sadece VERİLEN kenar uzunluklarını ekle
             if edges:
+                prompt_parts.append("VERİLEN kenar uzunlukları:")
                 for e in edges:
-                    prompt_parts.append(f"Kenar {e.get('start')}{e.get('end')}: {e.get('label', '')}")
+                    label = e.get('label', '')
+                    if label and label != '?':
+                        prompt_parts.append(f"  - {e.get('start')}{e.get('end')}: {label}")
+            
+            # Sadece VERİLEN açıları ekle
             if angles:
+                prompt_parts.append("VERİLEN açılar:")
                 for a in angles:
                     if a.get('is_right'):
-                        prompt_parts.append(f"{a.get('vertex')} köşesinde dik açı işareti göster.")
-                    elif a.get('value'):
-                        prompt_parts.append(f"{a.get('vertex')} açısı: {a.get('value')}")
+                        prompt_parts.append(f"  - {a.get('vertex')} köşesinde dik açı (90°) işareti göster")
+                    elif a.get('value') and a.get('given', True):
+                        prompt_parts.append(f"  - {a.get('vertex')} açısı: {a.get('value')}")
             
             # Özel çizgiler
             special_lines = analysis.get('special_lines', [])
             for sl in special_lines:
                 if sl['type'] == 'height':
-                    prompt_parts.append(f"{sl.get('from')} köşesinden karşı kenara yükseklik çiz (kesikli çizgi).")
+                    prompt_parts.append(f"  - {sl.get('from')} köşesinden yükseklik çiz (kesikli)")
                 elif sl['type'] == 'median':
-                    prompt_parts.append(f"{sl.get('from')} köşesinden karşı kenarın ortasına kenarortay çiz.")
-                elif sl['type'] == 'bisector':
-                    prompt_parts.append(f"{sl.get('from')} açısının açıortayını çiz.")
+                    prompt_parts.append(f"  - {sl.get('from')} köşesinden kenarortay çiz")
+            
+            # Hesaplanacak değer varsa ? ile göster
+            unknown_angle = analysis.get('unknown_angle')
+            if unknown_angle:
+                prompt_parts.append(f"  - {unknown_angle} açısını '?' olarak işaretle (hesaplanacak)")
         
         elif shape_type in ['rectangle', 'square', 'quadrilateral']:
             points = analysis.get('points', [])
             edges = analysis.get('edges', [])
             
             if shape_type == 'square':
-                prompt_parts.append("Bir kare çiz.")
+                prompt_parts.append("ŞEKİL: Kare")
             elif shape_type == 'rectangle':
-                prompt_parts.append("Bir dikdörtgen çiz.")
+                prompt_parts.append("ŞEKİL: Dikdörtgen")
             else:
-                prompt_parts.append("Bir dörtgen çiz.")
+                prompt_parts.append("ŞEKİL: Dörtgen")
             
             if points:
-                prompt_parts.append(f"Köşe noktaları saat yönünde: {', '.join([p['name'] for p in points])}")
+                prompt_parts.append(f"Köşeler (saat yönünde): {', '.join([p['name'] for p in points])}")
+            
             if edges:
+                prompt_parts.append("VERİLEN kenar uzunlukları:")
                 for e in edges:
-                    prompt_parts.append(f"Kenar {e.get('start')}{e.get('end')}: {e.get('label', '')}")
+                    label = e.get('label', '')
+                    if label:
+                        prompt_parts.append(f"  - {e.get('start')}{e.get('end')}: {label}")
             
             # İç teğet daire
             inscribed = analysis.get('inscribed_circle', {})
-            if inscribed:
-                prompt_parts.append(f"İçine teğet bir daire çiz, yarıçap: {inscribed.get('label', '')}")
+            if inscribed and inscribed.get('radius'):
+                prompt_parts.append(f"İçine teğet daire çiz, yarıçap: {inscribed.get('label', 'r')}")
         
         elif shape_type == 'circle':
             center = analysis.get('center', {})
             radius = analysis.get('radius', 4)
             
-            prompt_parts.append("Bir çember çiz.")
-            prompt_parts.append(f"Merkez noktası: {center.get('name', 'O')}")
-            prompt_parts.append(f"Yarıçap: {radius}")
-            prompt_parts.append("Merkez noktasını işaretle ve r= etiketiyle yarıçapı göster.")
+            prompt_parts.append("ŞEKİL: Çember")
+            prompt_parts.append(f"Merkez: {center.get('name', 'O')}")
+            if radius:
+                prompt_parts.append(f"Yarıçap: r = {radius}")
             
-            # Ek noktalar
             for p in analysis.get('points', []):
-                prompt_parts.append(f"Çember üzerinde {p['name']} noktasını işaretle.")
-        
-        elif shape_type in ['cube', 'rectangular_prism', 'prism']:
-            dims = analysis.get('dimensions', {})
-            prompt_parts.append("3 boyutlu bir küp/prizma çiz (izometrik görünüm).")
-            if dims.get('size'):
-                prompt_parts.append(f"Kenar uzunluğu: {dims['size']} cm")
-            if dims.get('width') and dims.get('height') and dims.get('depth'):
-                prompt_parts.append(f"Boyutlar: {dims['width']}x{dims['height']}x{dims['depth']}")
-            prompt_parts.append("Köşeleri A, B, C, D (alt) ve E, F, G, H (üst) olarak etiketle.")
-            prompt_parts.append("Gizli kenarları kesikli çizgiyle göster.")
+                prompt_parts.append(f"Çember üzerinde {p['name']} noktası")
         
         elif shape_type == 'pyramid':
             dims = analysis.get('dimensions', {})
-            prompt_parts.append("3 boyutlu bir piramit çiz.")
-            prompt_parts.append(f"Taban kenarı: {dims.get('base_size', 4)} cm")
-            prompt_parts.append(f"Yükseklik: {dims.get('height', 5)} cm")
-            prompt_parts.append("Tepe noktasını T olarak etiketle.")
-            prompt_parts.append("Yüksekliği kesikli çizgiyle göster.")
+            prompt_parts.append("ŞEKİL: Kare tabanlı dik piramit (3D izometrik görünüm)")
+            prompt_parts.append("Köşe etiketleri: Taban A, B, C, D - Tepe T")
+            
+            # Sadece soruda verilen değerleri göster
+            if dims.get('base_size') or dims.get('base'):
+                base = dims.get('base_size') or dims.get('base')
+                prompt_parts.append(f"VERİLEN - Taban kenarı: {base} cm")
+            
+            if dims.get('slant_height'):
+                prompt_parts.append(f"VERİLEN - Eğik yükseklik (yan yüz): {dims.get('slant_height')} cm")
+            
+            if dims.get('height'):
+                # Yükseklik verilmiş mi yoksa hesaplanacak mı kontrol et
+                if dims.get('height_given', False):
+                    prompt_parts.append(f"VERİLEN - Piramit yüksekliği: {dims.get('height')} cm")
+                else:
+                    prompt_parts.append("Piramit yüksekliği gösterme (hesaplanacak)")
+            
+            prompt_parts.append("")
+            prompt_parts.append("GÖSTERME: Hesaplanması gereken değerleri (apothem, yükseklik vb.)")
+            prompt_parts.append("Gizli kenarları kesikli çizgiyle göster.")
         
-        elif shape_type == 'cylinder':
+        elif shape_type == 'cube':
             dims = analysis.get('dimensions', {})
-            prompt_parts.append("3 boyutlu bir silindir çiz.")
-            prompt_parts.append(f"Yarıçap: {dims.get('radius', 3)} cm")
-            prompt_parts.append(f"Yükseklik: {dims.get('height', 6)} cm")
+            prompt_parts.append("ŞEKİL: Küp (3D izometrik görünüm)")
+            prompt_parts.append("Köşe etiketleri: Alt A,B,C,D - Üst E,F,G,H")
+            if dims.get('size'):
+                prompt_parts.append(f"VERİLEN - Kenar: {dims['size']} cm")
+            prompt_parts.append("Gizli kenarları kesikli çizgiyle göster.")
         
-        elif shape_type == 'cone':
+        elif shape_type in ['cylinder', 'cone', 'sphere']:
             dims = analysis.get('dimensions', {})
-            prompt_parts.append("3 boyutlu bir koni çiz.")
-            prompt_parts.append(f"Taban yarıçapı: {dims.get('radius', 3)} cm")
-            prompt_parts.append(f"Yükseklik: {dims.get('height', 5)} cm")
-            prompt_parts.append("Tepe noktasını T olarak etiketle.")
-        
-        elif shape_type == 'sphere':
-            dims = analysis.get('dimensions', {})
-            prompt_parts.append("3 boyutlu bir küre çiz.")
-            prompt_parts.append(f"Yarıçap: {dims.get('radius', 4)} cm")
-            prompt_parts.append("Merkez noktasını O olarak işaretle.")
+            shape_names = {'cylinder': 'Silindir', 'cone': 'Koni', 'sphere': 'Küre'}
+            prompt_parts.append(f"ŞEKİL: {shape_names.get(shape_type)} (3D görünüm)")
+            
+            if dims.get('radius'):
+                prompt_parts.append(f"VERİLEN - Yarıçap: {dims['radius']} cm")
+            if dims.get('height') and shape_type != 'sphere':
+                prompt_parts.append(f"VERİLEN - Yükseklik: {dims['height']} cm")
         
         elif shape_type == 'pie_chart':
             pie_data = analysis.get('pie_data', {})
             values = pie_data.get('values', [])
             labels = pie_data.get('labels', [])
-            prompt_parts.append("3 boyutlu pasta grafiği çiz.")
-            for i, (v, l) in enumerate(zip(values, labels)):
-                prompt_parts.append(f"{l}: {v}%")
-            prompt_parts.append("Her dilimi farklı renkle göster ve yüzdeleri etiketle.")
+            prompt_parts.append("ŞEKİL: Pasta grafiği")
+            prompt_parts.append("Dilimler ve yüzdeler:")
+            for v, l in zip(values, labels):
+                prompt_parts.append(f"  - {l}: {v}%")
         
         elif shape_type == 'bar_chart':
             bar_data = analysis.get('bar_data', {})
             values = bar_data.get('values', [])
             labels = bar_data.get('labels', [])
-            prompt_parts.append("Sütun grafiği çiz.")
+            prompt_parts.append("ŞEKİL: Sütun grafiği")
             for v, l in zip(values, labels):
-                prompt_parts.append(f"{l}: {v}")
+                prompt_parts.append(f"  - {l}: {v}")
         
-        # Orijinal soru metni (bağlam için)
-        if question_text:
-            prompt_parts.append("")
-            prompt_parts.append(f"Orijinal soru: {question_text[:200]}")
+        # Genel hatırlatma
+        prompt_parts.append("")
+        prompt_parts.append("HATIRLATMA: Soru metnini veya açıklamaları görsele ekleme!")
+        prompt_parts.append("Sadece geometrik şekil ve üzerinde VERİLEN ölçüler olsun.")
         
         return "\n".join(prompt_parts)
     
@@ -1056,22 +1091,31 @@ SORU: Geometrik bir çizim/şekil bu soruyu anlamayı veya çözmeyi kolaylaşt�
 EVET ise → cizim_pisinilir: true + çizim talimatları
 HAYIR ise → cizim_pisinilir: false
 
+ÖNEMLİ KURALLAR:
+1. Sadece SORUDA DOĞRUDAN VERİLEN değerleri JSON'a koy
+2. Hesaplanması gereken veya çözüm olan değerleri KOYMA
+3. Bilinmeyen/hesaplanacak açı varsa "unknown_angle" olarak belirt
+
 ## JSON FORMATLARI:
 
-Dikdörtgen/Kare:
-{"cizim_pisinilir": true, "shape_type": "rectangle", "points": [{"name": "A", "x": 0, "y": 0}, {"name": "B", "x": 20, "y": 0}, {"name": "C", "x": 20, "y": 20}, {"name": "D", "x": 0, "y": 20}], "edges": [{"start": "A", "end": "B", "label": "20 m"}]}
+Üçgen (açı sorusu - sadece VERİLEN açılar):
+{"cizim_pisinilir": true, "shape_type": "triangle", "points": [{"name": "A", "x": 0, "y": 0}, {"name": "B", "x": 6, "y": 0}, {"name": "C", "x": 3, "y": 5}], "angles": [{"vertex": "A", "value": "55°"}, {"vertex": "B", "value": "70°"}], "unknown_angle": "C"}
 
-Üçgen:
+Üçgen (kenar sorusu):
 {"cizim_pisinilir": true, "shape_type": "triangle", "points": [{"name": "A", "x": 0, "y": 0}, {"name": "B", "x": 6, "y": 0}, {"name": "C", "x": 3, "y": 5}], "edges": [{"start": "A", "end": "B", "label": "6 cm"}]}
+
+Dikdörtgen/Kare:
+{"cizim_pisinilir": true, "shape_type": "rectangle", "points": [{"name": "A", "x": 0, "y": 0}, {"name": "B", "x": 20, "y": 0}, {"name": "C", "x": 20, "y": 10}, {"name": "D", "x": 0, "y": 10}], "edges": [{"start": "A", "end": "B", "label": "20 m"}]}
 
 Daire/Çember:
 {"cizim_pisinilir": true, "shape_type": "circle", "center": {"name": "O", "x": 5, "y": 5}, "radius": 4}
 
+Piramit (SADECE soruda verilen değerler - eğik yükseklik, taban kenarı):
+{"cizim_pisinilir": true, "shape_type": "pyramid", "dimensions": {"base_size": 6, "slant_height": 5}}
+NOT: Piramit yüksekliği hesaplanacaksa "height" EKLEME!
+
 Küp:
 {"cizim_pisinilir": true, "shape_type": "cube", "dimensions": {"size": 4}}
-
-Piramit:
-{"cizim_pisinilir": true, "shape_type": "pyramid", "dimensions": {"base_size": 4, "height": 5}}
 
 Silindir:
 {"cizim_pisinilir": true, "shape_type": "cylinder", "dimensions": {"radius": 3, "height": 6}}
@@ -1091,7 +1135,10 @@ Sütun Grafik:
 Çizim gereksiz:
 {"cizim_pisinilir": false, "neden": "kısa açıklama"}
 
-NOT: SADECE JSON döndür!
+HATIRLATMA: 
+- SADECE soruda açıkça verilen ölçüleri kullan
+- Hesaplanacak/çözüm değerleri JSON'a KOYMA
+- SADECE JSON döndür!
 
 SORU: """
     
@@ -1108,17 +1155,27 @@ SORU: """
         logger.info(f"Gemini Analyzer başlatıldı (model: {Config.GEMINI_MODEL})")
     
     def _rate_limit(self):
+        """Rate limiting - daha güvenli aralıklarla"""
         current_time = time.time()
+        
+        # Her dakika sayacı sıfırla
         if current_time - self.last_request_time > 60:
             self.request_count = 0
             self.last_request_time = current_time
-        if self.request_count >= 8:
-            wait_time = 60 - (current_time - self.last_request_time) + 2
+        
+        # Dakikada max 6 istek (güvenli limit)
+        if self.request_count >= 6:
+            wait_time = 65 - (current_time - self.last_request_time)
             if wait_time > 0:
-                logger.info(f"⏳ Rate limit - {wait_time:.0f}s bekleniyor...")
+                logger.info(f"⏳ Analyzer rate limit - {wait_time:.0f}s bekleniyor...")
                 time.sleep(wait_time)
                 self.request_count = 0
                 self.last_request_time = time.time()
+        
+        # Her istek arasında minimum 3 saniye bekle
+        if self.request_count > 0:
+            time.sleep(3)
+        
         self.request_count += 1
     
     def analyze(self, question_text, max_retries=3):
@@ -1442,7 +1499,9 @@ class GeometryBot:
         for i, q in enumerate(questions, 1):
             self._process(q)
             if i < len(questions):
-                time.sleep(1)
+                # Her soru arasında 5 saniye bekle (rate limit için)
+                logger.info(f"⏳ Sonraki soru için 5s bekleniyor... ({i}/{len(questions)})")
+                time.sleep(5)
         
         elapsed = datetime.now() - self.stats['start_time']
         logger.info("=" * 60)
