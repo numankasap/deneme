@@ -753,13 +753,29 @@ def cozumden_soru_olustur(cozum, curriculum_row, params):
         
         sonuc = cozum.get('sonuc', 0)
         
+        # Seçenek şablonunu hazırla
+        if secenek_sayisi == 5:
+            secenek_sablonu = '''"A": "[değer]",
+    "B": "[değer]",
+    "C": "[değer]",
+    "D": "[değer]",
+    "E": "[değer]"'''
+        else:
+            secenek_sablonu = '''"A": "[değer]",
+    "B": "[değer]",
+    "C": "[değer]",
+    "D": "[değer]"'''
+        
+        cozum_adimlari_str = json.dumps(cozum.get('cozum_adimlari', []), ensure_ascii=False)
+        veriler_str = json.dumps(cozum.get('verilen_degerler', {}), ensure_ascii=False)
+        
         prompt = f'''Aşağıdaki çözülmüş problemi {secenek_sayisi} seçenekli çoktan seçmeli soruya dönüştür.
 
 ## HAZIR ÇÖZÜM
 **Problem:** {cozum.get('problem', '')}
-**Veriler:** {json.dumps(cozum.get('verilen_degerler', {}), ensure_ascii=False)}
+**Veriler:** {veriler_str}
 **İstenen:** {cozum.get('istenen', '')}
-**Çözüm:** {json.dumps(cozum.get('cozum_adimlari', []), ensure_ascii=False)}
+**Çözüm:** {cozum_adimlari_str}
 **Sonuç:** {sonuc}
 **Açıklama:** {cozum.get('sonuc_aciklama', '')}
 
@@ -775,14 +791,10 @@ def cozumden_soru_olustur(cozum, curriculum_row, params):
   "senaryo": "[Problem metni]",
   "soru_metni": "[Soru kökü - ne soruluyor?]",
   "secenekler": {{
-    "A": "[değer]",
-    "B": "[değer]",
-    "C": "[değer]",
-    "D": "[değer]"{"," if secenek_sayisi == 5 else ""}
-    {"\"E\": \"[değer]\"" if secenek_sayisi == 5 else ""}
+    {secenek_sablonu}
   }},
-  "dogru_cevap": "[{secenek_harfleri}'den biri]",
-  "cozum_adimlari": {json.dumps(cozum.get('cozum_adimlari', []), ensure_ascii=False)},
+  "dogru_cevap": "[{secenek_harfleri} den biri]",
+  "cozum_adimlari": {cozum_adimlari_str},
   "solution_detailed": "[Öğrenci dostu detaylı açıklama]",
   "celdirici_aciklamalar": {{
     "[Yanlış şık]": "[Neden yanlış]"
@@ -790,8 +802,8 @@ def cozumden_soru_olustur(cozum, curriculum_row, params):
 }}
 ```
 
-⚠️ Doğru cevap MUTLAKA {sonuc} olmalı!
-⚠️ SADECE JSON döndür!'''
+Doğru cevap MUTLAKA {sonuc} olmalı!
+SADECE JSON döndür!'''
 
         response = gemini_client.models.generate_content(
             model='gemini-2.0-flash',
