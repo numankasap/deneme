@@ -1204,7 +1204,7 @@ Bu hataları TEKRARLAMA! Sadece basit, temiz bir görsel çiz.
             
             prompt_text = f"""Referans görseldeki ŞEKLİN BASİT BİR VERSİYONUNU çiz.
 {feedback_section}
-🎯 GÖREV: Sadece geometrik şekil ve kısa etiketler içeren TEMİZ bir görsel üret.
+🎯 GÖREV: Sadece geometrik şekil ve TÜRKÇE kısa etiketler içeren TEMİZ bir görsel üret.
 
 ════════════════════════════════════════════════════════════════
 🚫 YASAKLAR (BİRİ BİLE VARSA BAŞARISIZ!)
@@ -1216,17 +1216,23 @@ Bu hataları TEKRARLAMA! Sadece basit, temiz bir görsel çiz.
 ❌ Formül çözümü YAZMA (x + y = ?, a = b gibi)
 ❌ Tablo veya liste YAZMA
 ❌ "LABEL", "VALUES", "MENÜ" gibi başlıklar YAZMA
+❌ İNGİLİZCE KELİME YAZMA! (Volleyball, Tennis, Basketball YASAK!)
 ════════════════════════════════════════════════════════════════
 
 ✅ SADECE BUNLAR OLMALI:
 - Geometrik şekil (kare, dikdörtgen, üçgen, daire, vb.)
 - TEK HARFLİ etiketler: a, b, x, y, P, Q, R
-- KISA ölçü etiketleri: "5 cm", "a metre", "x²"
+- KISA TÜRKÇE ölçü etiketleri: "5 cm", "a metre", "x²", "120 TL", "500 g"
 - Boyut okları
+- Nesne isimleri TÜRKÇE olmalı (Voleybol, Tenis, Basketbol DEĞİL sadece şekil!)
+
+⚠️ MATEMATİKSEL TUTARLILIK:
+- Eğer x büyük boyutu gösteriyorsa, x küçük boyutu GÖSTEREMİZ!
+- Farklı boyutlar için FARKLI değişkenler kullan (a, b, x, y, m, n)
 
 ŞEKİL BİLGİSİ: {json.dumps(shape_info, ensure_ascii=False)}
 
-BASİT, TEMİZ, SADECE ŞEKİL!"""
+BASİT, TEMİZ, TÜRKÇE, MATEMATİKSEL DOĞRU!"""
 
             logger.info(f"🎨 Referans + Feedback ile görsel üretiliyor...")
             if previous_problems:
@@ -1290,66 +1296,63 @@ BASİT, TEMİZ, SADECE ŞEKİL!"""
 class QualityValidator:
     """Gemini ile görsel kalite kontrolü"""
     
-    VALIDATION_PROMPT = """Bu matematik sorusu görseli için kalite kontrolü yap.
+    VALIDATION_PROMPT = """Bu matematik sorusu görseli için KALİTE KONTROLÜ yap.
 
 ════════════════════════════════════════════════════════════════
-✅ KABUL EDİLEN İÇERİKLER (bunlar SORUN DEĞİL!)
+✅ KABUL KRİTERLERİ
 ════════════════════════════════════════════════════════════════
 
-Aşağıdakiler matematiksel görselde OLMALI ve sorun teşkil ETMEZ:
-- Tek harfli değişkenler: a, b, c, x, y, z, P, Q, R, m, n
-- Üslü ifadeler: x², a², b², x³ (bunlar ETİKET, formül değil!)
-- Kısa matematiksel etiketler: "a metre", "x cm", "P kg", "y TL"
-- Geometrik şekiller üzerindeki ölçüler: 5 cm, 10 m, 45°
-- Alan/boyut etiketleri: a×b, 2x, 3y
-- Şekil isimleri: üçgen, kare, A noktası, B köşesi
+1. TEMİZLİK:
+   ✅ Soru metni/cümle YOK
+   ✅ A), B), C), D) şıkları YOK
+   ✅ Sadece şekil ve kısa etiketler var
+
+2. DİL:
+   ✅ Etiketler TÜRKÇE veya matematiksel (a, b, x, y)
+   ❌ İngilizce kelimeler varsa DÜŞÜK puan (Volleyball, Tennis Court, vb.)
+
+3. MATEMATİKSEL TUTARLILIK:
+   ✅ Değişkenler mantıklı kullanılmış
+   ❌ Aynı değişken (örn: x) hem büyük hem küçük parçayı gösteriyorsa → HATALI
+   ❌ Boyutlar birbiriyle tutarsızsa → HATALI
 
 ════════════════════════════════════════════════════════════════
-❌ REDDEDİLECEK İÇERİKLER (bunlar YASAK!)
+❌ RED KRİTERLERİ (bunlardan biri varsa RED!)
 ════════════════════════════════════════════════════════════════
 
-1. SORU CÜMLELERİ (5+ kelimelik Türkçe cümleler):
-   ❌ "Buna göre aşağıdakilerden hangisi..."
-   ❌ "...ifadesinin değeri kaçtır?"
-   ❌ "Aşağıdaki şekilde görülen..."
-   
-2. ÇOKTAN SEÇMELİ ŞIKLAR:
-   ❌ "A) 15", "B) 20", "C) 25", "D) 30"
-   ❌ Seçenek listesi
-   
-3. ÇÖZÜM ADIMLARI:
-   ❌ "x + y = 15" gibi denklem çözümleri
-   ❌ "Çözüm:", "Cevap:" yazıları
-   
-4. MENÜ/TABLO BAŞLIKLARI:
-   ❌ "LABEL", "VALUES", "MENÜ"
-   ❌ Fiyat listeleri
+1. SORU METNİ: 5+ kelimelik Türkçe cümle
+2. ŞIKLAR: A), B), C), D) seçenekleri
+3. İNGİLİZCE: "Volleyball", "Tennis", "Basketball" gibi kelimeler
+4. MATEMATİK HATASI: Aynı değişken farklı boyutları gösteriyor
 
 ════════════════════════════════════════════════════════════════
 
 KONTROL SORULARI:
-1. Görselde 5+ kelimelik Türkçe cümle var mı? (has_sentences)
-2. Görselde A), B), C), D) şıkları var mı? (has_options)
-3. Görselde denklem çözümü var mı? (has_solution_steps)
-4. Görsel temiz ve basit mi? (is_clean)
+1. has_sentences: 5+ kelimelik cümle var mı?
+2. has_options: A), B), C), D) şıkları var mı?
+3. has_english: İngilizce kelimeler var mı?
+4. has_math_error: Matematiksel tutarsızlık var mı?
+5. is_clean: Görsel temiz ve basit mi?
 
 JSON formatında döndür:
 {{
     "has_sentences": false,
-    "has_options": false,  
-    "has_solution_steps": false,
+    "has_options": false,
+    "has_english": false,
+    "has_math_error": false,
     "is_clean": true,
+    "detected_labels": ["a", "b", "x metre", "120 TL"],
     "detected_problems": [],
-    "detected_labels": ["a", "b", "x²", "P metre"],
     "overall_quality": 9,
     "recommendation": "KABUL"
 }}
 
-ÖNEMLİ KURALLAR:
-- "x²", "a²", "b²" gibi üslü ifadeler ETİKETTİR, formül DEĞİL → KABUL
-- "P", "Q", "R" tek harfler ETİKETTİR, şık DEĞİL → KABUL
-- "A)", "B)", "C)", "D)" ise ŞIKTIR → RED
-- 5+ kelimelik cümle varsa → RED
+PUANLAMA:
+- Temiz, Türkçe, matematiksel doğru → 9-10
+- Küçük sorunlar (biraz fazla etiket) → 7-8
+- İngilizce kelimeler var → 4-5
+- Soru metni veya şıklar var → 0-3
+- Matematiksel hata var → 0-3
 
 SADECE JSON döndür!"""
 
@@ -1409,7 +1412,7 @@ SADECE JSON döndür!"""
             
             validation = json.loads(content)
             
-            # Yeni format kontrolü
+            # Sorun tespiti
             problems = []
             
             # Cümle kontrolü
@@ -1422,18 +1425,28 @@ SADECE JSON döndür!"""
                 problems.append("siklar")
                 logger.warning("🚨 Görselde A), B), C), D) şıkları tespit edildi")
             
-            # Çözüm adımları kontrolü
-            if validation.get('has_solution_steps', False):
-                problems.append("cozum_adimlari")
-                logger.warning("🚨 Görselde çözüm adımları tespit edildi")
+            # İngilizce kontrolü - YENİ!
+            if validation.get('has_english', False):
+                problems.append("ingilizce_etiket")
+                logger.warning("🚨 Görselde İngilizce kelimeler tespit edildi")
+            
+            # Matematiksel hata kontrolü - YENİ!
+            if validation.get('has_math_error', False):
+                problems.append("matematik_hatasi")
+                logger.warning("🚨 Görselde matematiksel tutarsızlık tespit edildi")
             
             # Overall score hesapla
             overall = validation.get('overall_quality', 5)
             
             # Problem varsa skoru düşür
-            if problems:
+            if 'soru_cumlesi' in problems or 'siklar' in problems:
                 overall = min(overall, 3)
-                validation['detected_problems'] = problems
+            
+            if 'ingilizce_etiket' in problems:
+                overall = min(overall, 5)  # İngilizce ciddi ama affedilebilir
+            
+            if 'matematik_hatasi' in problems:
+                overall = min(overall, 4)  # Matematik hatası ciddi
             
             # is_clean kontrolü
             if not validation.get('is_clean', True):
@@ -1450,14 +1463,11 @@ SADECE JSON döndür!"""
             if validation['pass']:
                 logger.info(f"📊 Kalite puanı: {overall}/10 - ✅ KABUL")
                 if labels:
-                    logger.info(f"   Etiketler: {', '.join(labels[:5])}")
+                    logger.info(f"   Etiketler: {', '.join(str(l) for l in labels[:5])}")
             else:
                 logger.info(f"📊 Kalite puanı: {overall}/10 - ❌ RED")
                 if problems:
                     logger.info(f"   Sorunlar: {', '.join(problems)}")
-                detected_probs = validation.get('detected_problems', [])
-                if detected_probs:
-                    logger.info(f"   Detay: {detected_probs}")
             
             return validation
             
