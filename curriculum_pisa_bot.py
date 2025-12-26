@@ -48,8 +48,8 @@ MAX_ISLEM_PER_RUN = int(os.environ.get('MAX_ISLEM_PER_RUN', '50'))
 DEEPSEEK_DOGRULAMA = bool(DEEPSEEK_API_KEY)
 COT_AKTIF = True
 BEKLEME = 1.5
-MAX_DENEME = 4
-MIN_DEEPSEEK_PUAN = 65
+MAX_DENEME = 5  # 4'ten 5'e artırıldı
+MIN_DEEPSEEK_PUAN = 55  # 65'ten 55'e düşürüldü
 API_TIMEOUT = 30
 
 PROGRESS_TABLE = 'curriculum_pisa_progress'  # Artık kullanılmıyor, question_bank tabanlı
@@ -192,18 +192,18 @@ BLOOM_TAKSONOMISI = {
     }
 }
 
-# Sınıf -> Bloom Eşleştirmesi
+# Sınıf -> Bloom Eşleştirmesi (Gerçekçi seviyeler)
 SINIF_BLOOM_ESLESTIRME = {
     3: ['hatırlama', 'anlama'],
-    4: ['hatırlama', 'anlama', 'uygulama'],
+    4: ['hatırlama', 'anlama'],
     5: ['anlama', 'uygulama'],
-    6: ['anlama', 'uygulama', 'analiz'],
+    6: ['anlama', 'uygulama'],
     7: ['uygulama', 'analiz'],
-    8: ['uygulama', 'analiz', 'değerlendirme'],
-    9: ['analiz', 'değerlendirme'],
-    10: ['analiz', 'değerlendirme', 'yaratma'],
-    11: ['değerlendirme', 'yaratma'],
-    12: ['değerlendirme', 'yaratma']
+    8: ['uygulama', 'analiz'],
+    9: ['uygulama', 'analiz'],
+    10: ['uygulama', 'analiz'],
+    11: ['uygulama', 'analiz'],  # Değerlendirme/yaratma kaldırıldı
+    12: ['uygulama', 'analiz']   # Değerlendirme/yaratma kaldırıldı
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -570,18 +570,27 @@ def progress_guncelle(curriculum_id, tur, soru_sayisi):
         PROGRESS_CACHE[curriculum_id] = soru_sayisi
 
 def mevcut_turu_hesapla(curriculum_data):
-    """Mevcut turu hesapla - tüm kazanımların en düşük turu"""
+    """Mevcut turu hesapla - işlenecek en düşük turu bul"""
     min_tur = float('inf')
+    max_tur = 0
     
     for item in curriculum_data:
         progress = progress_getir(item['id'])
         tur = progress.get('current_tur', 1)
         soru = progress.get('questions_in_current_tur', 0)
         
+        max_tur = max(max_tur, tur)
+        
+        # Bu kazanımda eksik soru varsa, bu tur işlenmeli
         if soru < SORU_PER_KAZANIM:
             min_tur = min(min_tur, tur)
     
-    return min_tur if min_tur != float('inf') else 1
+    # Eğer hiç eksik yoksa (min_tur güncellenmedi), max_tur döndür
+    # Bu durumda tüm kazanımlar bu turda tamamlanmış demektir
+    if min_tur == float('inf'):
+        return max_tur
+    
+    return min_tur
 
 def tur_tamamlandi_mi(curriculum_data, tur):
     """Belirtilen turun tamamlanıp tamamlanmadığını kontrol et"""
@@ -590,15 +599,22 @@ def tur_tamamlandi_mi(curriculum_data, tur):
         mevcut_tur = progress.get('current_tur', 1)
         soru = progress.get('questions_in_current_tur', 0)
         
+        # Bu kazanım henüz bu tura ulaşmamış
         if mevcut_tur < tur:
             return False
+        
+        # Bu kazanım bu turda ama henüz tamamlanmamış
+        # NOT: mevcut_tur == tur ve soru == 0 ise bu kazanım bir önceki turu
+        # tamamlamış ve yeni tura geçmiş demektir, bu durumda tamamlanmamış
         if mevcut_tur == tur and soru < SORU_PER_KAZANIM:
             return False
+    
     return True
 
 def sonraki_kazanimlari_getir(curriculum_data, tur, limit):
     """
     DENGELİ DAĞILIM: Her sınıftan eşit sayıda kazanım seç
+    Hem mevcut turdan hem de sonraki turlardan eksik kazanımları al
     """
     # Sınıflara göre grupla
     sinif_gruplari = defaultdict(list)
@@ -610,13 +626,20 @@ def sonraki_kazanimlari_getir(curriculum_data, tur, limit):
         mevcut_tur = progress.get('current_tur', 1)
         mevcut_soru = progress.get('questions_in_current_tur', 0)
         
-        # Bu turda henüz tamamlanmamış kazanımları ekle
-        if mevcut_tur < tur or (mevcut_tur == tur and mevcut_soru < SORU_PER_KAZANIM):
+        # Eksik soru varsa ekle (hangi turda olursa olsun)
+        if mevcut_soru < SORU_PER_KAZANIM:
+            # Öncelik: Düşük turlar önce
+            oncelik = mevcut_tur * 1000 + mevcut_soru
             sinif_gruplari[sinif].append({
                 'curriculum': item,
-                'tur': tur,
-                'mevcut_soru': mevcut_soru if mevcut_tur == tur else 0
+                'tur': mevcut_tur,
+                'mevcut_soru': mevcut_soru,
+                'oncelik': oncelik
             })
+    
+    # Her sınıftaki kazanımları önceliğe göre sırala
+    for sinif in sinif_gruplari:
+        sinif_gruplari[sinif].sort(key=lambda x: x['oncelik'])
     
     # Dengeli dağılım: Her sınıftan eşit sayıda al
     sonuc = []
@@ -627,22 +650,176 @@ def sonraki_kazanimlari_getir(curriculum_data, tur, limit):
     
     per_sinif = max(1, limit // sinif_sayisi)
     
-    # Önce her sınıftan eşit sayıda al
+    # Önce her sınıftan eşit sayıda al (öncelik sırasına göre)
     for sinif in sorted(sinif_gruplari.keys()):
         items = sinif_gruplari[sinif]
-        random.shuffle(items)  # Rastgele sıralama
         sonuc.extend(items[:per_sinif])
     
-    # Limit'e kadar doldur (kalan yerler için rastgele ekle)
+    # Limit'e kadar doldur
     if len(sonuc) < limit:
         tum_kalanlar = []
         for sinif, items in sinif_gruplari.items():
             tum_kalanlar.extend(items[per_sinif:])
-        random.shuffle(tum_kalanlar)
+        tum_kalanlar.sort(key=lambda x: x['oncelik'])
         sonuc.extend(tum_kalanlar[:limit - len(sonuc)])
     
     random.shuffle(sonuc)  # Final karıştırma
     return sonuc[:limit]
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# COT (CHAIN OF THOUGHT) ÇÖZÜM SİSTEMİ
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def cot_cozum_olustur(curriculum_row, params):
+    """Önce matematiksel çözümü oluştur, sonra soruyu bundan türet"""
+    try:
+        sinif = curriculum_row.get('grade_level', 8)
+        topic = curriculum_row.get('topic_name', '')
+        sub_topic = curriculum_row.get('sub_topic', '')
+        baglam = params.get('baglam', {})
+        
+        format_adi, format_bilgi = sinav_formati_belirle(sinif)
+        min_adim, max_adim = format_bilgi['adim_sayisi']
+        
+        isim = rastgele_isim_sec()
+        
+        prompt = f'''Sen bir matematik öğretmenisin. {sinif}. sınıf "{topic}" konusunda bir problem TASARLA ve ÇÖZ.
+
+## KONU
+• Ana Konu: {topic}
+• Alt Konu: {sub_topic if sub_topic else 'Genel'}
+• Sınıf: {sinif}. Sınıf
+
+## BAĞLAM
+{baglam.get('kategori_ad', 'Günlük Yaşam')} - {baglam.get('tema', 'genel').replace('_', ' ')}
+Açıklama: {baglam.get('aciklama', 'Günlük yaşam problemi')}
+
+## KARAKTER
+{isim} (Tek karakter kullan!)
+
+## GÖREV
+1. "{topic}" konusuyla DOĞRUDAN ilgili bir problem tasarla
+2. Küçük, hesaplanabilir sayılar kullan (1-100 arası)
+3. Adım adım çöz ({min_adim}-{max_adim} adım)
+4. Sonucu açıkça belirt
+
+## JSON FORMATI
+```json
+{{
+  "problem": "[40-80 kelime problem tanımı - {isim} karakteri ile]",
+  "verilen_degerler": {{"değişken1": değer1, "değişken2": değer2}},
+  "istenen": "Ne bulunacak?",
+  "cozum_adimlari": [
+    "Adım 1: [Açıklama] → [İşlem] = [Sonuç]",
+    "Adım 2: [Açıklama] → [İşlem] = [Sonuç]"
+  ],
+  "sonuc": [sayısal sonuç],
+  "sonuc_aciklama": "[Sonucun anlamı]"
+}}
+```
+
+⚠️ SADECE JSON döndür!'''
+
+        response = gemini_client.models.generate_content(
+            model='gemini-2.0-flash',
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                temperature=0.6,  # Daha düşük sıcaklık = daha tutarlı
+                max_output_tokens=1500,
+                response_mime_type="application/json"
+            )
+        )
+        
+        return json_temizle(response.text.strip())
+        
+    except Exception as e:
+        print(f"      ⚠️ CoT hatası: {str(e)[:40]}")
+        return None
+
+
+def cozumden_soru_olustur(cozum, curriculum_row, params):
+    """Hazır çözümden çoktan seçmeli soru oluştur"""
+    try:
+        sinif = curriculum_row.get('grade_level', 8)
+        topic = curriculum_row.get('topic_name', '')
+        
+        format_adi, format_bilgi = sinav_formati_belirle(sinif)
+        secenek_sayisi = format_bilgi['seceneksayisi']
+        
+        if secenek_sayisi == 4:
+            secenek_harfleri = "A, B, C, D"
+        else:
+            secenek_harfleri = "A, B, C, D, E"
+        
+        sonuc = cozum.get('sonuc', 0)
+        
+        prompt = f'''Aşağıdaki çözülmüş problemi {secenek_sayisi} seçenekli çoktan seçmeli soruya dönüştür.
+
+## HAZIR ÇÖZÜM
+**Problem:** {cozum.get('problem', '')}
+**Veriler:** {json.dumps(cozum.get('verilen_degerler', {}), ensure_ascii=False)}
+**İstenen:** {cozum.get('istenen', '')}
+**Çözüm:** {json.dumps(cozum.get('cozum_adimlari', []), ensure_ascii=False)}
+**Sonuç:** {sonuc}
+**Açıklama:** {cozum.get('sonuc_aciklama', '')}
+
+## GÖREV
+1. Problemi senaryo + soru olarak yeniden yaz
+2. Doğru cevap: {sonuc}
+3. Çeldiriciler: Yaygın hesaplama hatalarından türet
+4. MUTLAKA {secenek_sayisi} seçenek olsun ({secenek_harfleri})
+
+## JSON FORMATI
+```json
+{{
+  "senaryo": "[Problem metni]",
+  "soru_metni": "[Soru kökü - ne soruluyor?]",
+  "secenekler": {{
+    "A": "[değer]",
+    "B": "[değer]",
+    "C": "[değer]",
+    "D": "[değer]"{"," if secenek_sayisi == 5 else ""}
+    {"\"E\": \"[değer]\"" if secenek_sayisi == 5 else ""}
+  }},
+  "dogru_cevap": "[{secenek_harfleri}'den biri]",
+  "cozum_adimlari": {json.dumps(cozum.get('cozum_adimlari', []), ensure_ascii=False)},
+  "solution_detailed": "[Öğrenci dostu detaylı açıklama]",
+  "celdirici_aciklamalar": {{
+    "[Yanlış şık]": "[Neden yanlış]"
+  }}
+}}
+```
+
+⚠️ Doğru cevap MUTLAKA {sonuc} olmalı!
+⚠️ SADECE JSON döndür!'''
+
+        response = gemini_client.models.generate_content(
+            model='gemini-2.0-flash',
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                temperature=0.5,
+                max_output_tokens=2000,
+                response_mime_type="application/json"
+            )
+        )
+        
+        soru = json_temizle(response.text.strip())
+        
+        if soru:
+            # Meta bilgileri ekle
+            soru['sinif'] = sinif
+            soru['curriculum_id'] = curriculum_row.get('id')
+            soru['topic_name'] = topic
+            soru['sub_topic'] = curriculum_row.get('sub_topic', '')
+            soru['bloom_seviye'] = params.get('bloom_seviye', 'uygulama')
+            soru['baglam_kategori'] = params.get('baglam', {}).get('kategori', 'genel')
+        
+        return soru
+        
+    except Exception as e:
+        print(f"      ⚠️ Soru oluşturma hatası: {str(e)[:40]}")
+        return None
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # JSON TEMİZLEME
@@ -1122,28 +1299,35 @@ def question_bank_kaydet(soru, curriculum_row, dogrulama_puan=None):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def tek_soru_pipeline(curriculum_row, params):
-    """Tek bir soru üret, doğrula ve kaydet"""
+    """Tek bir soru üret (CoT yöntemiyle), doğrula ve kaydet"""
     for deneme in range(MAX_DENEME):
         try:
-            # 1. Soru üret
-            soru = tek_soru_uret_v3(curriculum_row, params)
+            # 1. CoT: Önce çözümü oluştur
+            cozum = cot_cozum_olustur(curriculum_row, params)
             
-            if not soru:
-                print(f"      ⚠️ Üretim başarısız (Deneme {deneme+1})")
+            if not cozum:
+                print(f"      ⚠️ CoT çözüm başarısız (Deneme {deneme+1})")
                 continue
             
-            # 2. Veri tamlığı kontrolü
+            # 2. Çözümden soru oluştur
+            soru = cozumden_soru_olustur(cozum, curriculum_row, params)
+            
+            if not soru:
+                print(f"      ⚠️ Soru oluşturma başarısız (Deneme {deneme+1})")
+                continue
+            
+            # 3. Veri tamlığı kontrolü
             tamlik_ok, tamlik_mesaj = senaryo_veri_tamligini_dogrula(soru)
             if not tamlik_ok:
                 print(f"      ⚠️ Veri eksik: {tamlik_mesaj} (Deneme {deneme+1})")
                 continue
             
-            # 3. Benzersizlik kontrolü
+            # 4. Benzersizlik kontrolü
             if not benzersiz_mi(soru):
                 print(f"      ⚠️ Tekrar soru (Deneme {deneme+1})")
                 continue
             
-            # 4. DeepSeek doğrulama
+            # 5. DeepSeek doğrulama
             dogrulama = deepseek_dogrula(soru)
             puan = dogrulama.get('puan', 0)
             
@@ -1154,7 +1338,7 @@ def tek_soru_pipeline(curriculum_row, params):
                         print(f"         - {sorun[:50]}")
                 continue
             
-            # 5. Kaydet
+            # 6. Kaydet
             soru_id = question_bank_kaydet(soru, curriculum_row, puan)
             
             if soru_id:
@@ -1190,32 +1374,26 @@ def toplu_uret():
         print("❌ Curriculum verisi bulunamadı!")
         return 0
     
-    # Mevcut turu hesapla
-    mevcut_tur = mevcut_turu_hesapla(curriculum_data)
-    
-    # Tur tamamlandı mı kontrol et
-    if tur_tamamlandi_mi(curriculum_data, mevcut_tur):
-        mevcut_tur += 1
-        print(f"🔄 Tur {mevcut_tur-1} tamamlandı! Yeni tur başlıyor: Tur {mevcut_tur}")
-    
-    # Dengeli dağılımla kazanımları al
-    islenecekler = sonraki_kazanimlari_getir(curriculum_data, mevcut_tur, MAX_ISLEM_PER_RUN)
+    # Eksik kazanımları al (tüm turlardan)
+    islenecekler = sonraki_kazanimlari_getir(curriculum_data, 0, MAX_ISLEM_PER_RUN)
     
     if not islenecekler:
-        print("✅ Tüm kazanımlar bu turda işlendi!")
-        mevcut_tur += 1
-        islenecekler = sonraki_kazanimlari_getir(curriculum_data, mevcut_tur, MAX_ISLEM_PER_RUN)
-        if not islenecekler:
-            print("⚠️ İşlenecek kazanım bulunamadı!")
-            return 0
+        print("✅ Tüm kazanımlarda yeterli soru var!")
+        print("   Yeni tur için soru sayısını artırabilirsiniz.")
+        return 0
     
     # Sınıf dağılımını göster
     sinif_dagilimi = defaultdict(int)
     for item in islenecekler:
         sinif_dagilimi[item['curriculum'].get('grade_level', 0)] += 1
     
+    # Mevcut tur bilgisi için istatistik
+    tur_dagilimi = defaultdict(int)
+    for item in islenecekler:
+        tur_dagilimi[item['tur']] += 1
+    
     print(f"\n{'='*70}")
-    print(f"🎯 BECERİ TEMELLİ SORU ÜRETİM V3 - TUR {mevcut_tur}")
+    print(f"🎯 BECERİ TEMELLİ SORU ÜRETİM V3")
     print(f"   Tarih: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     print(f"   Toplam Matematik Kazanımı: {len(curriculum_data)}")
     print(f"   Bu Çalışmada İşlenecek: {len(islenecekler)} kazanım")
@@ -1304,7 +1482,7 @@ def toplu_uret():
     ort_puan = toplam_puan / dogrulanan if dogrulanan > 0 else 0
     
     print(f"\n{'='*70}")
-    print(f"📊 SONUÇ RAPORU - TUR {mevcut_tur}")
+    print(f"📊 SONUÇ RAPORU")
     print(f"{'='*70}")
     print(f"   ✅ Toplam üretilen: {basarili} soru")
     print(f"   🔍 Doğrulanan: {dogrulanan}/{basarili}")
