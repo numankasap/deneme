@@ -124,9 +124,9 @@ class SupabaseManager:
             if not kazanim_ids:
                 return []
             
-            # kazanim_id'leri filtrele
+            # question_bank'teki sütun adları: content (soru metni), question_type, vb.
             response = self.client.table('question_bank').select(
-                'id, question_text, topic, topic_group, grade_level, difficulty, kazanim_id'
+                'id, content, topic, topic_group, grade_level, difficulty, kazanim_id'
             ).is_('image_url', 'null').in_('kazanim_id', kazanim_ids).limit(limit).execute()
             
             questions = response.data if response.data else []
@@ -583,7 +583,7 @@ class GeometryVisualBot:
     def _process_question(self, question: Dict):
         """Tek bir soruyu işle"""
         question_id = question.get('id')
-        question_text = question.get('question_text', '')
+        question_text = question.get('content', '')
         kazanim_id = question.get('kazanim_id')
         topic = question.get('topic', '')
         
