@@ -670,6 +670,71 @@ def sonraki_kazanimlari_getir(curriculum_data, tur, limit):
 # COT (CHAIN OF THOUGHT) ÇÖZÜM SİSTEMİ
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# Sınıf seviyesine göre zorluk parametreleri
+SINIF_ZORLUK_PARAMS = {
+    3: {'sayi_araligi': (1, 50), 'islem': 'toplama, çıkarma', 'kavram_derinligi': 'temel'},
+    4: {'sayi_araligi': (1, 100), 'islem': 'dört işlem', 'kavram_derinligi': 'temel'},
+    5: {'sayi_araligi': (1, 500), 'islem': 'kesir, ondalık başlangıç', 'kavram_derinligi': 'orta'},
+    6: {'sayi_araligi': (1, 1000), 'islem': 'oran, yüzde', 'kavram_derinligi': 'orta'},
+    7: {'sayi_araligi': (1, 2000), 'islem': 'cebir başlangıç, denklem', 'kavram_derinligi': 'orta-ileri'},
+    8: {'sayi_araligi': (1, 5000), 'islem': 'karekök, üslü, özdeşlik', 'kavram_derinligi': 'ileri'},
+    9: {'sayi_araligi': (1, 10000), 'islem': 'fonksiyon, denklem sistemleri', 'kavram_derinligi': 'ileri'},
+    10: {'sayi_araligi': (1, 50000), 'islem': 'polinom, ikinci derece', 'kavram_derinligi': 'ileri'},
+    11: {'sayi_araligi': (1, 100000), 'islem': 'logaritma, trigonometri', 'kavram_derinligi': 'çok ileri'},
+    12: {'sayi_araligi': (1, 500000), 'islem': 'türev, integral, limit', 'kavram_derinligi': 'uzman'}
+}
+
+# Konu bazlı örnek problem şablonları
+KONU_SABLONLARI = {
+    'karekök': '''Karekök probleminde:
+- Gerçek yaşamda alan/kenar hesabı yapılmalı
+- √a şeklinde ifadeler kullanılmalı
+- Kareköklü ifadeleri sadeleştirme içermeli''',
+    
+    'üslü': '''Üslü sayı probleminde:
+- Büyüme/küçülme oranları
+- Bilimsel gösterim
+- Üs kuralları (çarpma, bölme, üssün üssü)''',
+    
+    'kesir': '''Kesir probleminde:
+- Pay/payda işlemleri
+- Kesir karşılaştırma
+- Bileşik kesirler''',
+    
+    'denklem': '''Denklem probleminde:
+- Bilinmeyen bulma
+- Denklem kurma
+- Çok adımlı çözüm''',
+    
+    'geometri': '''Geometri probleminde:
+- Alan/çevre/hacim hesabı
+- Açı hesaplamaları
+- Benzerlik/eşlik uygulamaları''',
+    
+    'oran': '''Oran-orantı probleminde:
+- Doğru/ters orantı
+- Ölçek hesaplamaları
+- Karışım problemleri''',
+    
+    'olasılık': '''Olasılık probleminde:
+- Olası durumları sayma
+- Olasılık hesaplama
+- Bağımlı/bağımsız olaylar''',
+    
+    'istatistik': '''İstatistik probleminde:
+- Ortalama, medyan, mod
+- Veri yorumlama
+- Grafik okuma'''
+}
+
+def konu_sablonu_bul(topic_name):
+    """Konuya uygun şablon bul"""
+    topic_lower = topic_name.lower()
+    for anahtar, sablon in KONU_SABLONLARI.items():
+        if anahtar in topic_lower:
+            return sablon
+    return "Konuya özgü matematiksel kavramları kullan."
+
 def cot_cozum_olustur(curriculum_row, params):
     """Önce matematiksel çözümü oluştur, sonra soruyu bundan türet"""
     try:
@@ -677,55 +742,83 @@ def cot_cozum_olustur(curriculum_row, params):
         topic = curriculum_row.get('topic_name', '')
         sub_topic = curriculum_row.get('sub_topic', '')
         baglam = params.get('baglam', {})
+        bloom_seviye = params.get('bloom_seviye', 'uygulama')
         
         format_adi, format_bilgi = sinav_formati_belirle(sinif)
         min_adim, max_adim = format_bilgi['adim_sayisi']
+        min_kelime, max_kelime = format_bilgi['senaryo_uzunluk']
+        
+        # Sınıf seviyesi parametreleri
+        zorluk_params = SINIF_ZORLUK_PARAMS.get(sinif, SINIF_ZORLUK_PARAMS[8])
+        konu_rehberi = konu_sablonu_bul(topic)
         
         isim = rastgele_isim_sec()
         
-        prompt = f'''Sen bir matematik öğretmenisin. {sinif}. sınıf "{topic}" konusunda bir problem TASARLA ve ÇÖZ.
+        # Bloom seviyesine göre soru tipi
+        bloom_rehber = {
+            'hatırlama': 'Temel kavram hatırlatma, tanım sorusu',
+            'anlama': 'Kavramı farklı bağlamda yorumlama',
+            'uygulama': 'Formül/yöntem uygulama, hesaplama',
+            'analiz': 'Verileri analiz etme, ilişki kurma, karşılaştırma',
+            'değerlendirme': 'Sonuçları değerlendirme, karar verme, optimizasyon',
+            'yaratma': 'Yeni durum tasarlama, strateji geliştirme'
+        }
+        bloom_aciklama = bloom_rehber.get(bloom_seviye, bloom_rehber['uygulama'])
+        
+        prompt = f'''Sen {format_adi} sınavı için uzman bir matematik soru yazarısın.
 
-## KONU
+## 🎯 ZORUNLU KURALLAR
+1. Soru MUTLAKA "{topic}" konusunun MATEMATİKSEL kavramlarını kullanmalı
+2. Sınıf seviyesi: {sinif}. sınıf ({zorluk_params['kavram_derinligi']} düzey)
+3. Bloom seviyesi: {bloom_seviye.upper()} - {bloom_aciklama}
+4. Senaryo uzunluğu: {min_kelime}-{max_kelime} kelime
+5. Çözüm adımı: {min_adim}-{max_adim} adım
+
+## 📚 KONU BİLGİSİ
 • Ana Konu: {topic}
 • Alt Konu: {sub_topic if sub_topic else 'Genel'}
-• Sınıf: {sinif}. Sınıf
+• Kullanılacak işlemler: {zorluk_params['islem']}
 
-## BAĞLAM
+## 🧠 KONU REHBERİ
+{konu_rehberi}
+
+## 🌍 SENARYO BAĞLAMI
 {baglam.get('kategori_ad', 'Günlük Yaşam')} - {baglam.get('tema', 'genel').replace('_', ' ')}
 Açıklama: {baglam.get('aciklama', 'Günlük yaşam problemi')}
 
-## KARAKTER
-{isim} (Tek karakter kullan!)
+## ⚠️ KRİTİK UYARILAR
+- Soru SADECE "{topic}" ile ilgili olmalı, başka konu EKLEMEYİN
+- Sonuç tam sayı veya basit kesir olmalı
+- Gerçekçi veriler kullanın (fiyat, uzunluk, miktar vb.)
+- {sinif}. sınıf öğrencisinin anlayacağı dilde yazın
+- BECERİ TEMELLİ: Gerçek hayat problemi çözme becerisi ölçülmeli
 
-## GÖREV
-1. "{topic}" konusuyla DOĞRUDAN ilgili bir problem tasarla
-2. Küçük, hesaplanabilir sayılar kullan (1-100 arası)
-3. Adım adım çöz ({min_adim}-{max_adim} adım)
-4. Sonucu açıkça belirt
+## 👤 KARAKTER: {isim}
 
-## JSON FORMATI
+## 📝 JSON FORMATI
 ```json
 {{
-  "problem": "[40-80 kelime problem tanımı - {isim} karakteri ile]",
+  "problem": "[{min_kelime}-{max_kelime} kelime - {isim} karakteri ile gerçekçi senaryo]",
+  "konu_kavrami": "[Bu soruda hangi matematiksel kavram/formül kullanılıyor]",
   "verilen_degerler": {{"değişken1": değer1, "değişken2": değer2}},
-  "istenen": "Ne bulunacak?",
+  "istenen": "[Ne hesaplanacak - açık ve net]",
   "cozum_adimlari": [
-    "Adım 1: [Açıklama] → [İşlem] = [Sonuç]",
-    "Adım 2: [Açıklama] → [İşlem] = [Sonuç]"
+    "Adım 1: [Kavram açıklaması] → [İşlem] = [Ara sonuç]",
+    "Adım 2: [Kavram açıklaması] → [İşlem] = [Ara sonuç]"
   ],
-  "sonuc": [sayısal sonuç],
-  "sonuc_aciklama": "[Sonucun anlamı]"
+  "sonuc": [sayısal sonuç - tam sayı veya basit kesir],
+  "kullanilan_formul": "[Kullanılan matematiksel formül/kural]"
 }}
 ```
 
-⚠️ SADECE JSON döndür!'''
+SADECE JSON döndür, başka açıklama yazma!'''
 
         response = gemini_client.models.generate_content(
-            model='gemini-2.0-flash',
+            model='gemini-2.5-flash',
             contents=prompt,
             config=types.GenerateContentConfig(
-                temperature=0.6,  # Daha düşük sıcaklık = daha tutarlı
-                max_output_tokens=1500,
+                temperature=0.7,
+                max_output_tokens=2000,
                 response_mime_type="application/json"
             )
         )
@@ -742,9 +835,11 @@ def cozumden_soru_olustur(cozum, curriculum_row, params):
     try:
         sinif = curriculum_row.get('grade_level', 8)
         topic = curriculum_row.get('topic_name', '')
+        bloom_seviye = params.get('bloom_seviye', 'uygulama')
         
         format_adi, format_bilgi = sinav_formati_belirle(sinif)
         secenek_sayisi = format_bilgi['seceneksayisi']
+        min_kelime, max_kelime = format_bilgi['senaryo_uzunluk']
         
         if secenek_sayisi == 4:
             secenek_harfleri = "A, B, C, D"
@@ -752,6 +847,8 @@ def cozumden_soru_olustur(cozum, curriculum_row, params):
             secenek_harfleri = "A, B, C, D, E"
         
         sonuc = cozum.get('sonuc', 0)
+        kullanilan_formul = cozum.get('kullanilan_formul', '')
+        konu_kavrami = cozum.get('konu_kavrami', topic)
         
         # Seçenek şablonunu hazırla
         if secenek_sayisi == 5:
@@ -769,44 +866,52 @@ def cozumden_soru_olustur(cozum, curriculum_row, params):
         cozum_adimlari_str = json.dumps(cozum.get('cozum_adimlari', []), ensure_ascii=False)
         veriler_str = json.dumps(cozum.get('verilen_degerler', {}), ensure_ascii=False)
         
-        prompt = f'''Aşağıdaki çözülmüş problemi {secenek_sayisi} seçenekli çoktan seçmeli soruya dönüştür.
+        prompt = f'''Sen {format_adi} sınavı için uzman soru yazarısın. Çözülmüş problemi çoktan seçmeli soruya dönüştür.
 
 ## HAZIR ÇÖZÜM
 **Problem:** {cozum.get('problem', '')}
+**Konu Kavramı:** {konu_kavrami}
+**Kullanılan Formül:** {kullanilan_formul}
 **Veriler:** {veriler_str}
 **İstenen:** {cozum.get('istenen', '')}
-**Çözüm:** {cozum_adimlari_str}
-**Sonuç:** {sonuc}
-**Açıklama:** {cozum.get('sonuc_aciklama', '')}
+**Çözüm Adımları:** {cozum_adimlari_str}
+**DOĞRU SONUÇ:** {sonuc}
 
-## GÖREV
-1. Problemi senaryo + soru olarak yeniden yaz
-2. Doğru cevap: {sonuc}
-3. Çeldiriciler: Yaygın hesaplama hatalarından türet
-4. MUTLAKA {secenek_sayisi} seçenek olsun ({secenek_harfleri})
+## ZORUNLU KURALLAR
+1. Senaryo {min_kelime}-{max_kelime} kelime olmalı
+2. Soru "{topic}" konusunun matematiksel kavramını içermeli
+3. DOĞRU CEVAP MUTLAKA {sonuc} OLMALI
+4. Çeldiriciler mantıklı hesaplama hatalarından türetilmeli
+5. {secenek_sayisi} seçenek ({secenek_harfleri})
+
+## ÇELDİRİCİ OLUŞTURMA REHBERİ
+- Yaygın hesaplama hataları (işlem sırası, işaret hatası)
+- Yarım bırakılmış çözümler (ara sonuçlar)
+- Ters işlem sonuçları
+- Birim dönüşüm hataları
 
 ## JSON FORMATI
 ```json
 {{
-  "senaryo": "[Problem metni]",
-  "soru_metni": "[Soru kökü - ne soruluyor?]",
+  "senaryo": "[{min_kelime}-{max_kelime} kelime senaryo - problem hikayesi]",
+  "soru_metni": "[Soru kökü - ne soruluyor, açık ve net]",
   "secenekler": {{
     {secenek_sablonu}
   }},
-  "dogru_cevap": "[{secenek_harfleri} den biri]",
+  "dogru_cevap": "[{secenek_harfleri} den biri - {sonuc} değerini içeren şık]",
   "cozum_adimlari": {cozum_adimlari_str},
-  "solution_detailed": "[Öğrenci dostu detaylı açıklama]",
+  "solution_detailed": "[Öğrenci dostu detaylı çözüm açıklaması]",
   "celdirici_aciklamalar": {{
-    "[Yanlış şık]": "[Neden yanlış]"
+    "[Yanlış şık harfi]": "[Bu şıkkı seçen öğrenci hangi hatayı yapmış]"
   }}
 }}
 ```
 
-Doğru cevap MUTLAKA {sonuc} olmalı!
+DOĞRU CEVAP MUTLAKA {sonuc} OLMALI! Seçeneklerden biri tam olarak {sonuc} değerini içermeli.
 SADECE JSON döndür!'''
 
         response = gemini_client.models.generate_content(
-            model='gemini-2.0-flash',
+            model='gemini-2.5-flash',
             contents=prompt,
             config=types.GenerateContentConfig(
                 temperature=0.5,
@@ -1108,7 +1213,7 @@ def tek_soru_uret_v3(curriculum_row, params):
         prompt = soru_uretim_prompt_olustur(curriculum_row, params)
         
         response = gemini_client.models.generate_content(
-            model='gemini-2.0-flash',
+            model='gemini-2.5-flash',
             contents=prompt,
             config=types.GenerateContentConfig(
                 temperature=0.75,
@@ -1147,23 +1252,28 @@ Sen TYT/AYT/LGS sınavlarında soru kalitesi değerlendiren uzman bir psikometri
 ## DOĞRULAMA KRİTERLERİ
 
 ### 1. MATEMATİKSEL DOĞRULUK (25 puan)
-- Çözüm adımları doğru mu?
-- Hesaplamalar hatasız mı?
-- Cevap doğru mu?
+- Çözüm adımları matematiksel olarak doğru mu?
+- Her adımdaki hesaplamalar hatasız mı?
+- Final cevap doğru hesaplanmış mı?
+- Seçeneklerdeki doğru cevap, çözümdeki sonuçla aynı mı?
 
-### 2. MÜFREDAT UYUMU (25 puan)
-- Sınıf seviyesine uygun mu?
-- Üst sınıf kavramları kullanılmış mı?
-- Kazanıma uygun mu?
+### 2. KONU UYUMU (25 puan) - ÇOK ÖNEMLİ!
+- Soru belirtilen KONU ile DOĞRUDAN ilgili mi?
+- Konunun MATEMATİKSEL KAVRAMLARI kullanılmış mı?
+- Sadece basit aritmetik değil, konuya özgü işlemler var mı?
+- ÖRNEK: "Karekök" konusu için √ işlemi kullanılmalı, sadece bölme değil!
+- ÖRNEK: "Üçgen" konusu için alan/çevre/açı hesabı olmalı!
 
-### 3. SENARYO KALİTESİ (25 puan)
-- Günlük yaşam bağlamı var mı?
-- Veriler tam mı?
-- Gerçekçi mi?
+### 3. BECERİ TEMELLİ SENARYO (25 puan)
+- Gerçek yaşam problemi mi?
+- Veriler yeterli ve tutarlı mı?
+- Senaryo sınıf seviyesine uygun mu?
+- Problem çözme becerisi ölçülüyor mu?
 
-### 4. BLOOM UYUMU (25 puan)
-- Belirtilen Bloom seviyesine uygun mu?
-- Soru kökü uygun eylem içeriyor mu?
+### 4. SINIF SEVİYESİ UYUMU (25 puan)
+- Zorluk {sinif}. sınıf seviyesinde mi?
+- Üst sınıf kavramları kullanılmamış mı?
+- Senaryo ve dil yaşa uygun mu?
 
 ## ÇIKTI FORMATI
 
@@ -1173,19 +1283,20 @@ Sen TYT/AYT/LGS sınavlarında soru kalitesi değerlendiren uzman bir psikometri
   "puan": 0-100,
   "detay_puanlar": {
     "matematiksel_dogruluk": 0-25,
-    "mufredat_uyumu": 0-25,
-    "senaryo_kalitesi": 0-25,
-    "bloom_uyumu": 0-25
+    "konu_uyumu": 0-25,
+    "beceri_temelli": 0-25,
+    "sinif_seviyesi": 0-25
   },
   "sorunlar": ["Sorun 1", "Sorun 2"],
   "aciklama": "Kısa değerlendirme"
 }
 ```
 
-GEÇERSİZ eğer:
-- Matematiksel hata varsa
-- Müfredat dışı kavram varsa
-- Toplam puan 65'in altındaysa
+## REDDETME SEBEPLERİ (gecerli: false)
+- Matematiksel hesaplama hatası varsa
+- Konu ile soru arasında DOĞRUDAN bağlantı yoksa
+- Konunun kavramları kullanılmamışsa (örn: Karekök konusunda √ yok)
+- Toplam puan 55'in altındaysa
 
 SADECE JSON döndür.
 """
@@ -1196,11 +1307,29 @@ def deepseek_dogrula(soru):
         return {'gecerli': True, 'puan': 75, 'aciklama': 'DeepSeek devre dışı'}
     
     try:
+        # Konu bilgisini ekle
+        topic_name = soru.get('topic_name', 'Belirtilmemiş')
+        sinif = soru.get('sinif', 8)
+        
+        degerlendirme_metni = f'''## DEĞERLENDİRİLECEK SORU
+
+**Belirtilen Konu:** {topic_name}
+**Sınıf Seviyesi:** {sinif}. sınıf
+
+**Soru İçeriği:**
+{json.dumps(soru, ensure_ascii=False, indent=2)}
+
+## KONTROL EDİLECEKLER
+1. Soru gerçekten "{topic_name}" konusuyla mı ilgili?
+2. Konunun matematiksel kavramları (formül, işlem) kullanılmış mı?
+3. {sinif}. sınıf seviyesine uygun mu?
+4. Çözüm matematiksel olarak doğru mu?'''
+        
         response = deepseek.chat.completions.create(
             model='deepseek-chat',
             messages=[
-                {'role': 'system', 'content': DEEPSEEK_DOGRULAMA_PROMPT},
-                {'role': 'user', 'content': f'Bu soruyu değerlendir:\n\n{json.dumps(soru, ensure_ascii=False, indent=2)}'}
+                {'role': 'system', 'content': DEEPSEEK_DOGRULAMA_PROMPT.replace('{sinif}', str(sinif))},
+                {'role': 'user', 'content': degerlendirme_metni}
             ],
             max_tokens=1000,
             timeout=API_TIMEOUT
@@ -1526,7 +1655,7 @@ def main():
     print("🔍 Gemini API test ediliyor...")
     try:
         test_response = gemini_client.models.generate_content(
-            model='gemini-2.0-flash',
+            model='gemini-2.5-flash',
             contents='2+2=?'
         )
         print(f"✅ Gemini çalışıyor: {test_response.text.strip()}")
