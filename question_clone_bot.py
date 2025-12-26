@@ -1176,7 +1176,7 @@ METİN YAZMA, SADECE ŞEKİL ÇİZ!"""
     
     def generate_from_reference_with_feedback(self, original_image_bytes: bytes, new_question_text: str, 
                                                visual_data: Dict, previous_problems: list = None) -> Optional[bytes]:
-        """Orijinal görseli referans alarak görsel üret - ÖNCEKİ HATALARI DİKKATE AL"""
+        """Orijinal görseli referans alarak görsel üret - SORU METNİNDEKİ DEĞERLERİ KULLAN"""
         try:
             self._rate_limit()
             
@@ -1188,6 +1188,25 @@ METİN YAZMA, SADECE ŞEKİL ÇİZ!"""
                 'labels': visual_data.get('labels', []),
                 'values': visual_data.get('values', []),
             }
+            
+            # Soru metninden sayısal değerleri çıkar
+            import re
+            numbers_in_question = re.findall(r'\d+', new_question_text)
+            angles_in_question = re.findall(r'(\d+)\s*derece', new_question_text)
+            
+            values_section = ""
+            if angles_in_question or numbers_in_question:
+                values_section = f"""
+════════════════════════════════════════════════════════════════
+📊 SORU METNİNDEKİ DEĞERLER - BUNLARI KULLAN!
+════════════════════════════════════════════════════════════════
+Soru metninde geçen sayılar: {', '.join(numbers_in_question[:5])}
+Soru metninde geçen açılar: {', '.join([a + '°' for a in angles_in_question])}
+
+⚠️ ÖNEMLİ: Görseldeki değerler SORU METNİYLE UYUMLU olmalı!
+Örnek: Soru "65 derece" diyorsa, görselde de "65°" yazmalı, "70°" DEĞİL!
+════════════════════════════════════════════════════════════════
+"""
             
             # Feedback bölümü
             feedback_section = ""
@@ -1203,6 +1222,7 @@ Bu hataları TEKRARLAMA! Sadece basit, temiz bir görsel çiz.
 """
             
             prompt_text = f"""Referans görseldeki ŞEKLİN BASİT BİR VERSİYONUNU çiz.
+{values_section}
 {feedback_section}
 🎯 GÖREV: Sadece geometrik şekil ve TÜRKÇE kısa etiketler içeren TEMİZ bir görsel üret.
 
@@ -1217,22 +1237,21 @@ Bu hataları TEKRARLAMA! Sadece basit, temiz bir görsel çiz.
 ❌ Tablo veya liste YAZMA
 ❌ "LABEL", "VALUES", "MENÜ" gibi başlıklar YAZMA
 ❌ İNGİLİZCE KELİME YAZMA! (Volleyball, Tennis, Basketball YASAK!)
+❌ Orijinal görseldeki değerleri DEĞİŞTİRMEDEN kopyalama!
 ════════════════════════════════════════════════════════════════
 
 ✅ SADECE BUNLAR OLMALI:
 - Geometrik şekil (kare, dikdörtgen, üçgen, daire, vb.)
 - TEK HARFLİ etiketler: a, b, x, y, P, Q, R
 - KISA TÜRKÇE ölçü etiketleri: "5 cm", "a metre", "x²", "120 TL", "500 g"
+- SORU METNİNDEKİ DEĞERLER (orijinal görseldekiler DEĞİL!)
 - Boyut okları
-- Nesne isimleri TÜRKÇE olmalı (Voleybol, Tenis, Basketbol DEĞİL sadece şekil!)
 
-⚠️ MATEMATİKSEL TUTARLILIK:
-- Eğer x büyük boyutu gösteriyorsa, x küçük boyutu GÖSTEREMİZ!
-- Farklı boyutlar için FARKLI değişkenler kullan (a, b, x, y, m, n)
+⚠️ KRİTİK: Görseldeki sayısal değerler SORU METNİYLE AYNI olmalı!
 
 ŞEKİL BİLGİSİ: {json.dumps(shape_info, ensure_ascii=False)}
 
-BASİT, TEMİZ, TÜRKÇE, MATEMATİKSEL DOĞRU!"""
+BASİT, TEMİZ, TÜRKÇE, SORU METNİYLE UYUMLU!"""
 
             logger.info(f"🎨 Referans + Feedback ile görsel üretiliyor...")
             if previous_problems:
@@ -1342,6 +1361,7 @@ JSON formatında döndür:
     "has_math_error": false,
     "is_clean": true,
     "detected_labels": ["a", "b", "x metre", "120 TL"],
+    "detected_numbers": ["65", "70", "120"],
     "detected_problems": [],
     "overall_quality": 9,
     "recommendation": "KABUL"
@@ -1425,15 +1445,33 @@ SADECE JSON döndür!"""
                 problems.append("siklar")
                 logger.warning("🚨 Görselde A), B), C), D) şıkları tespit edildi")
             
-            # İngilizce kontrolü - YENİ!
+            # İngilizce kontrolü
             if validation.get('has_english', False):
                 problems.append("ingilizce_etiket")
                 logger.warning("🚨 Görselde İngilizce kelimeler tespit edildi")
             
-            # Matematiksel hata kontrolü - YENİ!
+            # Matematiksel hata kontrolü
             if validation.get('has_math_error', False):
                 problems.append("matematik_hatasi")
                 logger.warning("🚨 Görselde matematiksel tutarsızlık tespit edildi")
+            
+            # Soru-Görsel Değer Uyumu Kontrolü
+            import re
+            question_numbers = set(re.findall(r'\d+', question_text))
+            detected_numbers = set(validation.get('detected_numbers', []))
+            
+            # Görseldeki sayılar soru metninde var mı kontrol et
+            if detected_numbers and question_numbers:
+                # Açı değerleri için özel kontrol
+                question_angles = set(re.findall(r'(\d+)\s*derece', question_text))
+                if question_angles:
+                    # Görseldeki açılar soru metnindeki açılarla uyuşuyor mu?
+                    for detected_num in detected_numbers:
+                        if detected_num not in question_numbers and detected_num not in ['0', '90', '180', '360']:
+                            # x, y gibi değişkenler hariç, sayısal değerler uyuşmalı
+                            if detected_num.isdigit() and int(detected_num) > 0:
+                                problems.append(f"deger_uyumsuzlugu_{detected_num}")
+                                logger.warning(f"⚠️ Görseldeki '{detected_num}' değeri soru metninde yok!")
             
             # Overall score hesapla
             overall = validation.get('overall_quality', 5)
@@ -1443,10 +1481,16 @@ SADECE JSON döndür!"""
                 overall = min(overall, 3)
             
             if 'ingilizce_etiket' in problems:
-                overall = min(overall, 5)  # İngilizce ciddi ama affedilebilir
+                overall = min(overall, 5)
             
             if 'matematik_hatasi' in problems:
-                overall = min(overall, 4)  # Matematik hatası ciddi
+                overall = min(overall, 4)
+            
+            # Değer uyumsuzluğu varsa uyar (ama tamamen reddetme)
+            value_mismatches = [p for p in problems if p.startswith('deger_uyumsuzlugu')]
+            if value_mismatches:
+                overall = min(overall, 6)  # Uyumsuzluk var ama kabul edilebilir
+                logger.warning(f"⚠️ Soru-görsel değer uyumsuzluğu: {value_mismatches}")
             
             # is_clean kontrolü
             if not validation.get('is_clean', True):
