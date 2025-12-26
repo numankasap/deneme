@@ -1,0 +1,15 @@
+# Geometry Visual Bot v2.0 - Requirements
+# ========================================
+
+# Supabase Python Client
+supabase>=2.0.0
+
+# Google Generative AI (Gemini)
+google-genai>=0.5.0
+
+# Alternatif: Eski google-generativeai paketi kullanılıyorsa
+# google-generativeai>=0.8.0
+
+# Standart kütüphaneler (Python 3.9+ ile gelir):
+# - os, json, time, base64, logging, re, datetime
+# - typing, urllib
