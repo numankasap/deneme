@@ -49,7 +49,7 @@ class Config:
     
     # Model ayarları
     GEMINI_TEXT = "gemini-2.5-flash"
-    GEMINI_IMAGE = "gemini-2.5-flash-image"
+    GEMINI_IMAGE = "gemini-3-pro-image-preview"
     GEMINI_VISION = "gemini-2.5-flash"
     
     # Bot ayarları
@@ -170,8 +170,7 @@ class SupabaseManager:
         """Sorunun görsel URL'sini güncelle"""
         try:
             self.client.table('question_bank').update({
-                'image_url': image_url,
-                'updated_at': datetime.now().isoformat()
+                'image_url': image_url
             }).eq('id', question_id).execute()
             
             return True
