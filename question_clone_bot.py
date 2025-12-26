@@ -1174,6 +1174,96 @@ METİN YAZMA, SADECE ŞEKİL ÇİZ!"""
             logger.error(traceback.format_exc())
             return None
     
+    def generate_from_reference_with_feedback(self, original_image_bytes: bytes, new_question_text: str, 
+                                               visual_data: Dict, previous_problems: list = None) -> Optional[bytes]:
+        """Orijinal görseli referans alarak görsel üret - ÖNCEKİ HATALARI DİKKATE AL"""
+        try:
+            self._rate_limit()
+            
+            original_b64 = base64.b64encode(original_image_bytes).decode('utf-8')
+            
+            shape_info = {
+                'type': visual_data.get('type', ''),
+                'variables': visual_data.get('variables', []),
+                'labels': visual_data.get('labels', []),
+                'values': visual_data.get('values', []),
+            }
+            
+            # Feedback bölümü
+            feedback_section = ""
+            if previous_problems:
+                feedback_section = f"""
+════════════════════════════════════════════════════════════════
+⚠️ ÖNCEKİ DENEMELERDE YAPILAN HATALAR - BUNLARI YAPMA!
+════════════════════════════════════════════════════════════════
+{chr(10).join(['❌ ' + str(p) for p in previous_problems])}
+
+Bu hataları TEKRARLAMA! Sadece basit, temiz bir görsel çiz.
+════════════════════════════════════════════════════════════════
+"""
+            
+            prompt_text = f"""Referans görseldeki ŞEKLİN BASİT BİR VERSİYONUNU çiz.
+{feedback_section}
+🎯 GÖREV: Sadece geometrik şekil ve kısa etiketler içeren TEMİZ bir görsel üret.
+
+════════════════════════════════════════════════════════════════
+🚫 YASAKLAR (BİRİ BİLE VARSA BAŞARISIZ!)
+════════════════════════════════════════════════════════════════
+❌ Türkçe cümle YAZMA (5+ kelime)
+❌ Soru metni YAZMA
+❌ "Buna göre...", "...kaçtır?" YAZMA
+❌ A), B), C), D) şıkları YAZMA
+❌ Formül çözümü YAZMA (x + y = ?, a = b gibi)
+❌ Tablo veya liste YAZMA
+❌ "LABEL", "VALUES", "MENÜ" gibi başlıklar YAZMA
+════════════════════════════════════════════════════════════════
+
+✅ SADECE BUNLAR OLMALI:
+- Geometrik şekil (kare, dikdörtgen, üçgen, daire, vb.)
+- TEK HARFLİ etiketler: a, b, x, y, P, Q, R
+- KISA ölçü etiketleri: "5 cm", "a metre", "x²"
+- Boyut okları
+
+ŞEKİL BİLGİSİ: {json.dumps(shape_info, ensure_ascii=False)}
+
+BASİT, TEMİZ, SADECE ŞEKİL!"""
+
+            logger.info(f"🎨 Referans + Feedback ile görsel üretiliyor...")
+            if previous_problems:
+                logger.info(f"   Kaçınılacak hatalar: {previous_problems}")
+            
+            if NEW_GENAI:
+                response = self.client.models.generate_content(
+                    model=Config.GEMINI_IMAGE,
+                    contents=[
+                        {
+                            "role": "user",
+                            "parts": [
+                                {
+                                    "inline_data": {
+                                        "mime_type": "image/png",
+                                        "data": original_b64
+                                    }
+                                },
+                                {
+                                    "text": prompt_text
+                                }
+                            ]
+                        }
+                    ],
+                    config={
+                        "response_modalities": ["IMAGE", "TEXT"],
+                    }
+                )
+                
+                return self._extract_image_from_response(response)
+            else:
+                return None
+                
+        except Exception as e:
+            logger.error(f"Feedback ile görsel üretim hatası: {e}")
+            return None
+    
     def _extract_image_from_response(self, response) -> Optional[bytes]:
         """Response'dan görsel çıkar"""
         try:
@@ -1200,76 +1290,66 @@ METİN YAZMA, SADECE ŞEKİL ÇİZ!"""
 class QualityValidator:
     """Gemini ile görsel kalite kontrolü"""
     
-    VALIDATION_PROMPT = """Bu matematik sorusu için üretilen görseli SIKI bir şekilde değerlendir.
+    VALIDATION_PROMPT = """Bu matematik sorusu görseli için kalite kontrolü yap.
 
 ════════════════════════════════════════════════════════════════
-🚨 OTOMATİK RED SEBEPLERİ - BİRİ BİLE VARSA REDDET!
+✅ KABUL EDİLEN İÇERİKLER (bunlar SORUN DEĞİL!)
 ════════════════════════════════════════════════════════════════
 
-Aşağıdakilerden HERHANGİ BİRİ varsa has_disqualifying_content = TRUE yap:
+Aşağıdakiler matematiksel görselde OLMALI ve sorun teşkil ETMEZ:
+- Tek harfli değişkenler: a, b, c, x, y, z, P, Q, R, m, n
+- Üslü ifadeler: x², a², b², x³ (bunlar ETİKET, formül değil!)
+- Kısa matematiksel etiketler: "a metre", "x cm", "P kg", "y TL"
+- Geometrik şekiller üzerindeki ölçüler: 5 cm, 10 m, 45°
+- Alan/boyut etiketleri: a×b, 2x, 3y
+- Şekil isimleri: üçgen, kare, A noktası, B köşesi
 
-1. SORU METNİ / CÜMLELER:
-   ❌ Türkçe cümleler (5+ kelime)
-   ❌ "Buna göre...", "...kaçtır?", "...nedir?" gibi soru kalıpları
-   ❌ Madde işaretleri (•, -, *) ile listeler
+════════════════════════════════════════════════════════════════
+❌ REDDEDİLECEK İÇERİKLER (bunlar YASAK!)
+════════════════════════════════════════════════════════════════
 
-2. FORMÜLLER VE DENKLEMLER:
-   ❌ "x/y = ?", "a + b = ?", "... = ?" gibi denklemler
-   ❌ Çözüm adımları
-   ❌ Matematiksel işlem açıklamaları
-
-3. ŞIKLAR:
-   ❌ A), B), C), D) şıkları
+1. SORU CÜMLELERİ (5+ kelimelik Türkçe cümleler):
+   ❌ "Buna göre aşağıdakilerden hangisi..."
+   ❌ "...ifadesinin değeri kaçtır?"
+   ❌ "Aşağıdaki şekilde görülen..."
+   
+2. ÇOKTAN SEÇMELİ ŞIKLAR:
+   ❌ "A) 15", "B) 20", "C) 25", "D) 30"
    ❌ Seçenek listesi
-   ❌ Cevap seçenekleri
-
-4. TABLOLAR VE LİSTELER:
-   ❌ Fiyat tabloları (X: 50, Y: 75 gibi)
-   ❌ Menü listeleri
-   ❌ "VALUES", "LABEL" gibi başlıklar
-
-5. KARISIK İÇERİK:
-   ❌ Birden fazla alakasız öğe bir arada
-   ❌ Karmaşık infografikler
-   ❌ Çok fazla metin
-
-════════════════════════════════════════════════════════════════
-✅ KABUL EDİLEBİLİR İÇERİK (SADECE BUNLAR!)
-════════════════════════════════════════════════════════════════
-
-- Geometrik şekiller (üçgen, kare, daire, vb.)
-- Basit nesneler (kavanoz, kiriş, kutu - etiketli)
-- Grafikler (pasta, sütun, çizgi)
-- KISA etiketler: P, Q, R, x, y, "P metre", "x TL", "y gram"
-- Boyut okları
-- Maksimum 2-3 kelimelik etiketler
+   
+3. ÇÖZÜM ADIMLARI:
+   ❌ "x + y = 15" gibi denklem çözümleri
+   ❌ "Çözüm:", "Cevap:" yazıları
+   
+4. MENÜ/TABLO BAŞLIKLARI:
+   ❌ "LABEL", "VALUES", "MENÜ"
+   ❌ Fiyat listeleri
 
 ════════════════════════════════════════════════════════════════
 
-PUANLAMA:
-- no_question_text: Soru metni/cümle yoksa 10, varsa 0
-- no_formulas: Formül/denklem yoksa 10, varsa 0
-- no_options: Şık yoksa 10, varsa 0
-- simplicity: Basit ve temiz görsel 10, karmaşık 0
-- relevance: Alakalı matematiksel içerik 10, alakasız 0
+KONTROL SORULARI:
+1. Görselde 5+ kelimelik Türkçe cümle var mı? (has_sentences)
+2. Görselde A), B), C), D) şıkları var mı? (has_options)
+3. Görselde denklem çözümü var mı? (has_solution_steps)
+4. Görsel temiz ve basit mi? (is_clean)
 
 JSON formatında döndür:
 {{
-    "scores": {{
-        "no_question_text": 0,
-        "no_formulas": 0,
-        "no_options": 0,
-        "simplicity": 0,
-        "relevance": 0
-    }},
-    "overall_score": 0,
-    "has_disqualifying_content": true,
-    "disqualifying_reasons": ["formül var", "şıklar var", "tablo var"],
-    "detected_text": ["LABEL", "VALUES", "MENÜ", "x/y = ?", "A)", "B)"],
-    "issues": ["Görselde formüller ve şıklar mevcut"]
+    "has_sentences": false,
+    "has_options": false,  
+    "has_solution_steps": false,
+    "is_clean": true,
+    "detected_problems": [],
+    "detected_labels": ["a", "b", "x²", "P metre"],
+    "overall_quality": 9,
+    "recommendation": "KABUL"
 }}
 
-🚨 has_disqualifying_content = TRUE ise overall_score = 0 olmalı!
+ÖNEMLİ KURALLAR:
+- "x²", "a²", "b²" gibi üslü ifadeler ETİKETTİR, formül DEĞİL → KABUL
+- "P", "Q", "R" tek harfler ETİKETTİR, şık DEĞİL → KABUL
+- "A)", "B)", "C)", "D)" ise ŞIKTIR → RED
+- 5+ kelimelik cümle varsa → RED
 
 SADECE JSON döndür!"""
 
@@ -1283,12 +1363,11 @@ SADECE JSON döndür!"""
     
     def validate_image(self, image_bytes: bytes, question_text: str, 
                        expected_content: str, original_description: str) -> Dict:
-        """Üretilen görseli Gemini ile değerlendir - SORU METNİ KONTROLÜ ÖNCELİKLİ"""
+        """Üretilen görseli Gemini ile değerlendir"""
         try:
             # Base64 encode
             image_b64 = base64.b64encode(image_bytes).decode('utf-8')
             
-            # Prompt'a parametre geçmiyoruz artık
             prompt = self.VALIDATION_PROMPT
             
             if NEW_GENAI:
@@ -1330,70 +1409,65 @@ SADECE JSON döndür!"""
             
             validation = json.loads(content)
             
-            # Overall score hesapla (yoksa)
-            if 'overall_score' not in validation:
-                scores = validation.get('scores', {})
-                if scores:
-                    validation['overall_score'] = sum(scores.values()) / len(scores)
-                else:
-                    validation['overall_score'] = 5
+            # Yeni format kontrolü
+            problems = []
             
-            overall = validation.get('overall_score', 0)
+            # Cümle kontrolü
+            if validation.get('has_sentences', False):
+                problems.append("soru_cumlesi")
+                logger.warning("🚨 Görselde soru cümlesi tespit edildi")
             
-            # 🚨 DİSKALİFİYE EDİCİ İÇERİK VARSA OTOMATİK 0 PUAN!
-            if validation.get('has_disqualifying_content', False):
-                reasons = validation.get('disqualifying_reasons', [])
-                detected = validation.get('detected_text', [])
-                logger.warning(f"🚨 DİSKALİFİYE: {', '.join(reasons[:3])}")
-                if detected:
-                    logger.warning(f"   Tespit edilen: {detected[:5]}")
-                overall = 0
-                validation['overall_score'] = 0
-                if 'issues' not in validation:
-                    validation['issues'] = []
-                validation['issues'] = reasons + validation['issues']
+            # Şık kontrolü  
+            if validation.get('has_options', False):
+                problems.append("siklar")
+                logger.warning("🚨 Görselde A), B), C), D) şıkları tespit edildi")
             
-            # Eski kontroller (geriye uyumluluk)
-            if validation.get('has_question_text', False):
-                detected = validation.get('detected_text', [])
-                logger.warning(f"🚨 Görselde soru metni tespit edildi: {detected[:2]}")
-                overall = min(overall, 2)
-                validation['overall_score'] = overall
+            # Çözüm adımları kontrolü
+            if validation.get('has_solution_steps', False):
+                problems.append("cozum_adimlari")
+                logger.warning("🚨 Görselde çözüm adımları tespit edildi")
             
-            # Skorlar çok düşükse
-            scores = validation.get('scores', {})
-            if scores.get('no_question_text', 10) < 5:
-                overall = min(overall, 2)
-            if scores.get('no_formulas', 10) < 5:
-                overall = min(overall, 2)
-            if scores.get('no_options', 10) < 5:
-                overall = min(overall, 2)
-            if scores.get('simplicity', 10) < 5:
+            # Overall score hesapla
+            overall = validation.get('overall_quality', 5)
+            
+            # Problem varsa skoru düşür
+            if problems:
                 overall = min(overall, 3)
+                validation['detected_problems'] = problems
+            
+            # is_clean kontrolü
+            if not validation.get('is_clean', True):
+                overall = min(overall, 5)
             
             validation['overall_score'] = overall
             validation['pass'] = overall >= Config.QUALITY_THRESHOLD
+            validation['problems'] = problems
             
-            logger.info(f"📊 Kalite puanı: {overall:.1f}/10 - {'✅ KABUL' if validation['pass'] else '❌ RED'}")
+            # Log
+            recommendation = validation.get('recommendation', 'BELİRSİZ')
+            labels = validation.get('detected_labels', [])
             
-            if not validation['pass']:
-                issues = validation.get('issues', [])
-                if issues:
-                    logger.info(f"   Sorunlar: {', '.join(str(i) for i in issues[:3])}")
-                detected = validation.get('detected_text', [])
-                if detected:
-                    logger.info(f"   Tespit edilen: {detected[:5]}")
+            if validation['pass']:
+                logger.info(f"📊 Kalite puanı: {overall}/10 - ✅ KABUL")
+                if labels:
+                    logger.info(f"   Etiketler: {', '.join(labels[:5])}")
+            else:
+                logger.info(f"📊 Kalite puanı: {overall}/10 - ❌ RED")
+                if problems:
+                    logger.info(f"   Sorunlar: {', '.join(problems)}")
+                detected_probs = validation.get('detected_problems', [])
+                if detected_probs:
+                    logger.info(f"   Detay: {detected_probs}")
             
             return validation
             
         except Exception as e:
             logger.error(f"Kalite değerlendirme hatası: {e}")
-            # Hata durumunda RED (güvenli taraf)
             return {
-                "overall_score": 4, 
+                "overall_score": 5, 
                 "pass": False, 
-                "issues": [f"Değerlendirme hatası: {str(e)}"],
-                "error": True
+                "problems": ["degerlendirme_hatasi"],
+                "error": str(e)
             }
 
 
@@ -1588,22 +1662,24 @@ class QuestionCloneBot:
     def _generate_image_with_quality_check(self, original_image_bytes: bytes, question_text: str,
                                            visual_data: Dict, visual_style: Dict, 
                                            original_analysis: Dict, template_id: str) -> Optional[bytes]:
-        """Kalite kontrolü ile görsel üret - başarısız olursa yeniden dene"""
+        """Kalite kontrolü ile görsel üret - FEEDBACK SİSTEMİ ile"""
         
         expected_content = json.dumps(visual_data, ensure_ascii=False)[:500]
         original_description = json.dumps(original_analysis, ensure_ascii=False)[:300]
         
         best_image = None
         best_score = 0
+        previous_problems = []  # Önceki denemelerdeki sorunları biriktir
         
         for attempt in range(Config.MAX_RETRY_ATTEMPTS):
             logger.info(f"[{template_id}] 🎨 Görsel üretimi deneme {attempt + 1}/{Config.MAX_RETRY_ATTEMPTS}")
             
-            # 1. Görsel üret - önce referans bazlı
-            image_bytes_new = self.image_gen.generate_from_reference(
+            # 1. Görsel üret - FEEDBACK ile
+            image_bytes_new = self.image_gen.generate_from_reference_with_feedback(
                 original_image_bytes=original_image_bytes,
                 new_question_text=question_text,
-                visual_data=visual_data
+                visual_data=visual_data,
+                previous_problems=previous_problems  # Önceki sorunları gönder
             )
             
             # Referans bazlı başarısız olursa normal üret
@@ -1616,7 +1692,7 @@ class QuestionCloneBot:
                 self.stats['quality_retries'] += 1
                 continue
             
-            # 2. Kalite kontrolü (Gemini ile)
+            # 2. Kalite kontrolü
             logger.info(f"[{template_id}] 📊 Kalite kontrolü yapılıyor...")
             
             validation = self.quality_validator.validate_image(
@@ -1635,26 +1711,34 @@ class QuestionCloneBot:
             
             # 3. Sonucu değerlendir
             if validation.get('pass', False):
-                logger.info(f"[{template_id}] ✅ Görsel KABUL EDİLDİ (Puan: {score:.1f}/10)")
+                logger.info(f"[{template_id}] ✅ Görsel KABUL EDİLDİ (Puan: {score}/10)")
                 return image_bytes_new
             else:
                 self.stats['images_rejected'] += 1
-                issues = validation.get('issues', [])
-                logger.warning(f"[{template_id}] ❌ Görsel REDDEDİLDİ (Puan: {score:.1f}/10)")
-                if issues:
-                    logger.warning(f"[{template_id}]    Sorunlar: {', '.join(issues[:2])}")
+                
+                # Sorunları topla - bir sonraki deneme için FEEDBACK
+                problems = validation.get('problems', [])
+                detected = validation.get('detected_problems', [])
+                
+                # Önceki sorunlara ekle
+                for p in problems + detected:
+                    if p not in previous_problems:
+                        previous_problems.append(p)
+                
+                logger.warning(f"[{template_id}] ❌ Görsel REDDEDİLDİ (Puan: {score}/10)")
+                if problems:
+                    logger.warning(f"[{template_id}]    Sorunlar: {', '.join(str(p) for p in problems[:3])}")
                 
                 # Son deneme değilse bekle ve tekrar dene
                 if attempt < Config.MAX_RETRY_ATTEMPTS - 1:
                     self.stats['quality_retries'] += 1
-                    logger.info(f"[{template_id}] ⏳ 3s bekleyip yeniden denenecek...")
+                    logger.info(f"[{template_id}] 🔄 Feedback ile yeniden denenecek: {previous_problems}")
                     time.sleep(3)
         
         # Tüm denemeler başarısız
         if best_image and best_score >= 5:
-            # En iyi skoru 5 ve üzeriyse kullan (ama uyarı ver)
             logger.warning(f"[{template_id}] ⚠️ Kalite eşiği ({Config.QUALITY_THRESHOLD}) aşılamadı")
-            logger.warning(f"[{template_id}] En iyi skor ({best_score:.1f}/10) ile devam ediliyor")
+            logger.warning(f"[{template_id}] En iyi skor ({best_score}/10) ile devam ediliyor")
             return best_image
         else:
             logger.error(f"[{template_id}] ❌ Tüm denemeler başarısız - görsel atlanıyor")
