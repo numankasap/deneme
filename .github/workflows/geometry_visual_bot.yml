@@ -24,11 +24,6 @@ on:
   schedule:
     - cron: '0 3 * * *'
 
-env:
-  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-  SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-  GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-
 jobs:
   generate-geometry-visuals:
     runs-on: ubuntu-latest
@@ -51,6 +46,9 @@ jobs:
 
       - name: 🎨 Run Geometry Visual Bot
         env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           BATCH_SIZE: ${{ github.event.inputs.batch_size || '10' }}
           QUALITY_THRESHOLD: ${{ github.event.inputs.quality_threshold || '7' }}
         run: |
