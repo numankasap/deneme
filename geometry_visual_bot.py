@@ -229,10 +229,13 @@ SADECE JSON döndür!"""
         try:
             kazanim_str = ""
             if kazanim_info:
+                topic_name = kazanim_info.get('topic_name', '') or ''
+                sub_topic = kazanim_info.get('sub_topic', '') or ''
+                learning_desc = kazanim_info.get('learning_outcome_description', '') or ''
                 kazanim_str = f"""
-Konu: {kazanim_info.get('topic_name', '')}
-Alt Konu: {kazanim_info.get('sub_topic', '')}
-Kazanım: {kazanim_info.get('learning_outcome_description', '')}
+Konu: {topic_name}
+Alt Konu: {sub_topic}
+Kazanım: {learning_desc}
 """
             
             prompt = self.ANALYSIS_PROMPT.format(
@@ -301,9 +304,11 @@ class GeometryImageGenerator:
             # Kazanım bilgisi
             kazanim_str = ""
             if kazanim_info:
+                topic_name = kazanim_info.get('topic_name', '') or ''
+                sub_topic = kazanim_info.get('sub_topic', '') or ''
                 kazanim_str = f"""
-KONU: {kazanim_info.get('topic_name', '')}
-ALT KONU: {kazanim_info.get('sub_topic', '')}
+KONU: {topic_name}
+ALT KONU: {sub_topic}
 """
             
             # Feedback bölümü
@@ -543,7 +548,9 @@ class GeometryVisualBot:
         # Kazanım örneklerini göster
         logger.info(f"\n📋 Örnek kazanımlar:")
         for k in kazanims[:5]:
-            logger.info(f"   • K{k['id']}: {k.get('topic_name', '')} - {k.get('sub_topic', '')[:50]}")
+            topic_name = k.get('topic_name', '') or ''
+            sub_topic = k.get('sub_topic', '') or ''
+            logger.info(f"   • K{k['id']}: {topic_name} - {sub_topic[:50]}")
         
         # 2. Bu kazanımlara ait görselsiz soruları getir
         logger.info(f"\n🔍 {len(kazanim_ids)} kazanıma ait görselsiz sorular aranıyor...")
@@ -586,8 +593,10 @@ class GeometryVisualBot:
             kazanim_info = self.supabase.get_kazanim_info(kazanim_id)
         
         if kazanim_info:
-            logger.info(f"[{question_id}] 📚 Kazanım: K{kazanim_id} - {kazanim_info.get('topic_name', '')}")
-            logger.info(f"[{question_id}] 📖 Alt Konu: {kazanim_info.get('sub_topic', '')[:60]}")
+            topic_name = kazanim_info.get('topic_name', '') or ''
+            sub_topic = kazanim_info.get('sub_topic', '') or ''
+            logger.info(f"[{question_id}] 📚 Kazanım: K{kazanim_id} - {topic_name}")
+            logger.info(f"[{question_id}] 📖 Alt Konu: {sub_topic[:60]}")
         else:
             logger.info(f"[{question_id}] 📝 Konu: {topic}")
         
