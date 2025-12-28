@@ -736,7 +736,7 @@ def konu_sablonu_bul(topic_name):
     return "Konuya özgü matematiksel kavramları kullan."
 
 def cot_cozum_olustur(curriculum_row, params, retry=0):
-    """Önce matematiksel çözümü oluştur, sonra soruyu bundan türet - V4.1"""
+    """Önce matematiksel çözümü oluştur - TEXT MODE (daha stabil)"""
     max_retry = 2
     
     try:
@@ -747,50 +747,51 @@ def cot_cozum_olustur(curriculum_row, params, retry=0):
         
         format_adi, format_bilgi = sinav_formati_belirle(sinif)
         min_adim, max_adim = format_bilgi['adim_sayisi']
-        min_kelime, max_kelime = format_bilgi['senaryo_uzunluk']
         
         isim = rastgele_isim_sec()
         
-        # Çok basit ve net prompt
+        # TEXT mode prompt - daha basit
         prompt = f'''Matematik problemi oluştur ve çöz.
 
 Konu: {topic}
-Sınıf: {sinif}
+Alt Konu: {sub_topic if sub_topic else 'Genel'}
+Sınıf: {sinif}. sınıf
 Karakter: {isim}
-Bağlam: {baglam.get('kategori_ad', 'Günlük Yaşam')}
 
-Kurallar:
-1. Problem "{topic}" konusuyla ilgili olsun
-2. Sonuç tam sayı olsun
-3. {min_adim}-{max_adim} adımda çözülebilsin
+Aşağıdaki JSON formatında yanıt ver (başka açıklama yazma):
 
-JSON formatında yanıt ver:
-{{"problem": "hikaye şeklinde problem metni", "konu_kavrami": "kullanılan matematik kavramı", "verilen_degerler": {{"x": 10}}, "istenen": "ne bulunacak", "cozum_adimlari": ["Adım 1: açıklama"], "sonuc": 10, "kullanilan_formul": "formül veya yöntem"}}'''
+```json
+{{
+  "problem": "{isim} karakteri ile günlük yaşam problemi",
+  "konu_kavrami": "{topic} ile ilgili kavram",
+  "verilen_degerler": {{"sayi1": 10, "sayi2": 5}},
+  "istenen": "hesaplanacak şey",
+  "cozum_adimlari": ["Adım 1: işlem = sonuç"],
+  "sonuc": 15,
+  "kullanilan_formul": "kullanılan formül"
+}}
+```'''
 
         response = gemini_client.models.generate_content(
             model='gemini-2.5-flash',
             contents=prompt,
             config=types.GenerateContentConfig(
-                temperature=0.5 + (retry * 0.15),
-                max_output_tokens=1200,
-                response_mime_type="application/json"
+                temperature=0.7,
+                max_output_tokens=1500
+                # response_mime_type kaldırıldı - text mode
             )
         )
         
         raw_text = response.text.strip() if response.text else ""
-        
-        # Debug: İlk 100 karakteri göster (sadece hata durumunda)
         result = json_temizle(raw_text)
         
-        if result:
-            required_fields = ['problem', 'sonuc']
-            if all(field in result for field in required_fields):
-                # cozum_adimlari yoksa varsayılan ekle
-                if 'cozum_adimlari' not in result:
-                    result['cozum_adimlari'] = [f"Sonuç: {result['sonuc']}"]
-                return result
+        if result and 'problem' in result:
+            if 'cozum_adimlari' not in result:
+                result['cozum_adimlari'] = [f"Sonuç: {result.get('sonuc', '?')}"]
+            if 'sonuc' not in result:
+                result['sonuc'] = 0
+            return result
         
-        # Retry
         if retry < max_retry:
             time.sleep(0.5)
             return cot_cozum_olustur(curriculum_row, params, retry + 1)
@@ -805,10 +806,11 @@ JSON formatında yanıt ver:
 
 
 def direkt_soru_olustur(curriculum_row, params):
-    """CoT olmadan direkt soru oluştur - Fallback yöntemi"""
+    """CoT olmadan direkt soru oluştur - TEXT MODE (daha stabil)"""
     try:
         sinif = curriculum_row.get('grade_level', 8)
         topic = curriculum_row.get('topic_name', '')
+        sub_topic = curriculum_row.get('sub_topic', '')
         baglam = params.get('baglam', {})
         
         format_adi, format_bilgi = sinav_formati_belirle(sinif)
@@ -816,40 +818,63 @@ def direkt_soru_olustur(curriculum_row, params):
         
         isim = rastgele_isim_sec()
         
+        # Seçenek şablonu
         if secenek_sayisi == 4:
-            secenekler = '"A": "değer1", "B": "değer2", "C": "değer3", "D": "değer4"'
+            secenekler = '"A": "10", "B": "15", "C": "20", "D": "25"'
         else:
-            secenekler = '"A": "değer1", "B": "değer2", "C": "değer3", "D": "değer4", "E": "değer5"'
+            secenekler = '"A": "10", "B": "15", "C": "20", "D": "25", "E": "30"'
         
-        prompt = f'''Çoktan seçmeli matematik sorusu oluştur.
+        prompt = f'''Çoktan seçmeli matematik sorusu yaz.
 
 Konu: {topic}
-Sınıf: {sinif}
+Alt Konu: {sub_topic if sub_topic else 'Genel'}
+Sınıf: {sinif}. sınıf
 Karakter: {isim}
 Seçenek sayısı: {secenek_sayisi}
 
-JSON formatında yanıt ver:
-{{"senaryo": "problem hikayesi", "soru_metni": "soru kökü", "secenekler": {{{secenekler}}}, "dogru_cevap": "A", "cozum_adimlari": ["Adım 1"], "solution_detailed": "detaylı çözüm"}}'''
+Aşağıdaki JSON formatında yanıt ver (başka açıklama yazma):
+
+```json
+{{
+  "senaryo": "{isim} ile ilgili günlük yaşam hikayesi ({topic} konusu)",
+  "soru_metni": "Soru kökü - ne soruluyor?",
+  "secenekler": {{{secenekler}}},
+  "dogru_cevap": "A",
+  "cozum_adimlari": ["Adım 1: açıklama ve hesaplama"],
+  "solution_detailed": "Detaylı çözüm açıklaması"
+}}
+```'''
 
         response = gemini_client.models.generate_content(
             model='gemini-2.5-flash',
             contents=prompt,
             config=types.GenerateContentConfig(
-                temperature=0.6,
-                max_output_tokens=1200,
-                response_mime_type="application/json"
+                temperature=0.7,
+                max_output_tokens=1500
+                # response_mime_type kaldırıldı - text mode
             )
         )
         
-        soru = json_temizle(response.text.strip() if response.text else "")
+        raw_text = response.text.strip() if response.text else ""
+        soru = json_temizle(raw_text)
         
         if soru and 'senaryo' in soru and 'secenekler' in soru:
+            # Meta bilgileri ekle
             soru['sinif'] = sinif
             soru['curriculum_id'] = curriculum_row.get('id')
             soru['topic_name'] = topic
-            soru['sub_topic'] = curriculum_row.get('sub_topic', '')
+            soru['sub_topic'] = sub_topic
             soru['bloom_seviye'] = params.get('bloom_seviye', 'uygulama')
             soru['baglam_kategori'] = baglam.get('kategori', 'genel')
+            
+            # Eksik alanları tamamla
+            if 'dogru_cevap' not in soru:
+                soru['dogru_cevap'] = 'A'
+            if 'cozum_adimlari' not in soru:
+                soru['cozum_adimlari'] = ['Çözüm adımları']
+            if 'solution_detailed' not in soru:
+                soru['solution_detailed'] = soru.get('senaryo', '')
+            
             return soru
         
         return None
@@ -859,7 +884,7 @@ JSON formatında yanıt ver:
 
 
 def cozumden_soru_olustur(cozum, curriculum_row, params, retry=0):
-    """Hazır çözümden çoktan seçmeli soru oluştur - Geliştirilmiş versiyon"""
+    """Hazır çözümden çoktan seçmeli soru oluştur - TEXT MODE"""
     max_retry = 2
     
     try:
@@ -869,73 +894,78 @@ def cozumden_soru_olustur(cozum, curriculum_row, params, retry=0):
         
         format_adi, format_bilgi = sinav_formati_belirle(sinif)
         secenek_sayisi = format_bilgi['seceneksayisi']
-        min_kelime, max_kelime = format_bilgi['senaryo_uzunluk']
         
         sonuc = cozum.get('sonuc', 0)
         problem = cozum.get('problem', '')
         cozum_adimlari = cozum.get('cozum_adimlari', [])
         
-        # Basitleştirilmiş prompt
+        # Seçenek şablonu - gerçek değerlerle
         if secenek_sayisi == 4:
-            secenek_ornek = '"A": "değer1", "B": "değer2", "C": "değer3", "D": "değer4"'
+            secenek_ornek = '"A": "10", "B": "15", "C": "20", "D": "25"'
         else:
-            secenek_ornek = '"A": "değer1", "B": "değer2", "C": "değer3", "D": "değer4", "E": "değer5"'
+            secenek_ornek = '"A": "10", "B": "15", "C": "20", "D": "25", "E": "30"'
         
         prompt = f'''Çözülmüş problemi çoktan seçmeli soruya dönüştür.
 
-PROBLEM: {problem}
-ÇÖZÜM ADIMLARI: {json.dumps(cozum_adimlari, ensure_ascii=False)}
-DOĞRU SONUÇ: {sonuc}
-SEÇENEK SAYISI: {secenek_sayisi}
+Problem: {problem}
+Çözüm: {json.dumps(cozum_adimlari, ensure_ascii=False) if cozum_adimlari else "Hesaplama yapıldı"}
+Doğru Sonuç: {sonuc}
+Seçenek Sayısı: {secenek_sayisi}
 
-KURALLAR:
-- Seçeneklerden biri MUTLAKA {sonuc} olmalı
-- Çeldiriciler hesaplama hatalarından türetilmeli
-- {min_kelime}-{max_kelime} kelime senaryo
+Aşağıdaki JSON formatında yanıt ver (başka açıklama yazma):
 
-SADECE bu JSON formatında yanıt ver:
+```json
 {{
   "senaryo": "problem hikayesi",
   "soru_metni": "soru kökü",
   "secenekler": {{{secenek_ornek}}},
-  "dogru_cevap": "doğru seçenek harfi",
-  "cozum_adimlari": ["adım 1", "adım 2"],
-  "solution_detailed": "detaylı çözüm",
-  "celdirici_aciklamalar": {{"B": "hata açıklaması"}}
-}}'''
+  "dogru_cevap": "A",
+  "cozum_adimlari": ["Adım 1: hesaplama"],
+  "solution_detailed": "detaylı çözüm"
+}}
+```
+
+ÖNEMLİ: Seçeneklerden biri mutlaka {sonuc} olmalı!'''
 
         response = gemini_client.models.generate_content(
             model='gemini-2.5-flash',
             contents=prompt,
             config=types.GenerateContentConfig(
-                temperature=0.4 + (retry * 0.15),
-                max_output_tokens=1500,
-                response_mime_type="application/json"
+                temperature=0.6,
+                max_output_tokens=1500
+                # response_mime_type kaldırıldı - text mode
             )
         )
         
-        soru = json_temizle(response.text.strip())
+        raw_text = response.text.strip() if response.text else ""
+        soru = json_temizle(raw_text)
         
-        if soru:
-            # Temel alanları kontrol et
-            required_fields = ['senaryo', 'soru_metni', 'secenekler', 'dogru_cevap']
-            if all(field in soru for field in required_fields):
-                # Meta bilgileri ekle
-                soru['sinif'] = sinif
-                soru['curriculum_id'] = curriculum_row.get('id')
-                soru['topic_name'] = topic
-                soru['sub_topic'] = curriculum_row.get('sub_topic', '')
-                soru['bloom_seviye'] = bloom_seviye
-                soru['baglam_kategori'] = params.get('baglam', {}).get('kategori', 'genel')
-                return soru
-            else:
-                if retry < max_retry:
-                    time.sleep(0.5)
-                    return cozumden_soru_olustur(cozum, curriculum_row, params, retry + 1)
-        else:
-            if retry < max_retry:
-                time.sleep(0.5)
-                return cozumden_soru_olustur(cozum, curriculum_row, params, retry + 1)
+        if soru and 'senaryo' in soru:
+            # Meta bilgileri ekle
+            soru['sinif'] = sinif
+            soru['curriculum_id'] = curriculum_row.get('id')
+            soru['topic_name'] = topic
+            soru['sub_topic'] = curriculum_row.get('sub_topic', '')
+            soru['bloom_seviye'] = bloom_seviye
+            soru['baglam_kategori'] = params.get('baglam', {}).get('kategori', 'genel')
+            
+            # Eksik alanları tamamla
+            if 'secenekler' not in soru:
+                soru['secenekler'] = {'A': str(sonuc), 'B': '?', 'C': '?', 'D': '?'}
+            if 'dogru_cevap' not in soru:
+                soru['dogru_cevap'] = 'A'
+            if 'soru_metni' not in soru:
+                soru['soru_metni'] = 'Sonuç kaçtır?'
+            if 'cozum_adimlari' not in soru:
+                soru['cozum_adimlari'] = cozum_adimlari if cozum_adimlari else ['Hesaplama']
+            if 'solution_detailed' not in soru:
+                soru['solution_detailed'] = soru.get('senaryo', '')
+            
+            return soru
+        
+        if retry < max_retry:
+            time.sleep(0.5)
+            return cozumden_soru_olustur(cozum, curriculum_row, params, retry + 1)
         
         return None
         
