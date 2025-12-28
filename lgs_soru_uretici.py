@@ -102,7 +102,7 @@ class QuestionGenerator:
         if not GEMINI_API_KEY:
             raise ValueError("GEMINI_API_KEY gerekli!")
         genai.configure(api_key=GEMINI_API_KEY)
-        self.model = genai.GenerativeModel('gemini-1.5-flash')
+        self.model = genai.GenerativeModel('gemini-2.5-flash')
     
     def _system_prompt(self) -> str:
         return """Sen bir LGS matematik soru yazarısın.
