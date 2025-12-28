@@ -9,11 +9,11 @@ on:
       kazanim_sayisi:
         description: 'İşlenecek kazanım sayısı'
         required: false
-        default: '20'
+        default: '50'
       soru_per_kazanim:
         description: 'Kazanım başına soru sayısı'
         required: false
-        default: '3'
+        default: '1'
 
 jobs:
   generate-questions:
