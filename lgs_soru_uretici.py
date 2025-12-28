@@ -110,32 +110,23 @@ class QuestionGenerator:
 GÖREV: 8. sınıf için otantik, senaryolu matematik soruları üret.
 
 KURALLAR:
-1. scenario_text: EN AZ 120 kelime gerçekçi senaryo
+1. scenario_text: EN AZ 120 kelime gerçekçi senaryo (TEK SATIRDA, satır sonu YOK)
 2. original_text: Senaryoya dayalı matematiksel soru
 3. 3-4 adımda çözülebilmeli
 4. 4 seçenek (A,B,C,D), sadece biri doğru
 5. Her çeldirici için neden yanlış açıkla
 6. Türkçe dil bilgisi kurallarına uygun
 
-FORMAT (JSON):
-{
-    "title": "Kısa başlık",
-    "scenario_text": "120+ kelime senaryo...",
-    "original_text": "Matematiksel soru",
-    "options": {"A": "...", "B": "...", "C": "...", "D": "..."},
-    "correct_answer": "A/B/C/D",
-    "distractor_explanations": {"A": "...", "B": "...", "C": "...", "D": "..."},
-    "solution_short": "Kısa çözüm",
-    "solution_detailed": "Adım adım çözüm",
-    "difficulty": 1-5,
-    "bloom_level": "Uygulama/Analiz/Sentez/Değerlendirme",
-    "pisa_level": 1-6,
-    "pisa_context": "Kişisel/Mesleki/Toplumsal/Bilimsel",
-    "mathematical_process": "Formüle Etme/Uygulama/Yorumlama",
-    "life_skill_category": "...",
-    "visual_needed": true/false,
-    "visual_description": "Görsel açıklaması"
-}"""
+ÖNEMLİ JSON KURALLARI:
+- Tüm string değerler TEK SATIRDA olmalı
+- String içinde satır sonu KULLANMA
+- String içinde çift tırnak yerine tek tırnak kullan
+- Sayısal değerler tırnak içinde OLMAMALI
+
+ÖRNEK FORMAT:
+{"title":"Market Alışverişi","scenario_text":"Ahmet markete gitti. Rafları inceledi. 3 kg elma aldı...","original_text":"Ahmet toplam kaç TL ödedi?","options":{"A":"45 TL","B":"50 TL","C":"55 TL","D":"60 TL"},"correct_answer":"B","distractor_explanations":{"A":"KDV eklenmedi","B":"Doğru cevap","C":"Fazla hesaplandı","D":"İki kat alındı"},"solution_short":"3x10+20=50 TL","solution_detailed":"1. Elmalar: 3x10=30 TL. 2. Diğer: 20 TL. 3. Toplam: 30+20=50 TL","difficulty":3,"bloom_level":"Uygulama","pisa_level":3,"pisa_context":"Kişisel","mathematical_process":"Uygulama","life_skill_category":"Finansal Okuryazarlık","visual_needed":false,"visual_description":""}
+
+Sadece JSON döndür, başka açıklama YAZMA."""
     
     def _topic_prompt(self, kazanim: Dict, difficulty: str) -> str:
         cfg = DIFFICULTY_LEVELS.get(difficulty, DIFFICULTY_LEVELS["orta"])
@@ -153,21 +144,64 @@ PISA: {pisa}
 
 Yukarıdaki kurallara uygun BİR soru üret, JSON döndür."""
     
+    def _clean_json(self, text: str) -> str:
+        """JSON string'i temizle ve düzelt"""
+        import re
+        
+        # Markdown kod bloklarını kaldır
+        if "```json" in text:
+            text = text.split("```json")[1].split("```")[0]
+        elif "```" in text:
+            parts = text.split("```")
+            if len(parts) >= 2:
+                text = parts[1]
+        
+        text = text.strip()
+        
+        # JSON başlangıç ve bitişini bul
+        start = text.find('{')
+        end = text.rfind('}')
+        if start != -1 and end != -1:
+            text = text[start:end+1]
+        
+        # Satır sonlarını ve tab'ları temizle
+        text = text.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ')
+        
+        # Çift boşlukları tek boşluğa indir
+        while '  ' in text:
+            text = text.replace('  ', ' ')
+        
+        # String içindeki sorunlu karakterleri düzelt
+        # Escape edilmemiş tırnak işaretlerini düzelt
+        text = re.sub(r'(?<!\\)"([^"]*?)(?<!\\)"', lambda m: '"' + m.group(1).replace('"', '\\"') + '"', text)
+        
+        return text
+    
     def generate(self, kazanim: Dict, difficulty: str = "orta") -> Optional[Dict]:
         import google.generativeai as genai
         try:
             response = self.model.generate_content(
                 f"{self._system_prompt()}\n\n{self._topic_prompt(kazanim, difficulty)}",
-                generation_config=genai.GenerationConfig(temperature=0.85, max_output_tokens=2500)
+                generation_config=genai.GenerationConfig(
+                    temperature=0.3,  # Daha düşük sıcaklık = daha tutarlı çıktı
+                    max_output_tokens=4000,
+                    candidate_count=1
+                )
             )
             
             text = response.text
-            if "```json" in text:
-                text = text.split("```json")[1].split("```")[0]
-            elif "```" in text:
-                text = text.split("```")[1].split("```")[0]
+            text = self._clean_json(text)
             
-            data = json.loads(text.strip())
+            try:
+                data = json.loads(text)
+            except json.JSONDecodeError as e:
+                # İkinci deneme: daha agresif temizlik
+                import re
+                # Tüm kontrol karakterlerini kaldır
+                text = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', text)
+                # String içindeki yeni satırları \n ile değiştir
+                text = re.sub(r'"([^"]*)"', lambda m: '"' + m.group(1).replace('\n', '\\n') + '"', text)
+                data = json.loads(text)
             
             # Validasyon
             if len(data.get("scenario_text", "").split()) < 100:
