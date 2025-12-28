@@ -195,13 +195,12 @@ Yukarıdaki kurallara uygun BİR soru üret, JSON döndür."""
     def generate(self, kazanim: Dict, difficulty: str = "orta") -> Optional[Dict]:
         import google.generativeai as genai
         try:
-            # JSON mode ile çağır
+            # JSON mode olmadan çağır (eski SDK uyumluluğu)
             response = self.model.generate_content(
                 f"{self._system_prompt()}\n\n{self._topic_prompt(kazanim, difficulty)}",
                 generation_config=genai.GenerationConfig(
-                    temperature=0.7,
-                    max_output_tokens=3000,
-                    response_mime_type="application/json"  # JSON formatı zorla
+                    temperature=0.4,
+                    max_output_tokens=4000
                 )
             )
             
@@ -217,9 +216,8 @@ Yukarıdaki kurallara uygun BİR soru üret, JSON döndür."""
                 try:
                     data = json.loads(text)
                 except json.JSONDecodeError as e:
-                    # Üçüncü deneme: eval ile dene (güvenli değil ama son çare)
+                    # Üçüncü deneme: tek tırnak -> çift tırnak
                     try:
-                        # Sadece basit düzeltme
                         text = text.replace("'", '"')
                         data = json.loads(text)
                     except:
