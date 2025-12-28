@@ -56,17 +56,6 @@ class Config:
     BATCH_SIZE = int(os.environ.get('BATCH_SIZE', '10'))
     QUALITY_THRESHOLD = 7
     MAX_RETRY_ATTEMPTS = 3
-    
-    # Geometri konu anahtar kelimeleri (curriculum'da aranacak)
-    GEOMETRY_KEYWORDS = [
-        'Üçgen', 'Dörtgen', 'Çokgen', 'Daire', 'Çember',
-        'Açı', 'Alan', 'Çevre', 'Hacim', 'Geometri', 'Prizma',
-        'Piramit', 'Silindir', 'Koni', 'Küre', 'Koordinat',
-        'Kenar', 'Köşegen', 'Yüzey', 'Doğru', 'Paralel', 'Dik',
-        'Eşkenar', 'İkizkenar', 'Yamuk', 'Paralelkenar', 'Dikdörtgen',
-        'Kare', 'Deltoid', 'Teğet', 'Kiriş', 'Yay', 'Dilim',
-        'Perspektif', 'Simetri', 'Dönüşüm', 'Öteleme', 'Yansıma'
-    ]
 
 
 class SupabaseManager:
@@ -79,39 +68,47 @@ class SupabaseManager:
     def get_geometry_kazanims(self) -> List[Dict]:
         """Curriculum tablosundan geometri kazanımlarını getir"""
         try:
-            # Tüm geometri anahtar kelimelerini içeren kazanımları bul
             all_kazanims = []
             
-            for keyword in Config.GEOMETRY_KEYWORDS:
-                # topic_name'de ara
-                response1 = self.client.table('curriculum').select(
-                    'id, learning_outcome_code, learning_outcome_description, topic_name, sub_topic, grade_level, bloom_level'
-                ).ilike('topic_name', f'%{keyword}%').execute()
-                
-                if response1.data:
-                    all_kazanims.extend(response1.data)
-                
-                # sub_topic'te ara
+            # 1. lesson_name = 'Geometri' olanlar (TYT/AYT)
+            response1 = self.client.table('curriculum').select(
+                'id, learning_outcome_code, learning_outcome_description, topic_name, sub_topic, grade_level, bloom_level, lesson_name, topic_code, category'
+            ).eq('lesson_name', 'Geometri').execute()
+            
+            if response1.data:
+                all_kazanims.extend(response1.data)
+                logger.info(f"   • lesson_name='Geometri': {len(response1.data)} kazanım")
+            
+            # 2. lesson_name = 'Matematik' olup topic_name geometri konusu olanlar (LGS ve diğerleri)
+            geometry_topics = [
+                'Üçgenler', 'Dörtgenler', 'Çokgenler', 'Çokgenler ve Dörtgenler',
+                'Daire', 'Çember', 'Çember ve Daire',
+                'Geometrik Cisimler', 'Katı Cisimler', 'Prizmalar',
+                'Dönüşüm Geometrisi', 'Eşlik ve Benzerlik',
+                'Analitik Geometri', 'Çemberin Analitliği',
+                'Doğrusal Denklemler'  # Koordinat düzlemi içerir
+            ]
+            
+            for topic in geometry_topics:
                 response2 = self.client.table('curriculum').select(
-                    'id, learning_outcome_code, learning_outcome_description, topic_name, sub_topic, grade_level, bloom_level'
-                ).ilike('sub_topic', f'%{keyword}%').execute()
+                    'id, learning_outcome_code, learning_outcome_description, topic_name, sub_topic, grade_level, bloom_level, lesson_name, topic_code, category'
+                ).eq('lesson_name', 'Matematik').ilike('topic_name', f'%{topic}%').execute()
                 
                 if response2.data:
                     all_kazanims.extend(response2.data)
-                
-                # learning_outcome_description'da ara
-                response3 = self.client.table('curriculum').select(
-                    'id, learning_outcome_code, learning_outcome_description, topic_name, sub_topic, grade_level, bloom_level'
-                ).ilike('learning_outcome_description', f'%{keyword}%').execute()
-                
-                if response3.data:
-                    all_kazanims.extend(response3.data)
             
             # Tekrarları kaldır (id'ye göre)
             unique_kazanims = {k['id']: k for k in all_kazanims}.values()
             kazanim_list = list(unique_kazanims)
             
-            logger.info(f"📚 {len(kazanim_list)} geometri kazanımı bulundu")
+            # Kategorilere göre say
+            geometri_count = sum(1 for k in kazanim_list if k.get('lesson_name') == 'Geometri')
+            matematik_geo_count = len(kazanim_list) - geometri_count
+            
+            logger.info(f"📚 Toplam {len(kazanim_list)} geometri kazanımı bulundu")
+            logger.info(f"   • lesson_name='Geometri': {geometri_count}")
+            logger.info(f"   • lesson_name='Matematik' (geometri konulu): {matematik_geo_count}")
+            
             return kazanim_list
             
         except Exception as e:
@@ -546,10 +543,13 @@ class GeometryVisualBot:
         
         # Kazanım örneklerini göster
         logger.info(f"\n📋 Örnek kazanımlar:")
-        for k in kazanims[:5]:
+        for k in kazanims[:8]:
             topic_name = k.get('topic_name', '') or ''
-            sub_topic = k.get('sub_topic', '') or ''
-            logger.info(f"   • K{k['id']}: {topic_name} - {sub_topic[:50]}")
+            topic_code = k.get('topic_code', '') or ''
+            grade = k.get('grade_level', '')
+            category = k.get('category', '') or ''
+            lesson = k.get('lesson_name', '') or ''
+            logger.info(f"   • K{k['id']}: {topic_name} [{category}/{lesson}] (Sınıf: {grade})")
         
         # 2. Bu kazanımlara ait görselsiz soruları getir
         logger.info(f"\n🔍 {len(kazanim_ids)} kazanıma ait görselsiz sorular aranıyor...")
