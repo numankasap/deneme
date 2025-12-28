@@ -231,7 +231,7 @@ def soru_kaydet(soru, curriculum_row, puan):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def gemini_soru_uret(curriculum_row, bloom_seviye, baglam, geri_bildirim=None):
-    """Gemini ile soru üret"""
+    """Gemini ile soru üret - CoT yaklaşımı"""
     
     sinif = curriculum_row.get('grade_level', 8)
     topic = curriculum_row.get('topic_name', '')
@@ -246,26 +246,41 @@ def gemini_soru_uret(curriculum_row, bloom_seviye, baglam, geri_bildirim=None):
     
     geri_bildirim_text = ""
     if geri_bildirim:
-        geri_bildirim_text = f"\nDİKKAT: {geri_bildirim}"
+        geri_bildirim_text = f"\n\n⚠️ ÖNCEKİ HATA: {geri_bildirim}\nBu hatayı düzelt!"
     
-    # Daha kısa ve net prompt
-    prompt = f'''Konu: {topic}
-Sınıf: {sinif}
-Karakter: {isim}
-Bağlam: {ornek}
+    prompt = f'''Matematik sorusu oluştur. ÖNEMLİ: Önce çözümü yap, sonra şıkları oluştur!
+
+KONU: {topic}
+SINIF: {sinif}. sınıf
+KARAKTER: {isim}
+BAĞLAM: {ornek}
 {geri_bildirim_text}
 
-{secenek_sayisi} şıklı matematik sorusu yaz. JSON formatında:
+ADIM ADIM İLERLE:
 
-{{"senaryo":"...", "soru_metni":"...", "secenekler":{{"A":"...","B":"...","C":"...","D":"..."}}, "dogru_cevap":"A", "cozum":"..."}}'''
+ADIM 1 - PROBLEM TASARLA:
+- Sayısal değerler belirle
+- Çözümü yap, DOĞRU CEVABI HESAPLA
+
+ADIM 2 - SENARYO YAZ:
+- {isim} karakteri ile {ornek} temalı hikaye ({min_kelime}-{max_kelime} kelime)
+
+ADIM 3 - ŞIKLARI OLUŞTUR:
+- A: Doğru cevap (hesapladığın)
+- B,C,D: Yaygın hatalardan türetilmiş çeldiriciler
+
+KRİTİK: Doğru cevap MUTLAKA şıklarda olmalı! Çözümdeki sonuç = Doğru şık
+
+JSON:
+{{"senaryo":"hikaye", "soru_metni":"soru", "secenekler":{{"A":"doğru","B":"çeldirici1","C":"çeldirici2","D":"çeldirici3"}}, "dogru_cevap":"A", "cozum":"Adım adım çözüm"}}'''
 
     try:
         response = gemini.models.generate_content(
             model='gemini-2.5-flash',
             contents=prompt,
             config=types.GenerateContentConfig(
-                temperature=0.8,
-                max_output_tokens=4096  # Artırıldı!
+                temperature=0.7,
+                max_output_tokens=4096
             )
         )
         
@@ -277,7 +292,6 @@ Bağlam: {ornek}
         soru = json_parse(raw_text)
         
         if soru:
-            
             soru['sinif'] = sinif
             soru['curriculum_id'] = curriculum_row.get('id')
             soru['topic_name'] = topic
@@ -337,33 +351,34 @@ JSON yanıt:
         return None
 
 def gemini_dogrula(soru):
-    """Gemini ile doğrula (fallback)"""
+    """Gemini ile doğrula (fallback) - Matematiksel tutarlılık kontrolü"""
     try:
-        soru_ozet = {
-            'senaryo': soru.get('senaryo', '')[:200],
-            'soru_metni': soru.get('soru_metni', ''),
-            'secenekler': soru.get('secenekler', {}),
-            'dogru_cevap': soru.get('dogru_cevap', ''),
-            'cozum': soru.get('cozum', soru.get('solution_detailed', ''))[:200]
-        }
+        cozum = soru.get('cozum', soru.get('solution_detailed', ''))
+        secenekler = soru.get('secenekler', {})
+        dogru_cevap = soru.get('dogru_cevap', 'A')
+        dogru_sik_degeri = secenekler.get(dogru_cevap, '')
         
-        prompt = f'''Bu matematik sorusunu değerlendir:
+        prompt = f'''Bu matematik sorusunu KONTROL ET:
 
-{json.dumps(soru_ozet, ensure_ascii=False)}
+ÇÖZÜM: {cozum}
 
-Kontrol et:
-1. Matematiksel çözüm doğru mu?
-2. Doğru cevap şıklarda var mı?
-3. Senaryo anlamlı mı?
+ŞIKLAR: {json.dumps(secenekler, ensure_ascii=False)}
 
-JSON yanıt ver:
-{{"gecerli": true/false, "puan": 0-100, "geri_bildirim": "varsa sorun veya null"}}'''
+DOĞRU CEVAP: {dogru_cevap} = {dogru_sik_degeri}
+
+KONTROL:
+1. Çözümdeki sonuç ile "{dogru_cevap}" şıkkındaki değer ({dogru_sik_degeri}) AYNI MI?
+2. Matematiksel işlemler doğru mu?
+3. Diğer şıklar mantıklı çeldiriciler mi?
+
+JSON yanıt:
+{{"gecerli": true/false, "puan": 0-100, "geri_bildirim": "Eğer çözüm sonucu şıkla uyuşmuyorsa veya hata varsa açıkla, yoksa null"}}'''
 
         response = gemini.models.generate_content(
             model='gemini-2.5-flash',
             contents=prompt,
             config=types.GenerateContentConfig(
-                temperature=0.3,
+                temperature=0.2,
                 max_output_tokens=500
             )
         )
