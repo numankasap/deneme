@@ -84,8 +84,8 @@ SINAV_FORMATLARI = {
     'LGS': {
         'siniflar': [5, 6, 7, 8],
         'seceneksayisi': 4,  # A, B, C, D
-        'senaryo_uzunluk': (60, 100),  # kelime
-        'adim_sayisi': (2, 4),
+        'senaryo_uzunluk': (100, 140),  # kelime
+        'adim_sayisi': (2, 5),
         'zorluk_dagilimi': {'kolay': 0.30, 'orta': 0.50, 'zor': 0.20},
         'ozellikler': [
             'Günlük yaşam senaryoları',
@@ -98,9 +98,9 @@ SINAV_FORMATLARI = {
     'TYT': {
         'siniflar': [9, 10],
         'seceneksayisi': 5,  # A, B, C, D, E
-        'senaryo_uzunluk': (80, 130),
-        'adim_sayisi': (3, 5),
-        'zorluk_dagilimi': {'kolay': 0.25, 'orta': 0.50, 'zor': 0.25},
+        'senaryo_uzunluk': (120, 150),
+        'adim_sayisi': (4, 5),
+        'zorluk_dagilimi': {'kolay': 0.25, 'orta': 0.40, 'zor': 0.35},
         'ozellikler': [
             'Temel matematik becerileri',
             'Güncel yaşam problemleri',
@@ -124,8 +124,8 @@ SINAV_FORMATLARI = {
     'ILKOKUL': {
         'siniflar': [3, 4],
         'seceneksayisi': 4,  # A, B, C, D
-        'senaryo_uzunluk': (40, 70),
-        'adim_sayisi': (1, 2),
+        'senaryo_uzunluk': (50, 70),
+        'adim_sayisi': (2, 3),
         'zorluk_dagilimi': {'kolay': 0.50, 'orta': 0.40, 'zor': 0.10},
         'ozellikler': [
             'Basit ve anlaşılır dil',
@@ -194,16 +194,16 @@ BLOOM_TAKSONOMISI = {
 
 # Sınıf -> Bloom Eşleştirmesi (Gerçekçi seviyeler)
 SINIF_BLOOM_ESLESTIRME = {
-    3: ['hatırlama', 'anlama'],
-    4: ['hatırlama', 'anlama'],
-    5: ['anlama', 'uygulama'],
-    6: ['anlama', 'uygulama'],
-    7: ['uygulama', 'analiz'],
-    8: ['uygulama', 'analiz'],
-    9: ['uygulama', 'analiz'],
-    10: ['uygulama', 'analiz'],
-    11: ['uygulama', 'analiz'],  # Değerlendirme/yaratma kaldırıldı
-    12: ['uygulama', 'analiz']   # Değerlendirme/yaratma kaldırıldı
+    3: ['hatırlama', 'anlama','uygulama'],
+    4: ['hatırlama', 'anlama','uygulama'],
+    5: ['anlama', 'uygulama','analiz'],
+    6: ['anlama', 'uygulama','analiz'],
+    7: ['uygulama', 'analiz','Değerlendirme'],
+    8: ['uygulama', 'analiz','Değerlendirme'],
+    9: ['uygulama', 'analiz','Değerlendirme'],
+    10: ['uygulama', 'analiz','Değerlendirme'],
+    11: ['uygulama', 'analiz','Değerlendirme','yaratma'], 
+    12: ['uygulama', 'analiz','Değerlendirme','yaratma']   
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
