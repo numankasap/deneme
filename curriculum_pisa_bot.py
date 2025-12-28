@@ -164,10 +164,21 @@ def soru_hash(soru):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def curriculum_getir():
-    """Matematik kazanımlarını getir"""
+    """Matematik ve Geometri kazanımlarını getir"""
     try:
-        result = supabase.table('curriculum').select('*').eq('lesson_name', 'Matematik').gte('grade_level', 3).lte('grade_level', 12).execute()
-        return result.data if result.data else []
+        # Matematik kazanımları
+        matematik = supabase.table('curriculum').select('*').eq('lesson_name', 'Matematik').gte('grade_level', 3).lte('grade_level', 12).execute()
+        
+        # Geometri kazanımları
+        geometri = supabase.table('curriculum').select('*').eq('lesson_name', 'Geometri').gte('grade_level', 3).lte('grade_level', 12).execute()
+        
+        sonuc = []
+        if matematik.data:
+            sonuc.extend(matematik.data)
+        if geometri.data:
+            sonuc.extend(geometri.data)
+        
+        return sonuc
     except Exception as e:
         print(f"❌ Curriculum hatası: {e}")
         return []
