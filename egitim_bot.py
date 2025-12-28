@@ -1,10 +1,20 @@
 #!/usr/bin/env python3
 """
-📚 EĞİTİM GÜNDEM TAKİP BOTU v3.0 - PISA EDİTION
-=================================================
+📚 EĞİTİM GÜNDEM TAKİP BOTU v4.0 - YOUTUBE AI EDİTION
+======================================================
 LGS/YKS Öğrenci ve Öğretmenler için Günlük Haber & Gündem Botu
 
-🆕 v3.0 YENİLİKLER:
+🆕 v4.0 YENİLİKLER:
+- 🎬 YOUTUBE AI VİDEOLARI: Popüler AI kanallarından son videolar
+  • AI Explained, Two Minute Papers, Yannic Kilcher
+  • Matt Wolfe, The AI Advantage, AI Jason
+  • Fireship, bycloud, Prompt Engineering
+  • Ve daha fazlası...
+- 📺 Video özetleri ve doğrudan linkler
+- 🔥 Trend AI içerikleri
+- Tüm v3.0 özellikleri korundu
+
+v3.0 ÖZELLİKLER:
 - PISA liderlerinden eğitim haberleri (Makao, Singapur, Estonya, Japonya, Kore...)
 - Son 48 saat filtresi - taze haberler
 - Yinelenen haber filtreleme
@@ -590,6 +600,442 @@ def get_ai_education_news() -> List[Dict]:
             break
     
     return final_news
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 🎬 YOUTUBE AI VİDEOLARI - POPÜLER KANALLAR
+# ══════════════════════════════════════════════════════════════════════════════
+
+def get_youtube_ai_videos() -> List[Dict]:
+    """
+    Popüler AI YouTube kanallarından son videolar
+    
+    NOT: YouTube RSS doğrudan erişilemeyebilir (network kısıtlamaları)
+    Bu durumda curated/statik liste kullanılır
+    """
+    videos = []
+    
+    # ═══════════════════════════════════════════════════════════════
+    # POPÜLER AI YOUTUBE KANALLARI VERİTABANI
+    # Bu liste düzenli olarak güncellenebilir
+    # ═══════════════════════════════════════════════════════════════
+    
+    ai_youtube_channels = [
+        # ─── TIER 1: EN POPÜLER AI KANALLARI (1M+ Abone) ───
+        {
+            'channel_id': 'UCbfYPyITQ-7l4upoX8nvctg',
+            'name': 'Two Minute Papers',
+            'subscribers': '1.5M+',
+            'category': 'AI Araştırma',
+            'description': 'Akademik AI makalelerinin kısa özetleri',
+            'url': 'https://www.youtube.com/@TwoMinutePapers',
+            'lang': 'EN'
+        },
+        {
+            'channel_id': 'UCZHmQk67mSJgfCCTn7xBfew',
+            'name': 'Fireship',
+            'subscribers': '3M+',
+            'category': 'Tech/AI',
+            'description': 'Hızlı tech ve AI açıklamaları, "100 seconds" serisi',
+            'url': 'https://www.youtube.com/@Fireship',
+            'lang': 'EN'
+        },
+        {
+            'channel_id': 'UCYO_jab_esuFRV4b17AJtAw',
+            'name': '3Blue1Brown',
+            'subscribers': '6M+',
+            'category': 'Matematik/AI',
+            'description': 'Neural network ve matematik görselleştirmeleri',
+            'url': 'https://www.youtube.com/@3blue1brown',
+            'lang': 'EN'
+        },
+        
+        # ─── TIER 2: AI HABER VE ANALİZ KANALLARI (500K-1M) ───
+        {
+            'channel_id': 'UCLXo7UDZvByw2ixzpQCufnA',
+            'name': 'Matt Wolfe',
+            'subscribers': '650K+',
+            'category': 'AI Araçlar',
+            'description': 'Haftalık AI araçları ve haberleri',
+            'url': 'https://www.youtube.com/@maboroshi_studio',
+            'lang': 'EN'
+        },
+        {
+            'channel_id': 'UC5sYcThBEkKrLQqo_v1m4VQ',
+            'name': 'AI Explained',
+            'subscribers': '400K+',
+            'category': 'AI Analiz',
+            'description': 'Derinlemesine AI analizleri ve karşılaştırmaları',
+            'url': 'https://www.youtube.com/@aiaborovere',
+            'lang': 'EN'
+        },
+        {
+            'channel_id': 'UCUyeluBRhGPCW4rPe_UvBZQ',
+            'name': 'The AI Advantage',
+            'subscribers': '500K+',
+            'category': 'AI Araçlar',
+            'description': 'AI araçları kullanım rehberleri',
+            'url': 'https://www.youtube.com/@aiadvantage',
+            'lang': 'EN'
+        },
+        
+        # ─── TIER 3: TEKNİK AI KANALLARI (200K-500K) ───
+        {
+            'channel_id': 'UCeYvMMZLnoqOzphJJ1Ozf_Q',
+            'name': 'Yannic Kilcher',
+            'subscribers': '280K+',
+            'category': 'AI Araştırma',
+            'description': 'AI paper incelemeleri ve teknik analizler',
+            'url': 'https://www.youtube.com/@YannicKilcher',
+            'lang': 'EN'
+        },
+        {
+            'channel_id': 'UCsbr_wOE4DMjcBW4',
+            'name': 'bycloud',
+            'subscribers': '350K+',
+            'category': 'AI Araştırma',
+            'description': 'AI paper açıklamaları, teknik içerik',
+            'url': 'https://www.youtube.com/@bycloudAI',
+            'lang': 'EN'
+        },
+        {
+            'channel_id': 'UCbXgNpp0jedKWcQiULLbDTA',
+            'name': 'AI Foundations',
+            'subscribers': '200K+',
+            'category': 'AI Eğitim',
+            'description': 'AI temelleri ve öğretici içerikler',
+            'url': 'https://www.youtube.com/@ai-foundations',
+            'lang': 'EN'
+        },
+        
+        # ─── TIER 4: AI UYGULAMA VE PROMPT KANALLARI ───
+        {
+            'channel_id': 'UC4L2IXqZvLxZdaXcvfje2OQ',
+            'name': 'AI Jason',
+            'subscribers': '250K+',
+            'category': 'AI Prompt',
+            'description': 'Prompt engineering ve AI ipuçları',
+            'url': 'https://www.youtube.com/@AIJasonZ',
+            'lang': 'EN'
+        },
+        {
+            'channel_id': 'UCb-bmaFpSPnJMwJJJlU2kbQ',
+            'name': 'All About AI',
+            'subscribers': '400K+',
+            'category': 'AI Araçlar',
+            'description': 'Kapsamlı AI araç incelemeleri',
+            'url': 'https://www.youtube.com/@AllAboutAI',
+            'lang': 'EN'
+        },
+        {
+            'channel_id': 'UCWv7vMbMWH4-V0ZXdmDpPBA',
+            'name': 'Prompt Engineering',
+            'subscribers': '180K+',
+            'category': 'AI Prompt',
+            'description': 'ChatGPT ve Claude prompt teknikleri',
+            'url': 'https://www.youtube.com/@engineerprompt',
+            'lang': 'EN'
+        },
+        
+        # ─── TIER 5: ŞİRKET VE PODCAST KANALLARI ───
+        {
+            'channel_id': 'UCXZCJLdBC09xxGZ6gcdrc6A',
+            'name': 'OpenAI',
+            'subscribers': '600K+',
+            'category': 'Resmi',
+            'description': 'ChatGPT, GPT-4, Sora resmi duyuruları',
+            'url': 'https://www.youtube.com/@OpenAI',
+            'lang': 'EN'
+        },
+        {
+            'channel_id': 'UC_x5XG1OV2P6uZZ5FSM9Ttw',
+            'name': 'Google',
+            'subscribers': '14M+',
+            'category': 'Resmi',
+            'description': 'Google AI, Gemini haberleri',
+            'url': 'https://www.youtube.com/@Google',
+            'lang': 'EN'
+        },
+        {
+            'channel_id': 'UCVHFbqXqoYvEWM1Ddxl0QKg',
+            'name': 'Lex Fridman',
+            'subscribers': '4.5M+',
+            'category': 'AI Podcast',
+            'description': 'AI liderleriyle uzun röportajlar',
+            'url': 'https://www.youtube.com/@lexfridman',
+            'lang': 'EN'
+        },
+        {
+            'channel_id': 'UCxg7CAgk4sDJ9p3EE',
+            'name': 'Andrej Karpathy',
+            'subscribers': '600K+',
+            'category': 'AI Araştırma',
+            'description': 'Eski Tesla AI direktörü, teknik dersler',
+            'url': 'https://www.youtube.com/@AndrejKarpathy',
+            'lang': 'EN'
+        },
+        {
+            'channel_id': 'UCJlfH_QMvSCUvgGW4JAbSPQ',
+            'name': 'Anthropic',
+            'subscribers': '50K+',
+            'category': 'Resmi',
+            'description': 'Claude AI resmi duyuruları',
+            'url': 'https://www.youtube.com/@AnthropicAI',
+            'lang': 'EN'
+        },
+        
+        # ─── TÜRKÇE AI KANALLARI ───
+        {
+            'channel_id': 'UCnjbfvqJKgqSMtNNaPJHrqg',
+            'name': 'Kodlama Zamanı',
+            'subscribers': '200K+',
+            'category': 'Türkçe AI',
+            'description': 'Türkçe AI ve programlama dersleri',
+            'url': 'https://www.youtube.com/@KodlamaZamani',
+            'lang': 'TR'
+        },
+        {
+            'channel_id': 'UCBTYKH9Rh3l4',
+            'name': 'Sadi Evren Şeker',
+            'subscribers': '500K+',
+            'category': 'Türkçe AI',
+            'description': 'Yapay zeka ve veri bilimi Türkçe',
+            'url': 'https://www.youtube.com/@sadievrenseker',
+            'lang': 'TR'
+        },
+    ]
+    
+    # Önce RSS feed'den çekmeyi dene
+    ai_keywords = [
+        'gpt', 'gpt-4', 'gpt-5', 'chatgpt', 'claude', 'gemini', 'llama', 'mistral',
+        'copilot', 'deepseek', 'qwen', 'o1', 'o3', 'sonnet', 'opus', 'sora',
+        'ai', 'artificial intelligence', 'machine learning', 'deep learning',
+        'neural network', 'llm', 'large language model', 'transformer',
+        'generative', 'diffusion', 'multimodal', 'agent', 'rag',
+        'openai', 'anthropic', 'google ai', 'meta ai', 'microsoft',
+        'prompt', 'fine-tuning', 'embedding', 'reasoning', 'coding',
+        'yapay zeka', 'dil modeli'
+    ]
+    
+    rss_success = False
+    
+    for channel in ai_youtube_channels:
+        try:
+            rss_url = f"https://www.youtube.com/feeds/videos.xml?channel_id={channel['channel_id']}"
+            feed = feedparser.parse(rss_url)
+            
+            if feed.entries:
+                rss_success = True
+                for entry in feed.entries[:3]:
+                    title = entry.get('title', '')
+                    link = entry.get('link', '')
+                    published = entry.get('published', '')
+                    
+                    video_id = ''
+                    if 'yt:videoId' in entry:
+                        video_id = entry['yt:videoId']
+                    elif link and 'watch?v=' in link:
+                        video_id = link.split('watch?v=')[-1].split('&')[0]
+                    
+                    if not is_recent(published, hours=168):
+                        continue
+                    
+                    if deduplicator.is_duplicate(title):
+                        continue
+                    
+                    title_lower = title.lower()
+                    is_ai_related = any(kw in title_lower for kw in ai_keywords)
+                    
+                    ai_focused_channels = ['Two Minute Papers', 'AI Explained', 'Matt Wolfe', 
+                                           'The AI Advantage', 'AI Jason', 'Yannic Kilcher',
+                                           'All About AI', 'Prompt Engineering', 'OpenAI', 
+                                           'bycloud', 'Anthropic', 'Andrej Karpathy']
+                    
+                    if channel['name'] in ai_focused_channels or is_ai_related:
+                        videos.append({
+                            'title': title[:120],
+                            'channel': channel['name'],
+                            'subscribers': channel['subscribers'],
+                            'category': channel['category'],
+                            'link': link,
+                            'video_id': video_id,
+                            'published': published,
+                            'lang': channel['lang'],
+                            'source': 'rss'
+                        })
+                        
+        except Exception as e:
+            continue
+    
+    # RSS çalışmadıysa, curated kanal listesini döndür
+    if not rss_success or len(videos) < 3:
+        print("   📋 RSS erişilemiyor, kanal listesi kullanılıyor...")
+        
+        # Curated güncel video önerileri (manuel güncelleme gerektirir)
+        curated_videos = [
+            {
+                'title': '🔥 Two Minute Papers - En son AI araştırmaları',
+                'channel': 'Two Minute Papers',
+                'subscribers': '1.5M+',
+                'category': 'AI Araştırma',
+                'link': 'https://www.youtube.com/@TwoMinutePapers',
+                'lang': 'EN',
+                'source': 'curated'
+            },
+            {
+                'title': '🔥 Fireship - AI in 100 Seconds serisi',
+                'channel': 'Fireship',
+                'subscribers': '3M+',
+                'category': 'Tech/AI',
+                'link': 'https://www.youtube.com/@Fireship',
+                'lang': 'EN',
+                'source': 'curated'
+            },
+            {
+                'title': '🔥 Matt Wolfe - Haftalık AI araç incelemeleri',
+                'channel': 'Matt Wolfe',
+                'subscribers': '650K+',
+                'category': 'AI Araçlar',
+                'link': 'https://www.youtube.com/@maboroshi_studio',
+                'lang': 'EN',
+                'source': 'curated'
+            },
+            {
+                'title': '🔥 AI Explained - GPT, Claude, Gemini karşılaştırmaları',
+                'channel': 'AI Explained',
+                'subscribers': '400K+',
+                'category': 'AI Analiz',
+                'link': 'https://www.youtube.com/@aiexplained-official',
+                'lang': 'EN',
+                'source': 'curated'
+            },
+            {
+                'title': '🔥 The AI Advantage - Pratik AI kullanım rehberleri',
+                'channel': 'The AI Advantage',
+                'subscribers': '500K+',
+                'category': 'AI Araçlar',
+                'link': 'https://www.youtube.com/@aiadvantage',
+                'lang': 'EN',
+                'source': 'curated'
+            },
+            {
+                'title': '🔥 Yannic Kilcher - Detaylı AI paper incelemeleri',
+                'channel': 'Yannic Kilcher',
+                'subscribers': '280K+',
+                'category': 'AI Araştırma',
+                'link': 'https://www.youtube.com/@YannicKilcher',
+                'lang': 'EN',
+                'source': 'curated'
+            },
+            {
+                'title': '🔥 3Blue1Brown - Neural Network görselleştirmeleri',
+                'channel': '3Blue1Brown',
+                'subscribers': '6M+',
+                'category': 'Matematik/AI',
+                'link': 'https://www.youtube.com/@3blue1brown',
+                'lang': 'EN',
+                'source': 'curated'
+            },
+            {
+                'title': '🔥 Lex Fridman - AI liderlerle röportajlar',
+                'channel': 'Lex Fridman',
+                'subscribers': '4.5M+',
+                'category': 'AI Podcast',
+                'link': 'https://www.youtube.com/@lexfridman',
+                'lang': 'EN',
+                'source': 'curated'
+            },
+            {
+                'title': '🔥 Andrej Karpathy - Neural network dersleri',
+                'channel': 'Andrej Karpathy',
+                'subscribers': '600K+',
+                'category': 'AI Araştırma',
+                'link': 'https://www.youtube.com/@AndrejKarpathy',
+                'lang': 'EN',
+                'source': 'curated'
+            },
+            {
+                'title': '🔥 OpenAI - Resmi duyurular (GPT, Sora)',
+                'channel': 'OpenAI',
+                'subscribers': '600K+',
+                'category': 'Resmi',
+                'link': 'https://www.youtube.com/@OpenAI',
+                'lang': 'EN',
+                'source': 'curated'
+            },
+            {
+                'title': '🔥 Anthropic - Claude AI resmi kanal',
+                'channel': 'Anthropic',
+                'subscribers': '50K+',
+                'category': 'Resmi',
+                'link': 'https://www.youtube.com/@AnthropicAI',
+                'lang': 'EN',
+                'source': 'curated'
+            },
+            {
+                'title': '🔥 All About AI - Kapsamlı AI araç demoları',
+                'channel': 'All About AI',
+                'subscribers': '400K+',
+                'category': 'AI Araçlar',
+                'link': 'https://www.youtube.com/@AllAboutAI',
+                'lang': 'EN',
+                'source': 'curated'
+            },
+            {
+                'title': '🔥 AI Jason - Prompt engineering teknikleri',
+                'channel': 'AI Jason',
+                'subscribers': '250K+',
+                'category': 'AI Prompt',
+                'link': 'https://www.youtube.com/@AIJasonZ',
+                'lang': 'EN',
+                'source': 'curated'
+            },
+        ]
+        
+        videos = curated_videos
+    
+    # Kanal çeşitliliği sağla
+    final_videos = []
+    channel_counts = {}
+    
+    for video in videos:
+        ch = video.get('channel', '')
+        if ch not in channel_counts:
+            channel_counts[ch] = 0
+        
+        if channel_counts[ch] < 2:
+            final_videos.append(video)
+            channel_counts[ch] += 1
+        
+        if len(final_videos) >= 15:
+            break
+    
+    return final_videos
+
+
+def get_ai_channel_recommendations() -> List[Dict]:
+    """
+    Takip edilmesi önerilen AI YouTube kanalları
+    Kategorize edilmiş liste
+    """
+    return [
+        # Araştırma
+        {'name': 'Two Minute Papers', 'url': 'youtube.com/@TwoMinutePapers', 'focus': 'Paper özetleri', 'subs': '1.5M'},
+        {'name': 'Yannic Kilcher', 'url': 'youtube.com/@YannicKilcher', 'focus': 'Detaylı paper analizi', 'subs': '280K'},
+        {'name': 'Andrej Karpathy', 'url': 'youtube.com/@AndrejKarpathy', 'focus': 'Teknik dersler', 'subs': '600K'},
+        
+        # Araçlar
+        {'name': 'Matt Wolfe', 'url': 'youtube.com/@maboroshi_studio', 'focus': 'Haftalık AI araçları', 'subs': '650K'},
+        {'name': 'The AI Advantage', 'url': 'youtube.com/@aiadvantage', 'focus': 'Pratik rehberler', 'subs': '500K'},
+        {'name': 'All About AI', 'url': 'youtube.com/@AllAboutAI', 'focus': 'Araç demoları', 'subs': '400K'},
+        
+        # Haber & Analiz
+        {'name': 'AI Explained', 'url': 'youtube.com/@aiexplained-official', 'focus': 'Derin analizler', 'subs': '400K'},
+        {'name': 'Fireship', 'url': 'youtube.com/@Fireship', 'focus': 'Hızlı güncellemeler', 'subs': '3M'},
+        
+        # Podcast & Röportaj
+        {'name': 'Lex Fridman', 'url': 'youtube.com/@lexfridman', 'focus': 'AI lider röportajları', 'subs': '4.5M'},
+    ]
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 🏆 PISA LİDERLERİNDEN EĞİTİM HABERLERİ
@@ -1932,6 +2378,94 @@ Kurallar:
     
     report.append("")
     
+    # 4.5. 🎬 YOUTUBE AI VİDEOLARI - YENİ BÖLÜM
+    print("🎬 YouTube AI videoları çekiliyor...")
+    youtube_videos = get_youtube_ai_videos()
+    
+    report.append("━" * 50)
+    report.append("🎬 YOUTUBE'DA AI KANALLARI")
+    report.append("━" * 50)
+    report.append("📺 Takip edilmesi önerilen popüler AI kanalları:")
+    
+    if youtube_videos:
+        # Kaynak türüne göre kontrol
+        is_curated = any(v.get('source') == 'curated' for v in youtube_videos)
+        
+        if is_curated:
+            # Curated liste - kategorilere göre grupla
+            report.append("\n🔬 ARAŞTIRMA & TEKNİK:")
+            research = [v for v in youtube_videos if v.get('category') in ['AI Araştırma', 'Matematik/AI']]
+            for video in research[:4]:
+                report.append(f"\n▶️ {video['channel']} ({video['subscribers']})")
+                report.append(f"   📝 {video.get('title', '').replace('🔥 ', '')}")
+                report.append(f"   🔗 {video['link']}")
+            
+            report.append("\n🛠️ AI ARAÇLAR & PRATİK:")
+            tools = [v for v in youtube_videos if v.get('category') in ['AI Araçlar', 'AI Prompt']]
+            for video in tools[:3]:
+                report.append(f"\n▶️ {video['channel']} ({video['subscribers']})")
+                report.append(f"   📝 {video.get('title', '').replace('🔥 ', '')}")
+                report.append(f"   🔗 {video['link']}")
+            
+            report.append("\n📰 HABER & ANALİZ:")
+            news = [v for v in youtube_videos if v.get('category') in ['AI Analiz', 'Tech/AI', 'AI Podcast']]
+            for video in news[:3]:
+                report.append(f"\n▶️ {video['channel']} ({video['subscribers']})")
+                report.append(f"   📝 {video.get('title', '').replace('🔥 ', '')}")
+                report.append(f"   🔗 {video['link']}")
+            
+            report.append("\n🏢 RESMİ KANALLAR:")
+            official = [v for v in youtube_videos if v.get('category') == 'Resmi']
+            for video in official[:2]:
+                report.append(f"\n▶️ {video['channel']} ({video['subscribers']})")
+                report.append(f"   📝 {video.get('title', '').replace('🔥 ', '')}")
+                report.append(f"   🔗 {video['link']}")
+            
+            report.append(f"\n💡 Bu kanalları YouTube'da takip ederek AI dünyasındaki")
+            report.append(f"   son gelişmelerden haberdar olabilirsiniz!")
+        else:
+            # RSS'den çekilen gerçek videolar
+            report.append("\n📹 SON YAYINLANAN AI VİDEOLARI:")
+            
+            research_videos = [v for v in youtube_videos if v.get('category') in ['AI Araştırma', 'Matematik/AI']]
+            tools_videos = [v for v in youtube_videos if v.get('category') in ['AI Araçlar', 'AI Prompt']]
+            news_videos = [v for v in youtube_videos if v.get('category') in ['AI Analiz', 'Tech/AI', 'AI Podcast']]
+            official_videos = [v for v in youtube_videos if v.get('category') == 'Resmi']
+            
+            if research_videos:
+                report.append("\n🔬 ARAŞTIRMA & TEKNİK:")
+                for video in research_videos[:3]:
+                    report.append(f"\n▶️ {video['title']}")
+                    report.append(f"   📺 {video['channel']} ({video['subscribers']})")
+                    report.append(f"   🔗 {video['link']}")
+            
+            if tools_videos:
+                report.append("\n🛠️ AI ARAÇLAR & PRATİK:")
+                for video in tools_videos[:3]:
+                    report.append(f"\n▶️ {video['title']}")
+                    report.append(f"   📺 {video['channel']} ({video['subscribers']})")
+                    report.append(f"   🔗 {video['link']}")
+            
+            if news_videos:
+                report.append("\n📰 HABER & ANALİZ:")
+                for video in news_videos[:3]:
+                    report.append(f"\n▶️ {video['title']}")
+                    report.append(f"   📺 {video['channel']} ({video['subscribers']})")
+                    report.append(f"   🔗 {video['link']}")
+            
+            if official_videos:
+                report.append("\n🏢 RESMİ DUYURULAR:")
+                for video in official_videos[:2]:
+                    report.append(f"\n▶️ {video['title']}")
+                    report.append(f"   📺 {video['channel']}")
+                    report.append(f"   🔗 {video['link']}")
+            
+            report.append(f"\n📊 Toplam {len(youtube_videos)} yeni AI videosu bulundu")
+    else:
+        report.append("\n• Şu an yeni AI videosu bulunamadı")
+    
+    report.append("")
+    
     # 5. PISA LİDERLERİNDEN
     print("🏆 PISA liderleri haberleri...")
     pisa_news = get_pisa_leaders_news()
@@ -2277,7 +2811,7 @@ def send_telegram_message(message: str) -> bool:
 def main():
     """Ana program"""
     print("=" * 50)
-    print("📚 EĞİTİM GÜNDEM TAKİP BOTU v3.0 - PISA Edition")
+    print("📚 EĞİTİM GÜNDEM TAKİP BOTU v4.0 - YouTube AI Edition")
     print("=" * 50)
     print("")
     
