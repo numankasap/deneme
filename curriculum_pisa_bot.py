@@ -106,35 +106,73 @@ print("✅ API bağlantıları hazır!")
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def json_parse(text):
-    """JSON çıkar ve parse et"""
+    """JSON çıkar ve parse et - Düzeltilmiş versiyon"""
     if not text:
         return None
     
-    # Markdown temizle
-    if '```json' in text:
-        text = text.split('```json')[1].split('```')[0]
-    elif '```' in text:
-        for part in text.split('```'):
-            if '{' in part and '}' in part:
-                text = part
-                break
+    original = text
     
+    # Markdown code block temizle
+    if '```json' in text:
+        try:
+            text = text.split('```json')[1]
+            if '```' in text:
+                text = text.split('```')[0]
+        except:
+            pass
+    elif '```' in text:
+        try:
+            parts = text.split('```')
+            for part in parts:
+                part = part.strip()
+                if part.startswith('{') and '}' in part:
+                    text = part
+                    break
+        except:
+            pass
+    
+    text = text.strip()
+    
+    # JSON objesini bul
     start = text.find('{')
     end = text.rfind('}')
+    
     if start < 0 or end <= start:
         return None
     
-    text = text[start:end+1]
+    json_text = text[start:end+1]
+    
+    # Direkt parse dene
+    try:
+        return json.loads(json_text)
+    except json.JSONDecodeError:
+        pass
+    
+    # Temizle ve tekrar dene
+    import re
+    
+    # Kontrol karakterlerini temizle
+    json_text = re.sub(r'[\x00-\x1f\x7f]', ' ', json_text)
+    
+    # Trailing comma düzelt
+    json_text = re.sub(r',(\s*[}\]])', r'\1', json_text)
+    
+    # Tek tırnak → çift tırnak
+    # json_text = json_text.replace("'", '"')
     
     try:
-        return json.loads(text)
-    except:
-        import re
-        text = re.sub(r'[\x00-\x1f]', ' ', text)
-        text = re.sub(r',\s*}', '}', text)
-        text = re.sub(r',\s*\]', ']', text)
+        return json.loads(json_text)
+    except json.JSONDecodeError as e:
+        # Son çare: satır satır temizle
         try:
-            return json.loads(text)
+            lines = json_text.split('\n')
+            clean_lines = []
+            for line in lines:
+                line = line.strip()
+                if line:
+                    clean_lines.append(line)
+            json_text = ' '.join(clean_lines)
+            return json.loads(json_text)
         except:
             return None
 
@@ -269,6 +307,12 @@ JSON formatında yanıt ver:
         )
         
         raw_text = response.text if response.text else ""
+        
+        # Debug: Raw text'i göster
+        if not raw_text:
+            print(f"      [DEBUG] Gemini boş yanıt döndü!")
+            return None
+        
         soru = json_parse(raw_text)
         
         if soru and 'senaryo' in soru:
