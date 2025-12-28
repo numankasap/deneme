@@ -318,7 +318,7 @@ SADECE JSON döndür!'''
 
     try:
         response = gemini.models.generate_content(
-            model='gemini-2.5-pro-preview-06-05',
+            model='gemini-2.5-pro',
             contents=prompt,
             config=types.GenerateContentConfig(
                 temperature=0.7,
@@ -580,7 +580,7 @@ def main():
     print("🔍 Gemini API test ediliyor...")
     try:
         response = gemini.models.generate_content(
-            model='gemini-2.5-pro-preview-06-05',
+            model='gemini-2.5-pro',
             contents='2+2=?'
         )
         print(f"✅ Gemini Pro çalışıyor: {response.text.strip()[:20]}")
