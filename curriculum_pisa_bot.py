@@ -736,7 +736,7 @@ def konu_sablonu_bul(topic_name):
     return "Konuya özgü matematiksel kavramları kullan."
 
 def cot_cozum_olustur(curriculum_row, params, retry=0):
-    """Önce matematiksel çözümü oluştur, sonra soruyu bundan türet - Geliştirilmiş versiyon"""
+    """Önce matematiksel çözümü oluştur, sonra soruyu bundan türet - V4.1"""
     max_retry = 2
     
     try:
@@ -744,89 +744,117 @@ def cot_cozum_olustur(curriculum_row, params, retry=0):
         topic = curriculum_row.get('topic_name', '')
         sub_topic = curriculum_row.get('sub_topic', '')
         baglam = params.get('baglam', {})
-        bloom_seviye = params.get('bloom_seviye', 'uygulama')
         
         format_adi, format_bilgi = sinav_formati_belirle(sinif)
         min_adim, max_adim = format_bilgi['adim_sayisi']
         min_kelime, max_kelime = format_bilgi['senaryo_uzunluk']
         
-        # Sınıf seviyesi parametreleri
-        zorluk_params = SINIF_ZORLUK_PARAMS.get(sinif, SINIF_ZORLUK_PARAMS[8])
-        konu_rehberi = konu_sablonu_bul(topic)
-        
         isim = rastgele_isim_sec()
         
-        # Bloom seviyesine göre soru tipi
-        bloom_rehber = {
-            'hatırlama': 'Temel kavram hatırlatma, tanım sorusu',
-            'anlama': 'Kavramı farklı bağlamda yorumlama',
-            'uygulama': 'Formül/yöntem uygulama, hesaplama',
-            'analiz': 'Verileri analiz etme, ilişki kurma, karşılaştırma',
-            'değerlendirme': 'Sonuçları değerlendirme, karar verme, optimizasyon',
-            'yaratma': 'Yeni durum tasarlama, strateji geliştirme'
-        }
-        bloom_aciklama = bloom_rehber.get(bloom_seviye, bloom_rehber['uygulama'])
-        
-        # Daha basit ve strict JSON formatı - özellikle ilk deneme için
-        prompt = f'''Sen {format_adi} sınavı için matematik soru yazarısın.
+        # Çok basit ve net prompt
+        prompt = f'''Matematik problemi oluştur ve çöz.
 
-KONU: {topic} - {sub_topic if sub_topic else 'Genel'}
-SINIF: {sinif}. sınıf
-KARAKTER: {isim}
-BAGLAM: {baglam.get('kategori_ad', 'Günlük Yaşam')} - {baglam.get('tema', 'genel').replace('_', ' ')}
+Konu: {topic}
+Sınıf: {sinif}
+Karakter: {isim}
+Bağlam: {baglam.get('kategori_ad', 'Günlük Yaşam')}
 
-KURALLAR:
-- Soru "{topic}" konusuyla ilgili olmalı
-- Sonuç tam sayı veya basit kesir olmalı
-- {min_kelime}-{max_kelime} kelime senaryo
-- {min_adim}-{max_adim} çözüm adımı
+Kurallar:
+1. Problem "{topic}" konusuyla ilgili olsun
+2. Sonuç tam sayı olsun
+3. {min_adim}-{max_adim} adımda çözülebilsin
 
-SADECE aşağıdaki JSON formatında yanıt ver:
-{{
-  "problem": "senaryo metni",
-  "konu_kavrami": "kullanılan kavram",
-  "verilen_degerler": {{"a": 10, "b": 5}},
-  "istenen": "ne hesaplanacak",
-  "cozum_adimlari": ["Adım 1: işlem = sonuç", "Adım 2: işlem = sonuç"],
-  "sonuc": 15,
-  "kullanilan_formul": "formül"
-}}'''
+JSON formatında yanıt ver:
+{{"problem": "hikaye şeklinde problem metni", "konu_kavrami": "kullanılan matematik kavramı", "verilen_degerler": {{"x": 10}}, "istenen": "ne bulunacak", "cozum_adimlari": ["Adım 1: açıklama"], "sonuc": 10, "kullanilan_formul": "formül veya yöntem"}}'''
 
         response = gemini_client.models.generate_content(
             model='gemini-2.5-flash',
             contents=prompt,
             config=types.GenerateContentConfig(
-                temperature=0.6 + (retry * 0.1),  # Retry'da temperature artır
-                max_output_tokens=1500,
+                temperature=0.5 + (retry * 0.15),
+                max_output_tokens=1200,
                 response_mime_type="application/json"
             )
         )
         
-        result = json_temizle(response.text.strip())
+        raw_text = response.text.strip() if response.text else ""
+        
+        # Debug: İlk 100 karakteri göster (sadece hata durumunda)
+        result = json_temizle(raw_text)
         
         if result:
-            # Temel alanları kontrol et
-            required_fields = ['problem', 'sonuc', 'cozum_adimlari']
+            required_fields = ['problem', 'sonuc']
             if all(field in result for field in required_fields):
+                # cozum_adimlari yoksa varsayılan ekle
+                if 'cozum_adimlari' not in result:
+                    result['cozum_adimlari'] = [f"Sonuç: {result['sonuc']}"]
                 return result
-            else:
-                missing = [f for f in required_fields if f not in result]
-                if retry < max_retry:
-                    time.sleep(0.5)
-                    return cot_cozum_olustur(curriculum_row, params, retry + 1)
-        else:
-            if retry < max_retry:
-                time.sleep(0.5)
-                return cot_cozum_olustur(curriculum_row, params, retry + 1)
+        
+        # Retry
+        if retry < max_retry:
+            time.sleep(0.5)
+            return cot_cozum_olustur(curriculum_row, params, retry + 1)
         
         return None
         
     except Exception as e:
-        error_str = str(e)
-        if 'rate' in error_str.lower() or 'quota' in error_str.lower():
-            time.sleep(2)
-            if retry < max_retry:
-                return cot_cozum_olustur(curriculum_row, params, retry + 1)
+        if retry < max_retry:
+            time.sleep(1)
+            return cot_cozum_olustur(curriculum_row, params, retry + 1)
+        return None
+
+
+def direkt_soru_olustur(curriculum_row, params):
+    """CoT olmadan direkt soru oluştur - Fallback yöntemi"""
+    try:
+        sinif = curriculum_row.get('grade_level', 8)
+        topic = curriculum_row.get('topic_name', '')
+        baglam = params.get('baglam', {})
+        
+        format_adi, format_bilgi = sinav_formati_belirle(sinif)
+        secenek_sayisi = format_bilgi['seceneksayisi']
+        
+        isim = rastgele_isim_sec()
+        
+        if secenek_sayisi == 4:
+            secenekler = '"A": "değer1", "B": "değer2", "C": "değer3", "D": "değer4"'
+        else:
+            secenekler = '"A": "değer1", "B": "değer2", "C": "değer3", "D": "değer4", "E": "değer5"'
+        
+        prompt = f'''Çoktan seçmeli matematik sorusu oluştur.
+
+Konu: {topic}
+Sınıf: {sinif}
+Karakter: {isim}
+Seçenek sayısı: {secenek_sayisi}
+
+JSON formatında yanıt ver:
+{{"senaryo": "problem hikayesi", "soru_metni": "soru kökü", "secenekler": {{{secenekler}}}, "dogru_cevap": "A", "cozum_adimlari": ["Adım 1"], "solution_detailed": "detaylı çözüm"}}'''
+
+        response = gemini_client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                temperature=0.6,
+                max_output_tokens=1200,
+                response_mime_type="application/json"
+            )
+        )
+        
+        soru = json_temizle(response.text.strip() if response.text else "")
+        
+        if soru and 'senaryo' in soru and 'secenekler' in soru:
+            soru['sinif'] = sinif
+            soru['curriculum_id'] = curriculum_row.get('id')
+            soru['topic_name'] = topic
+            soru['sub_topic'] = curriculum_row.get('sub_topic', '')
+            soru['bloom_seviye'] = params.get('bloom_seviye', 'uygulama')
+            soru['baglam_kategori'] = baglam.get('kategori', 'genel')
+            return soru
+        
+        return None
+        
+    except Exception as e:
         return None
 
 
@@ -1460,14 +1488,16 @@ def question_bank_kaydet(soru, curriculum_row, dogrulama_puan=None):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def tek_soru_pipeline(curriculum_row, params):
-    """Tek bir soru üret (CoT yöntemiyle), doğrula ve kaydet - Geliştirilmiş versiyon"""
+    """Tek bir soru üret (CoT + Fallback yöntemiyle), doğrula ve kaydet - V4.1"""
     
     son_hata = None
-    basarili_cozum = None
     
-    for deneme in range(MAX_DENEME):
+    # ═══════════════════════════════════════════════════════════════════════════
+    # AŞAMA 1: COT YÖNTEMİ (2 deneme)
+    # ═══════════════════════════════════════════════════════════════════════════
+    for deneme in range(2):
         try:
-            time.sleep(0.3)  # Rate limit için küçük bekleme
+            time.sleep(0.3)
             
             # 1. CoT: Önce çözümü oluştur
             cozum = cot_cozum_olustur(curriculum_row, params)
@@ -1477,8 +1507,6 @@ def tek_soru_pipeline(curriculum_row, params):
                 print(f"      ⚠️ CoT çözüm başarısız (Deneme {deneme+1})")
                 continue
             
-            basarili_cozum = cozum  # Başarılı çözümü sakla
-            
             # 2. Çözümden soru oluştur
             soru = cozumden_soru_olustur(cozum, curriculum_row, params)
             
@@ -1487,51 +1515,73 @@ def tek_soru_pipeline(curriculum_row, params):
                 print(f"      ⚠️ Soru oluşturma başarısız (Deneme {deneme+1})")
                 continue
             
-            # 3. Veri tamlığı kontrolü
-            tamlik_ok, tamlik_mesaj = senaryo_veri_tamligini_dogrula(soru)
-            if not tamlik_ok:
-                son_hata = f"Veri eksik: {tamlik_mesaj}"
-                print(f"      ⚠️ Veri eksik: {tamlik_mesaj} (Deneme {deneme+1})")
-                continue
-            
-            # 4. Benzersizlik kontrolü
-            if not benzersiz_mi(soru):
-                son_hata = "Tekrar soru"
-                print(f"      ⚠️ Tekrar soru (Deneme {deneme+1})")
-                continue
-            
-            # 5. DeepSeek doğrulama (varsa)
-            dogrulama = deepseek_dogrula(soru)
-            puan = dogrulama.get('puan', 75)  # Varsayılan puan
-            
-            if DEEPSEEK_DOGRULAMA and not dogrulama.get('gecerli', True) and puan < MIN_DEEPSEEK_PUAN:
-                son_hata = f"Kalite: {puan}/100"
-                print(f"      ⚠️ Kalite yetersiz: {puan}/100 (Deneme {deneme+1})")
-                if dogrulama.get('sorunlar'):
-                    for sorun in dogrulama.get('sorunlar', [])[:2]:
-                        print(f"         - {sorun[:50]}")
-                continue
-            
-            # 6. Kaydet
-            soru_id = question_bank_kaydet(soru, curriculum_row, puan)
-            
-            if soru_id:
-                hash_kaydet(soru)
-                return {
-                    'success': True,
-                    'id': soru_id,
-                    'puan': puan
-                }
+            # 3. Doğrulama ve kayıt
+            sonuc = soru_dogrula_ve_kaydet(soru, curriculum_row)
+            if sonuc['success']:
+                return sonuc
             else:
-                son_hata = "Kayıt hatası"
-            
+                son_hata = sonuc.get('hata', 'Bilinmeyen')
+                print(f"      ⚠️ {son_hata} (Deneme {deneme+1})")
+                
         except Exception as e:
             son_hata = str(e)[:40]
             print(f"      ⚠️ Hata: {son_hata} (Deneme {deneme+1})")
             time.sleep(0.5)
-            continue
+    
+    # ═══════════════════════════════════════════════════════════════════════════
+    # AŞAMA 2: DİREKT SORU ÜRETİMİ - FALLBACK (1 deneme)
+    # ═══════════════════════════════════════════════════════════════════════════
+    print(f"      🔄 Fallback: Direkt soru üretimi deneniyor...")
+    try:
+        time.sleep(0.5)
+        soru = direkt_soru_olustur(curriculum_row, params)
+        
+        if soru:
+            sonuc = soru_dogrula_ve_kaydet(soru, curriculum_row)
+            if sonuc['success']:
+                print(f"      ✅ Fallback başarılı!")
+                return sonuc
+            else:
+                son_hata = f"Fallback: {sonuc.get('hata', 'Bilinmeyen')}"
+        else:
+            son_hata = "Fallback soru üretimi"
+            
+    except Exception as e:
+        son_hata = f"Fallback: {str(e)[:30]}"
     
     return {'success': False, 'son_hata': son_hata}
+
+
+def soru_dogrula_ve_kaydet(soru, curriculum_row):
+    """Soruyu doğrula ve kaydet - Yardımcı fonksiyon"""
+    try:
+        # 1. Veri tamlığı kontrolü
+        tamlik_ok, tamlik_mesaj = senaryo_veri_tamligini_dogrula(soru)
+        if not tamlik_ok:
+            return {'success': False, 'hata': f"Veri eksik: {tamlik_mesaj}"}
+        
+        # 2. Benzersizlik kontrolü
+        if not benzersiz_mi(soru):
+            return {'success': False, 'hata': "Tekrar soru"}
+        
+        # 3. DeepSeek doğrulama (varsa)
+        dogrulama = deepseek_dogrula(soru)
+        puan = dogrulama.get('puan', 75)
+        
+        if DEEPSEEK_DOGRULAMA and not dogrulama.get('gecerli', True) and puan < MIN_DEEPSEEK_PUAN:
+            return {'success': False, 'hata': f"Kalite: {puan}/100"}
+        
+        # 4. Kaydet
+        soru_id = question_bank_kaydet(soru, curriculum_row, puan)
+        
+        if soru_id:
+            hash_kaydet(soru)
+            return {'success': True, 'id': soru_id, 'puan': puan}
+        else:
+            return {'success': False, 'hata': "Kayıt hatası"}
+            
+    except Exception as e:
+        return {'success': False, 'hata': str(e)[:40]}
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TOPLU ÜRETİM
