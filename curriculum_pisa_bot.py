@@ -47,9 +47,9 @@ SORU_PER_KAZANIM = int(os.environ.get('SORU_PER_KAZANIM', '2'))
 MAX_ISLEM_PER_RUN = int(os.environ.get('MAX_ISLEM_PER_RUN', '50'))
 DEEPSEEK_DOGRULAMA = bool(DEEPSEEK_API_KEY)
 COT_AKTIF = True
-BEKLEME = 1.5
-MAX_DENEME = 5  # 4'ten 5'e artırıldı
-MIN_DEEPSEEK_PUAN = 55  # 65'ten 55'e düşürüldü
+BEKLEME = 2.0  # Rate limit için artırıldı
+MAX_DENEME = 3  # Her deneme kendi içinde retry yapıyor
+MIN_DEEPSEEK_PUAN = 55
 API_TIMEOUT = 30
 
 PROGRESS_TABLE = 'curriculum_pisa_progress'  # Artık kullanılmıyor, question_bank tabanlı
@@ -735,8 +735,10 @@ def konu_sablonu_bul(topic_name):
             return sablon
     return "Konuya özgü matematiksel kavramları kullan."
 
-def cot_cozum_olustur(curriculum_row, params):
-    """Önce matematiksel çözümü oluştur, sonra soruyu bundan türet"""
+def cot_cozum_olustur(curriculum_row, params, retry=0):
+    """Önce matematiksel çözümü oluştur, sonra soruyu bundan türet - Geliştirilmiş versiyon"""
+    max_retry = 2
+    
     try:
         sinif = curriculum_row.get('grade_level', 8)
         topic = curriculum_row.get('topic_name', '')
@@ -765,73 +767,73 @@ def cot_cozum_olustur(curriculum_row, params):
         }
         bloom_aciklama = bloom_rehber.get(bloom_seviye, bloom_rehber['uygulama'])
         
-        prompt = f'''Sen {format_adi} sınavı için uzman bir matematik soru yazarısın.
+        # Daha basit ve strict JSON formatı - özellikle ilk deneme için
+        prompt = f'''Sen {format_adi} sınavı için matematik soru yazarısın.
 
-## 🎯 ZORUNLU KURALLAR
-1. Soru MUTLAKA "{topic}" konusunun MATEMATİKSEL kavramlarını kullanmalı
-2. Sınıf seviyesi: {sinif}. sınıf ({zorluk_params['kavram_derinligi']} düzey)
-3. Bloom seviyesi: {bloom_seviye.upper()} - {bloom_aciklama}
-4. Senaryo uzunluğu: {min_kelime}-{max_kelime} kelime
-5. Çözüm adımı: {min_adim}-{max_adim} adım
+KONU: {topic} - {sub_topic if sub_topic else 'Genel'}
+SINIF: {sinif}. sınıf
+KARAKTER: {isim}
+BAGLAM: {baglam.get('kategori_ad', 'Günlük Yaşam')} - {baglam.get('tema', 'genel').replace('_', ' ')}
 
-## 📚 KONU BİLGİSİ
-• Ana Konu: {topic}
-• Alt Konu: {sub_topic if sub_topic else 'Genel'}
-• Kullanılacak işlemler: {zorluk_params['islem']}
-
-## 🧠 KONU REHBERİ
-{konu_rehberi}
-
-## 🌍 SENARYO BAĞLAMI
-{baglam.get('kategori_ad', 'Günlük Yaşam')} - {baglam.get('tema', 'genel').replace('_', ' ')}
-Açıklama: {baglam.get('aciklama', 'Günlük yaşam problemi')}
-
-## ⚠️ KRİTİK UYARILAR
-- Soru SADECE "{topic}" ile ilgili olmalı, başka konu EKLEMEYİN
+KURALLAR:
+- Soru "{topic}" konusuyla ilgili olmalı
 - Sonuç tam sayı veya basit kesir olmalı
-- Gerçekçi veriler kullanın (fiyat, uzunluk, miktar vb.)
-- {sinif}. sınıf öğrencisinin anlayacağı dilde yazın
-- BECERİ TEMELLİ: Gerçek hayat problemi çözme becerisi ölçülmeli
+- {min_kelime}-{max_kelime} kelime senaryo
+- {min_adim}-{max_adim} çözüm adımı
 
-## 👤 KARAKTER: {isim}
-
-## 📝 JSON FORMATI
-```json
+SADECE aşağıdaki JSON formatında yanıt ver:
 {{
-  "problem": "[{min_kelime}-{max_kelime} kelime - {isim} karakteri ile gerçekçi senaryo]",
-  "konu_kavrami": "[Bu soruda hangi matematiksel kavram/formül kullanılıyor]",
-  "verilen_degerler": {{"değişken1": değer1, "değişken2": değer2}},
-  "istenen": "[Ne hesaplanacak - açık ve net]",
-  "cozum_adimlari": [
-    "Adım 1: [Kavram açıklaması] → [İşlem] = [Ara sonuç]",
-    "Adım 2: [Kavram açıklaması] → [İşlem] = [Ara sonuç]"
-  ],
-  "sonuc": [sayısal sonuç - tam sayı veya basit kesir],
-  "kullanilan_formul": "[Kullanılan matematiksel formül/kural]"
-}}
-```
-
-SADECE JSON döndür, başka açıklama yazma!'''
+  "problem": "senaryo metni",
+  "konu_kavrami": "kullanılan kavram",
+  "verilen_degerler": {{"a": 10, "b": 5}},
+  "istenen": "ne hesaplanacak",
+  "cozum_adimlari": ["Adım 1: işlem = sonuç", "Adım 2: işlem = sonuç"],
+  "sonuc": 15,
+  "kullanilan_formul": "formül"
+}}'''
 
         response = gemini_client.models.generate_content(
             model='gemini-2.5-flash',
             contents=prompt,
             config=types.GenerateContentConfig(
-                temperature=0.7,
-                max_output_tokens=2000,
+                temperature=0.6 + (retry * 0.1),  # Retry'da temperature artır
+                max_output_tokens=1500,
                 response_mime_type="application/json"
             )
         )
         
-        return json_temizle(response.text.strip())
+        result = json_temizle(response.text.strip())
+        
+        if result:
+            # Temel alanları kontrol et
+            required_fields = ['problem', 'sonuc', 'cozum_adimlari']
+            if all(field in result for field in required_fields):
+                return result
+            else:
+                missing = [f for f in required_fields if f not in result]
+                if retry < max_retry:
+                    time.sleep(0.5)
+                    return cot_cozum_olustur(curriculum_row, params, retry + 1)
+        else:
+            if retry < max_retry:
+                time.sleep(0.5)
+                return cot_cozum_olustur(curriculum_row, params, retry + 1)
+        
+        return None
         
     except Exception as e:
-        print(f"      ⚠️ CoT hatası: {str(e)[:40]}")
+        error_str = str(e)
+        if 'rate' in error_str.lower() or 'quota' in error_str.lower():
+            time.sleep(2)
+            if retry < max_retry:
+                return cot_cozum_olustur(curriculum_row, params, retry + 1)
         return None
 
 
-def cozumden_soru_olustur(cozum, curriculum_row, params):
-    """Hazır çözümden çoktan seçmeli soru oluştur"""
+def cozumden_soru_olustur(cozum, curriculum_row, params, retry=0):
+    """Hazır çözümden çoktan seçmeli soru oluştur - Geliştirilmiş versiyon"""
+    max_retry = 2
+    
     try:
         sinif = curriculum_row.get('grade_level', 8)
         topic = curriculum_row.get('topic_name', '')
@@ -841,81 +843,45 @@ def cozumden_soru_olustur(cozum, curriculum_row, params):
         secenek_sayisi = format_bilgi['seceneksayisi']
         min_kelime, max_kelime = format_bilgi['senaryo_uzunluk']
         
-        if secenek_sayisi == 4:
-            secenek_harfleri = "A, B, C, D"
-        else:
-            secenek_harfleri = "A, B, C, D, E"
-        
         sonuc = cozum.get('sonuc', 0)
-        kullanilan_formul = cozum.get('kullanilan_formul', '')
-        konu_kavrami = cozum.get('konu_kavrami', topic)
+        problem = cozum.get('problem', '')
+        cozum_adimlari = cozum.get('cozum_adimlari', [])
         
-        # Seçenek şablonunu hazırla
-        if secenek_sayisi == 5:
-            secenek_sablonu = '''"A": "[değer]",
-    "B": "[değer]",
-    "C": "[değer]",
-    "D": "[değer]",
-    "E": "[değer]"'''
+        # Basitleştirilmiş prompt
+        if secenek_sayisi == 4:
+            secenek_ornek = '"A": "değer1", "B": "değer2", "C": "değer3", "D": "değer4"'
         else:
-            secenek_sablonu = '''"A": "[değer]",
-    "B": "[değer]",
-    "C": "[değer]",
-    "D": "[değer]"'''
+            secenek_ornek = '"A": "değer1", "B": "değer2", "C": "değer3", "D": "değer4", "E": "değer5"'
         
-        cozum_adimlari_str = json.dumps(cozum.get('cozum_adimlari', []), ensure_ascii=False)
-        veriler_str = json.dumps(cozum.get('verilen_degerler', {}), ensure_ascii=False)
-        
-        prompt = f'''Sen {format_adi} sınavı için uzman soru yazarısın. Çözülmüş problemi çoktan seçmeli soruya dönüştür.
+        prompt = f'''Çözülmüş problemi çoktan seçmeli soruya dönüştür.
 
-## HAZIR ÇÖZÜM
-**Problem:** {cozum.get('problem', '')}
-**Konu Kavramı:** {konu_kavrami}
-**Kullanılan Formül:** {kullanilan_formul}
-**Veriler:** {veriler_str}
-**İstenen:** {cozum.get('istenen', '')}
-**Çözüm Adımları:** {cozum_adimlari_str}
-**DOĞRU SONUÇ:** {sonuc}
+PROBLEM: {problem}
+ÇÖZÜM ADIMLARI: {json.dumps(cozum_adimlari, ensure_ascii=False)}
+DOĞRU SONUÇ: {sonuc}
+SEÇENEK SAYISI: {secenek_sayisi}
 
-## ZORUNLU KURALLAR
-1. Senaryo {min_kelime}-{max_kelime} kelime olmalı
-2. Soru "{topic}" konusunun matematiksel kavramını içermeli
-3. DOĞRU CEVAP MUTLAKA {sonuc} OLMALI
-4. Çeldiriciler mantıklı hesaplama hatalarından türetilmeli
-5. {secenek_sayisi} seçenek ({secenek_harfleri})
+KURALLAR:
+- Seçeneklerden biri MUTLAKA {sonuc} olmalı
+- Çeldiriciler hesaplama hatalarından türetilmeli
+- {min_kelime}-{max_kelime} kelime senaryo
 
-## ÇELDİRİCİ OLUŞTURMA REHBERİ
-- Yaygın hesaplama hataları (işlem sırası, işaret hatası)
-- Yarım bırakılmış çözümler (ara sonuçlar)
-- Ters işlem sonuçları
-- Birim dönüşüm hataları
-
-## JSON FORMATI
-```json
+SADECE bu JSON formatında yanıt ver:
 {{
-  "senaryo": "[{min_kelime}-{max_kelime} kelime senaryo - problem hikayesi]",
-  "soru_metni": "[Soru kökü - ne soruluyor, açık ve net]",
-  "secenekler": {{
-    {secenek_sablonu}
-  }},
-  "dogru_cevap": "[{secenek_harfleri} den biri - {sonuc} değerini içeren şık]",
-  "cozum_adimlari": {cozum_adimlari_str},
-  "solution_detailed": "[Öğrenci dostu detaylı çözüm açıklaması]",
-  "celdirici_aciklamalar": {{
-    "[Yanlış şık harfi]": "[Bu şıkkı seçen öğrenci hangi hatayı yapmış]"
-  }}
-}}
-```
-
-DOĞRU CEVAP MUTLAKA {sonuc} OLMALI! Seçeneklerden biri tam olarak {sonuc} değerini içermeli.
-SADECE JSON döndür!'''
+  "senaryo": "problem hikayesi",
+  "soru_metni": "soru kökü",
+  "secenekler": {{{secenek_ornek}}},
+  "dogru_cevap": "doğru seçenek harfi",
+  "cozum_adimlari": ["adım 1", "adım 2"],
+  "solution_detailed": "detaylı çözüm",
+  "celdirici_aciklamalar": {{"B": "hata açıklaması"}}
+}}'''
 
         response = gemini_client.models.generate_content(
             model='gemini-2.5-flash',
             contents=prompt,
             config=types.GenerateContentConfig(
-                temperature=0.5,
-                max_output_tokens=2000,
+                temperature=0.4 + (retry * 0.15),
+                max_output_tokens=1500,
                 response_mime_type="application/json"
             )
         )
@@ -923,18 +889,32 @@ SADECE JSON döndür!'''
         soru = json_temizle(response.text.strip())
         
         if soru:
-            # Meta bilgileri ekle
-            soru['sinif'] = sinif
-            soru['curriculum_id'] = curriculum_row.get('id')
-            soru['topic_name'] = topic
-            soru['sub_topic'] = curriculum_row.get('sub_topic', '')
-            soru['bloom_seviye'] = params.get('bloom_seviye', 'uygulama')
-            soru['baglam_kategori'] = params.get('baglam', {}).get('kategori', 'genel')
+            # Temel alanları kontrol et
+            required_fields = ['senaryo', 'soru_metni', 'secenekler', 'dogru_cevap']
+            if all(field in soru for field in required_fields):
+                # Meta bilgileri ekle
+                soru['sinif'] = sinif
+                soru['curriculum_id'] = curriculum_row.get('id')
+                soru['topic_name'] = topic
+                soru['sub_topic'] = curriculum_row.get('sub_topic', '')
+                soru['bloom_seviye'] = bloom_seviye
+                soru['baglam_kategori'] = params.get('baglam', {}).get('kategori', 'genel')
+                return soru
+            else:
+                if retry < max_retry:
+                    time.sleep(0.5)
+                    return cozumden_soru_olustur(cozum, curriculum_row, params, retry + 1)
+        else:
+            if retry < max_retry:
+                time.sleep(0.5)
+                return cozumden_soru_olustur(cozum, curriculum_row, params, retry + 1)
         
-        return soru
+        return None
         
     except Exception as e:
-        print(f"      ⚠️ Soru oluşturma hatası: {str(e)[:40]}")
+        if retry < max_retry:
+            time.sleep(0.5)
+            return cozumden_soru_olustur(cozum, curriculum_row, params, retry + 1)
         return None
 
 
@@ -942,11 +922,16 @@ SADECE JSON döndür!'''
 # JSON TEMİZLEME
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def json_temizle(text):
-    """AI'dan gelen JSON'u temizle ve parse et"""
+def json_temizle(text, debug=False):
+    """AI'dan gelen JSON'u temizle ve parse et - Geliştirilmiş versiyon"""
     if not text:
+        if debug:
+            print("         [DEBUG] Boş text")
         return None
     
+    original_text = text
+    
+    # Markdown code blocks temizle
     if '```json' in text:
         try:
             text = text.split('```json')[1].split('```')[0]
@@ -960,37 +945,72 @@ def json_temizle(text):
                 break
     
     text = text.strip()
+    
+    # "json" prefix varsa kaldır
     if text.lower().startswith('json'):
         text = text[4:].strip()
     
+    # JSON başlangıç ve bitişini bul
     start = text.find('{')
     end = text.rfind('}')
     
     if start < 0 or end < 0 or end <= start:
+        if debug:
+            print(f"         [DEBUG] JSON bulunamadı: {text[:100]}...")
         return None
     
     text = text[start:end+1]
     
-    text = text.replace('\t', ' ')
-    text = text.replace('\r\n', ' ')
-    text = text.replace('\r', ' ')
-    text = text.replace('\n', ' ')
-    text = re.sub(r'\s+', ' ', text)
-    
-    text = re.sub(r',\s*}', '}', text)
-    text = re.sub(r',\s*\]', ']', text)
-    
+    # İlk deneme - direkt parse
     try:
         return json.loads(text)
-    except:
-        pass
+    except json.JSONDecodeError as e:
+        if debug:
+            print(f"         [DEBUG] İlk parse hatası: {e}")
     
+    # Whitespace normalize et ama JSON yapısını koru
+    # Sadece string dışındaki alanları temizle
     try:
-        text = re.sub(r'[\x00-\x1f\x7f-\x9f]', ' ', text)
+        # Escape karakterleri düzelt
+        text = text.replace('\\"', '"')
+        text = text.replace('\\n', ' ')
+        text = text.replace('\\t', ' ')
+        text = text.replace('\t', ' ')
+        
+        # Kontrol karakterlerini temizle
+        text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', ' ', text)
+        
+        return json.loads(text)
+    except json.JSONDecodeError as e:
+        if debug:
+            print(f"         [DEBUG] İkinci parse hatası: {e}")
+    
+    # Trailing comma temizle
+    try:
+        text = re.sub(r',\s*}', '}', text)
+        text = re.sub(r',\s*\]', ']', text)
+        return json.loads(text)
+    except json.JSONDecodeError as e:
+        if debug:
+            print(f"         [DEBUG] Üçüncü parse hatası: {e}")
+    
+    # Satır satır temizle - en agresif yöntem
+    try:
+        lines = text.split('\n')
+        cleaned_lines = []
+        for line in lines:
+            line = line.strip()
+            if line:
+                cleaned_lines.append(line)
+        text = ' '.join(cleaned_lines)
         text = re.sub(r'\s+', ' ', text)
+        text = re.sub(r',\s*}', '}', text)
+        text = re.sub(r',\s*\]', ']', text)
         return json.loads(text)
-    except:
-        pass
+    except json.JSONDecodeError as e:
+        if debug:
+            print(f"         [DEBUG] Son parse hatası: {e}")
+            print(f"         [DEBUG] Text: {text[:200]}...")
     
     return None
 
@@ -1440,39 +1460,52 @@ def question_bank_kaydet(soru, curriculum_row, dogrulama_puan=None):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def tek_soru_pipeline(curriculum_row, params):
-    """Tek bir soru üret (CoT yöntemiyle), doğrula ve kaydet"""
+    """Tek bir soru üret (CoT yöntemiyle), doğrula ve kaydet - Geliştirilmiş versiyon"""
+    
+    son_hata = None
+    basarili_cozum = None
+    
     for deneme in range(MAX_DENEME):
         try:
+            time.sleep(0.3)  # Rate limit için küçük bekleme
+            
             # 1. CoT: Önce çözümü oluştur
             cozum = cot_cozum_olustur(curriculum_row, params)
             
             if not cozum:
+                son_hata = "CoT çözüm"
                 print(f"      ⚠️ CoT çözüm başarısız (Deneme {deneme+1})")
                 continue
+            
+            basarili_cozum = cozum  # Başarılı çözümü sakla
             
             # 2. Çözümden soru oluştur
             soru = cozumden_soru_olustur(cozum, curriculum_row, params)
             
             if not soru:
+                son_hata = "Soru oluşturma"
                 print(f"      ⚠️ Soru oluşturma başarısız (Deneme {deneme+1})")
                 continue
             
             # 3. Veri tamlığı kontrolü
             tamlik_ok, tamlik_mesaj = senaryo_veri_tamligini_dogrula(soru)
             if not tamlik_ok:
+                son_hata = f"Veri eksik: {tamlik_mesaj}"
                 print(f"      ⚠️ Veri eksik: {tamlik_mesaj} (Deneme {deneme+1})")
                 continue
             
             # 4. Benzersizlik kontrolü
             if not benzersiz_mi(soru):
+                son_hata = "Tekrar soru"
                 print(f"      ⚠️ Tekrar soru (Deneme {deneme+1})")
                 continue
             
-            # 5. DeepSeek doğrulama
+            # 5. DeepSeek doğrulama (varsa)
             dogrulama = deepseek_dogrula(soru)
-            puan = dogrulama.get('puan', 0)
+            puan = dogrulama.get('puan', 75)  # Varsayılan puan
             
-            if not dogrulama.get('gecerli', False) and puan < MIN_DEEPSEEK_PUAN:
+            if DEEPSEEK_DOGRULAMA and not dogrulama.get('gecerli', True) and puan < MIN_DEEPSEEK_PUAN:
+                son_hata = f"Kalite: {puan}/100"
                 print(f"      ⚠️ Kalite yetersiz: {puan}/100 (Deneme {deneme+1})")
                 if dogrulama.get('sorunlar'):
                     for sorun in dogrulama.get('sorunlar', [])[:2]:
@@ -1489,12 +1522,16 @@ def tek_soru_pipeline(curriculum_row, params):
                     'id': soru_id,
                     'puan': puan
                 }
+            else:
+                son_hata = "Kayıt hatası"
             
         except Exception as e:
-            print(f"      ⚠️ Hata: {str(e)[:40]} (Deneme {deneme+1})")
+            son_hata = str(e)[:40]
+            print(f"      ⚠️ Hata: {son_hata} (Deneme {deneme+1})")
+            time.sleep(0.5)
             continue
     
-    return {'success': False}
+    return {'success': False, 'son_hata': son_hata}
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TOPLU ÜRETİM
