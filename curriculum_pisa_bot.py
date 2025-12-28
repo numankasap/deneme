@@ -106,32 +106,25 @@ print("✅ API bağlantıları hazır!")
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def json_parse(text):
-    """JSON çıkar ve parse et - Düzeltilmiş versiyon"""
+    """JSON çıkar ve parse et - V3"""
     if not text:
         return None
     
-    original = text
-    
-    # Markdown code block temizle
-    if '```json' in text:
-        try:
-            text = text.split('```json')[1]
-            if '```' in text:
-                text = text.split('```')[0]
-        except:
-            pass
-    elif '```' in text:
-        try:
-            parts = text.split('```')
-            for part in parts:
-                part = part.strip()
-                if part.startswith('{') and '}' in part:
-                    text = part
-                    break
-        except:
-            pass
-    
+    # Markdown code block temizle - daha agresif
     text = text.strip()
+    
+    # ```json ... ``` bloğunu çıkar
+    if '```' in text:
+        # Tüm ``` bloklarını bul
+        import re
+        pattern = r'```(?:json)?\s*([\s\S]*?)```'
+        matches = re.findall(pattern, text)
+        if matches:
+            # En uzun JSON bloğunu al
+            for match in matches:
+                if '{' in match and '}' in match:
+                    text = match.strip()
+                    break
     
     # JSON objesini bul
     start = text.find('{')
@@ -142,39 +135,28 @@ def json_parse(text):
     
     json_text = text[start:end+1]
     
-    # Direkt parse dene
+    # Parse dene
     try:
         return json.loads(json_text)
-    except json.JSONDecodeError:
+    except:
         pass
     
-    # Temizle ve tekrar dene
+    # Temizle
     import re
-    
-    # Kontrol karakterlerini temizle
     json_text = re.sub(r'[\x00-\x1f\x7f]', ' ', json_text)
-    
-    # Trailing comma düzelt
     json_text = re.sub(r',(\s*[}\]])', r'\1', json_text)
-    
-    # Tek tırnak → çift tırnak
-    # json_text = json_text.replace("'", '"')
     
     try:
         return json.loads(json_text)
-    except json.JSONDecodeError as e:
-        # Son çare: satır satır temizle
-        try:
-            lines = json_text.split('\n')
-            clean_lines = []
-            for line in lines:
-                line = line.strip()
-                if line:
-                    clean_lines.append(line)
-            json_text = ' '.join(clean_lines)
-            return json.loads(json_text)
-        except:
-            return None
+    except:
+        pass
+    
+    # Satırları birleştir
+    try:
+        lines = [l.strip() for l in json_text.split('\n') if l.strip()]
+        return json.loads(' '.join(lines))
+    except:
+        return None
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # VERİTABANI FONKSİYONLARI
@@ -199,13 +181,13 @@ def curriculum_getir():
 def mevcut_soru_sayisi(curriculum_id):
     """Kazanım için mevcut soru sayısı"""
     try:
-        result = supabase.table('question_bank').select('id', count='exact').eq('curriculum_id', curriculum_id).execute()
+        result = supabase.table('question_bank').select('id', count='exact').eq('kazanim_id', curriculum_id).execute()
         return result.count or 0
     except:
         return 0
 
 def soru_kaydet(soru, curriculum_row, puan):
-    """Soruyu veritabanına kaydet"""
+    """Soruyu veritabanına kaydet - question_bank tablosuna uygun"""
     try:
         senaryo = soru.get('senaryo', '')
         soru_metni = soru.get('soru_metni', '')
@@ -213,26 +195,36 @@ def soru_kaydet(soru, curriculum_row, puan):
         
         secenekler = soru.get('secenekler', {})
         cozum = soru.get('cozum_adimlari', [])
+        sinif = curriculum_row.get('grade_level', 8)
+        
+        # topic_group belirle
+        if sinif <= 4:
+            topic_group = "ILKOKUL"
+        elif sinif <= 8:
+            topic_group = "LGS"
+        elif sinif <= 10:
+            topic_group = "TYT"
+        else:
+            topic_group = "AYT"
         
         kayit = {
-            'question_text': tam_metin,
-            'options': json.dumps(secenekler, ensure_ascii=False) if isinstance(secenekler, dict) else str(secenekler),
+            'original_text': tam_metin,
+            'scenario_text': senaryo,
+            'options': secenekler if isinstance(secenekler, dict) else json.loads(secenekler) if isinstance(secenekler, str) else {},
             'correct_answer': soru.get('dogru_cevap', 'A'),
-            'solution': '\n'.join(cozum) if isinstance(cozum, list) else str(cozum),
-            'solution_latex': soru.get('solution_detailed', ''),
+            'solution_text': '\n'.join(cozum) if isinstance(cozum, list) else str(cozum),
+            'solution_detailed': soru.get('solution_detailed', ''),
             'difficulty': soru.get('zorluk_puan', 3),
-            'curriculum_id': curriculum_row.get('id'),
-            'topic': curriculum_row.get('topic_name', ''),
-            'sub_topic': curriculum_row.get('sub_topic', ''),
-            'grade_level': curriculum_row.get('grade_level', 8),
-            'question_type': 'multiple_choice',
-            'source': 'curriculum_bot_v5',
+            'subject': curriculum_row.get('lesson_name', 'Matematik'),
+            'grade_level': sinif,
+            'topic': f"{curriculum_row.get('topic_name', '')} -> {curriculum_row.get('sub_topic', '')}".strip(' ->'),
+            'topic_group': topic_group,
+            'kazanim_id': curriculum_row.get('id'),
+            'question_type': 'coktan_secmeli',
+            'bloom_level': soru.get('bloom_seviye', 'uygulama'),
+            'life_skill_category': soru.get('baglam_adi', ''),
             'is_active': True,
-            'metadata': json.dumps({
-                'bloom': soru.get('bloom_seviye', 'uygulama'),
-                'baglam': soru.get('baglam_adi', ''),
-                'puan': puan
-            }, ensure_ascii=False)
+            'verified': False
         }
         
         result = supabase.table('question_bank').insert(kayit).execute()
