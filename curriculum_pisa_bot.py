@@ -321,13 +321,13 @@ Bağlam: {ornek}
         return None
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# DEEPSEEK DOĞRULAMA
+# DOĞRULAMA (DeepSeek veya Gemini)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def deepseek_dogrula(soru):
     """DeepSeek ile doğrula"""
     if not DEEPSEEK_AKTIF:
-        return {"gecerli": True, "puan": 75, "geri_bildirim": None}
+        return None  # Fallback'e geç
     
     try:
         prompt = f'''Bu matematik sorusunu değerlendir (100 üzerinden puan ver):
@@ -344,10 +344,60 @@ JSON yanıt:
         )
         
         result = json_parse(response.choices[0].message.content)
+        return result if result else None
+        
+    except Exception as e:
+        print(f"      ⚠️ DeepSeek doğrulama hatası: {str(e)[:50]}")
+        return None
+
+def gemini_dogrula(soru):
+    """Gemini ile doğrula (fallback)"""
+    try:
+        soru_ozet = {
+            'senaryo': soru.get('senaryo', '')[:200],
+            'soru_metni': soru.get('soru_metni', ''),
+            'secenekler': soru.get('secenekler', {}),
+            'dogru_cevap': soru.get('dogru_cevap', ''),
+            'cozum': soru.get('cozum', soru.get('solution_detailed', ''))[:200]
+        }
+        
+        prompt = f'''Bu matematik sorusunu değerlendir:
+
+{json.dumps(soru_ozet, ensure_ascii=False)}
+
+Kontrol et:
+1. Matematiksel çözüm doğru mu?
+2. Doğru cevap şıklarda var mı?
+3. Senaryo anlamlı mı?
+
+JSON yanıt ver:
+{{"gecerli": true/false, "puan": 0-100, "geri_bildirim": "varsa sorun veya null"}}'''
+
+        response = gemini.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                temperature=0.3,
+                max_output_tokens=500
+            )
+        )
+        
+        result = json_parse(response.text)
         return result if result else {"gecerli": True, "puan": 70, "geri_bildirim": None}
         
     except Exception as e:
+        print(f"      ⚠️ Gemini doğrulama hatası: {str(e)[:50]}")
         return {"gecerli": True, "puan": 70, "geri_bildirim": None}
+
+def soru_dogrula(soru):
+    """Soruyu doğrula - önce DeepSeek, yoksa Gemini"""
+    # Önce DeepSeek dene
+    result = deepseek_dogrula(soru)
+    if result:
+        return result
+    
+    # DeepSeek yoksa Gemini kullan
+    return gemini_dogrula(soru)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # SORU ÜRETİM PIPELINE
@@ -373,7 +423,7 @@ def tek_soru_uret(curriculum_row, bloom_seviye, baglam):
             geri_bildirim = "Senaryo çok kısa, en az 80 kelime olmalı"
             continue
         
-        dogrulama = deepseek_dogrula(soru)
+        dogrulama = soru_dogrula(soru)
         puan = dogrulama.get('puan', 75)
         
         if dogrulama.get('gecerli', True) and puan >= 50:
