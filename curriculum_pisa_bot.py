@@ -176,12 +176,8 @@ def curriculum_getir():
         return []
 
 def mevcut_soru_sayisi(curriculum_id):
-    """Kazanım için mevcut soru sayısı"""
-    try:
-        result = supabase.table('question_bank').select('id', count='exact').eq('kazanim_id', curriculum_id).execute()
-        return result.count or 0
-    except:
-        return 0
+    """Kazanım için mevcut soru sayısı - devre dışı, her zaman 0 döner"""
+    return 0  # Her zaman yeni soru üret
 
 def soru_kaydet(soru, curriculum_row, puan):
     """Soruyu veritabanına kaydet - question_bank tablosuna uygun"""
