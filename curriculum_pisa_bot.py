@@ -115,12 +115,10 @@ def json_parse(text):
     
     # ```json ... ``` bloğunu çıkar
     if '```' in text:
-        # Tüm ``` bloklarını bul
         import re
         pattern = r'```(?:json)?\s*([\s\S]*?)```'
         matches = re.findall(pattern, text)
         if matches:
-            # En uzun JSON bloğunu al
             for match in matches:
                 if '{' in match and '}' in match:
                     text = match.strip()
@@ -131,15 +129,17 @@ def json_parse(text):
     end = text.rfind('}')
     
     if start < 0 or end <= start:
+        print(f"      [JSON DEBUG] {{ veya }} bulunamadı!")
         return None
     
     json_text = text[start:end+1]
     
     # Parse dene
     try:
-        return json.loads(json_text)
-    except:
-        pass
+        result = json.loads(json_text)
+        return result
+    except json.JSONDecodeError as e:
+        print(f"      [JSON DEBUG] İlk parse hatası: {str(e)[:50]}")
     
     # Temizle
     import re
@@ -148,14 +148,15 @@ def json_parse(text):
     
     try:
         return json.loads(json_text)
-    except:
-        pass
+    except json.JSONDecodeError as e:
+        print(f"      [JSON DEBUG] İkinci parse hatası: {str(e)[:50]}")
     
     # Satırları birleştir
     try:
         lines = [l.strip() for l in json_text.split('\n') if l.strip()]
         return json.loads(' '.join(lines))
-    except:
+    except json.JSONDecodeError as e:
+        print(f"      [JSON DEBUG] Üçüncü parse hatası: {str(e)[:50]}")
         return None
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -305,7 +306,13 @@ JSON formatında yanıt ver:
             print(f"      [DEBUG] Gemini boş yanıt döndü!")
             return None
         
+        # Tam yanıtı logla
+        print(f"      [DEBUG] Yanıt uzunluğu: {len(raw_text)} karakter")
+        
         soru = json_parse(raw_text)
+        
+        if soru:
+            print(f"      [DEBUG] Parse başarılı! Alanlar: {list(soru.keys())}")
         
         if soru and 'senaryo' in soru:
             soru['sinif'] = sinif
