@@ -252,69 +252,44 @@ def gemini_soru_uret(curriculum_row, bloom_seviye, baglam, geri_bildirim=None):
     isim = random.choice(ISIMLER)
     ornek = random.choice(baglam['ornekler'])
     
-    if secenek_sayisi == 4:
-        secenekler = '"A": "değer1", "B": "değer2", "C": "değer3", "D": "değer4"'
-    else:
-        secenekler = '"A": "değer1", "B": "değer2", "C": "değer3", "D": "değer4", "E": "değer5"'
-    
     geri_bildirim_text = ""
     if geri_bildirim:
-        geri_bildirim_text = f"\n\nÖNCEKİ HATA: {geri_bildirim}\nBu hatayı düzelt!"
+        geri_bildirim_text = f"\nDİKKAT: {geri_bildirim}"
     
-    prompt = f'''Matematik sorusu oluştur.
-
-KONU: {topic}{' - ' + sub_topic if sub_topic else ''}
-SINIF: {sinif}. sınıf
-BAĞLAM: {baglam['ad']} ({ornek})
-KARAKTER: {isim}
+    # Daha kısa ve net prompt
+    prompt = f'''Konu: {topic}
+Sınıf: {sinif}
+Karakter: {isim}
+Bağlam: {ornek}
 {geri_bildirim_text}
 
-KURALLAR:
-1. {min_kelime}-{max_kelime} kelime senaryo yaz
-2. {isim} karakteri ile günlük yaşam hikayesi oluştur
-3. Tüm sayısal veriler senaryoda olsun
-4. {secenek_sayisi} şık olsun
-5. Önce problemi çöz, sonra şıkları yaz
+{secenek_sayisi} şıklı matematik sorusu yaz. JSON formatında:
 
-JSON formatında yanıt ver:
-
-```json
-{{
-  "senaryo": "hikaye metni burada",
-  "soru_metni": "soru kökü burada",
-  "secenekler": {{{secenekler}}},
-  "dogru_cevap": "A",
-  "cozum_adimlari": ["Adım 1: işlem = sonuç", "Adım 2: işlem = sonuç"],
-  "solution_detailed": "detaylı çözüm açıklaması"
-}}
-```'''
+{{"senaryo":"...", "soru_metni":"...", "secenekler":{{"A":"...","B":"...","C":"...","D":"..."}}, "dogru_cevap":"A", "cozum":"..."}}'''
 
     try:
         response = gemini.models.generate_content(
             model='gemini-2.5-flash',
             contents=prompt,
             config=types.GenerateContentConfig(
-                temperature=0.7,
-                max_output_tokens=2000
+                temperature=0.8,
+                max_output_tokens=4096  # Artırıldı!
             )
         )
         
         raw_text = response.text if response.text else ""
         
-        # Debug: Raw text'i göster
         if not raw_text:
             print(f"      [DEBUG] Gemini boş yanıt döndü!")
             return None
         
-        # Tam yanıtı logla
         print(f"      [DEBUG] Yanıt uzunluğu: {len(raw_text)} karakter")
         
         soru = json_parse(raw_text)
         
         if soru:
             print(f"      [DEBUG] Parse başarılı! Alanlar: {list(soru.keys())}")
-        
-        if soru and 'senaryo' in soru:
+            
             soru['sinif'] = sinif
             soru['curriculum_id'] = curriculum_row.get('id')
             soru['topic_name'] = topic
@@ -331,9 +306,9 @@ JSON formatında yanıt ver:
             if 'soru_metni' not in soru:
                 soru['soru_metni'] = "Sonuç kaçtır?"
             if 'cozum_adimlari' not in soru:
-                soru['cozum_adimlari'] = ["Çözüm"]
+                soru['cozum_adimlari'] = [soru.get('cozum', 'Çözüm')]
             if 'solution_detailed' not in soru:
-                soru['solution_detailed'] = soru.get('senaryo', '')
+                soru['solution_detailed'] = soru.get('cozum', soru.get('senaryo', ''))
             
             return soru
         else:
