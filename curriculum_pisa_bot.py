@@ -84,8 +84,8 @@ SINAV_FORMATLARI = {
     'LGS': {
         'siniflar': [5, 6, 7, 8],
         'seceneksayisi': 4,  # A, B, C, D
-        'senaryo_uzunluk': (100, 140),  # kelime
-        'adim_sayisi': (2, 5),
+        'senaryo_uzunluk': (60, 100),  # kelime
+        'adim_sayisi': (2, 4),
         'zorluk_dagilimi': {'kolay': 0.30, 'orta': 0.50, 'zor': 0.20},
         'ozellikler': [
             'Günlük yaşam senaryoları',
@@ -98,9 +98,9 @@ SINAV_FORMATLARI = {
     'TYT': {
         'siniflar': [9, 10],
         'seceneksayisi': 5,  # A, B, C, D, E
-        'senaryo_uzunluk': (120, 150),
-        'adim_sayisi': (4, 5),
-        'zorluk_dagilimi': {'kolay': 0.25, 'orta': 0.40, 'zor': 0.35},
+        'senaryo_uzunluk': (80, 130),
+        'adim_sayisi': (3, 5),
+        'zorluk_dagilimi': {'kolay': 0.25, 'orta': 0.50, 'zor': 0.25},
         'ozellikler': [
             'Temel matematik becerileri',
             'Güncel yaşam problemleri',
@@ -124,8 +124,8 @@ SINAV_FORMATLARI = {
     'ILKOKUL': {
         'siniflar': [3, 4],
         'seceneksayisi': 4,  # A, B, C, D
-        'senaryo_uzunluk': (50, 70),
-        'adim_sayisi': (2, 3),
+        'senaryo_uzunluk': (40, 70),
+        'adim_sayisi': (1, 2),
         'zorluk_dagilimi': {'kolay': 0.50, 'orta': 0.40, 'zor': 0.10},
         'ozellikler': [
             'Basit ve anlaşılır dil',
@@ -194,16 +194,16 @@ BLOOM_TAKSONOMISI = {
 
 # Sınıf -> Bloom Eşleştirmesi (Gerçekçi seviyeler)
 SINIF_BLOOM_ESLESTIRME = {
-    3: ['hatırlama', 'anlama','uygulama'],
-    4: ['hatırlama', 'anlama','uygulama'],
-    5: ['anlama', 'uygulama','analiz'],
-    6: ['anlama', 'uygulama','analiz'],
-    7: ['uygulama', 'analiz','Değerlendirme'],
-    8: ['uygulama', 'analiz','Değerlendirme'],
-    9: ['uygulama', 'analiz','Değerlendirme'],
-    10: ['uygulama', 'analiz','Değerlendirme'],
-    11: ['uygulama', 'analiz','Değerlendirme','yaratma'], 
-    12: ['uygulama', 'analiz','Değerlendirme','yaratma']   
+    3: ['hatırlama', 'anlama'],
+    4: ['hatırlama', 'anlama'],
+    5: ['anlama', 'uygulama'],
+    6: ['anlama', 'uygulama'],
+    7: ['uygulama', 'analiz'],
+    8: ['uygulama', 'analiz'],
+    9: ['uygulama', 'analiz'],
+    10: ['uygulama', 'analiz'],
+    11: ['uygulama', 'analiz'],  # Değerlendirme/yaratma kaldırıldı
+    12: ['uygulama', 'analiz']   # Değerlendirme/yaratma kaldırıldı
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -735,40 +735,89 @@ def konu_sablonu_bul(topic_name):
             return sablon
     return "Konuya özgü matematiksel kavramları kullan."
 
+def konu_tipi_belirle(topic_name):
+    """Konunun somut mu soyut mu olduğunu belirle"""
+    soyut_konular = [
+        'olasılık', 'bayes', 'küme', 'kartezyen', 'fonksiyon', 'limit', 
+        'türev', 'integral', 'logaritma', 'permütasyon', 'kombinasyon',
+        'dönüşüm', 'yansıma', 'öteleme', 'simetri', 'matris', 'determinant',
+        'polinom', 'kompleks', 'trigonometri', 'analitik', 'vektör',
+        'dizi', 'seri', 'binom', 'pascal', 'faktöriyel', 'cisim görünüm',
+        'izdüşüm', 'perspektif', 'eşlik', 'benzerlik'
+    ]
+    
+    topic_lower = topic_name.lower()
+    for soyut in soyut_konular:
+        if soyut in topic_lower:
+            return 'soyut'
+    return 'somut'
+
+
 def cot_cozum_olustur(curriculum_row, params, retry=0):
-    """Önce matematiksel çözümü oluştur - TEXT MODE (daha stabil)"""
+    """Konu tipine göre akıllı çözüm oluştur - V4.3"""
     max_retry = 2
     
     try:
         sinif = curriculum_row.get('grade_level', 8)
         topic = curriculum_row.get('topic_name', '')
         sub_topic = curriculum_row.get('sub_topic', '')
-        baglam = params.get('baglam', {})
         
         format_adi, format_bilgi = sinav_formati_belirle(sinif)
-        min_adim, max_adim = format_bilgi['adim_sayisi']
-        
         isim = rastgele_isim_sec()
         
-        # TEXT mode prompt - daha basit
-        prompt = f'''Matematik problemi oluştur ve çöz.
+        konu_tipi = konu_tipi_belirle(topic)
+        
+        # SOYUT KONULAR İÇİN - Doğrudan matematik problemi
+        if konu_tipi == 'soyut':
+            prompt = f'''{sinif}. sınıf {topic} konusunda bir matematik problemi oluştur.
+
+Konu: {topic}
+Alt Konu: {sub_topic if sub_topic else 'Genel'}
+
+Kurallar:
+1. Doğrudan matematiksel bir problem olsun
+2. Sonuç tam sayı veya basit kesir olsun
+3. Çözüm adımları açık olsun
+
+JSON formatında yanıt ver:
+
+```json
+{{
+  "problem": "{topic} ile ilgili matematik problemi",
+  "konu_kavrami": "kullanılan kavram",
+  "verilen_degerler": {{"a": 5, "b": 3}},
+  "istenen": "hesaplanacak şey",
+  "cozum_adimlari": ["Adım 1: işlem = sonuç"],
+  "sonuc": 8,
+  "kullanilan_formul": "formül"
+}}
+```'''
+        
+        # SOMUT KONULAR İÇİN - Günlük yaşam senaryosu
+        else:
+            prompt = f'''Matematik problemi oluştur ve çöz.
 
 Konu: {topic}
 Alt Konu: {sub_topic if sub_topic else 'Genel'}
 Sınıf: {sinif}. sınıf
 Karakter: {isim}
 
-Aşağıdaki JSON formatında yanıt ver (başka açıklama yazma):
+Kurallar:
+1. {isim} karakteri ile günlük yaşam problemi olsun
+2. Sonuç tam sayı olsun
+3. Çözüm adımları açık olsun
+
+JSON formatında yanıt ver:
 
 ```json
 {{
-  "problem": "{isim} karakteri ile günlük yaşam problemi",
-  "konu_kavrami": "{topic} ile ilgili kavram",
-  "verilen_degerler": {{"sayi1": 10, "sayi2": 5}},
+  "problem": "{isim} ile günlük yaşam hikayesi",
+  "konu_kavrami": "{topic} kavramı",
+  "verilen_degerler": {{"sayi": 10}},
   "istenen": "hesaplanacak şey",
   "cozum_adimlari": ["Adım 1: işlem = sonuç"],
   "sonuc": 15,
-  "kullanilan_formul": "kullanılan formül"
+  "kullanilan_formul": "formül"
 }}
 ```'''
 
@@ -778,7 +827,6 @@ Aşağıdaki JSON formatında yanıt ver (başka açıklama yazma):
             config=types.GenerateContentConfig(
                 temperature=0.7,
                 max_output_tokens=1500
-                # response_mime_type kaldırıldı - text mode
             )
         )
         
@@ -806,7 +854,7 @@ Aşağıdaki JSON formatında yanıt ver (başka açıklama yazma):
 
 
 def direkt_soru_olustur(curriculum_row, params):
-    """CoT olmadan direkt soru oluştur - TEXT MODE (daha stabil)"""
+    """Konu tipine göre akıllı direkt soru oluştur - V4.3"""
     try:
         sinif = curriculum_row.get('grade_level', 8)
         topic = curriculum_row.get('topic_name', '')
@@ -817,6 +865,7 @@ def direkt_soru_olustur(curriculum_row, params):
         secenek_sayisi = format_bilgi['seceneksayisi']
         
         isim = rastgele_isim_sec()
+        konu_tipi = konu_tipi_belirle(topic)
         
         # Seçenek şablonu
         if secenek_sayisi == 4:
@@ -824,7 +873,30 @@ def direkt_soru_olustur(curriculum_row, params):
         else:
             secenekler = '"A": "10", "B": "15", "C": "20", "D": "25", "E": "30"'
         
-        prompt = f'''Çoktan seçmeli matematik sorusu yaz.
+        # SOYUT KONULAR
+        if konu_tipi == 'soyut':
+            prompt = f'''{sinif}. sınıf {topic} konusunda çoktan seçmeli soru yaz.
+
+Konu: {topic}
+Alt Konu: {sub_topic if sub_topic else 'Genel'}
+Seçenek sayısı: {secenek_sayisi}
+
+JSON formatında yanıt ver:
+
+```json
+{{
+  "senaryo": "{topic} ile ilgili matematiksel problem",
+  "soru_metni": "Soru kökü",
+  "secenekler": {{{secenekler}}},
+  "dogru_cevap": "A",
+  "cozum_adimlari": ["Adım 1: hesaplama"],
+  "solution_detailed": "Detaylı çözüm"
+}}
+```'''
+        
+        # SOMUT KONULAR
+        else:
+            prompt = f'''Çoktan seçmeli matematik sorusu yaz.
 
 Konu: {topic}
 Alt Konu: {sub_topic if sub_topic else 'Genel'}
@@ -832,16 +904,16 @@ Sınıf: {sinif}. sınıf
 Karakter: {isim}
 Seçenek sayısı: {secenek_sayisi}
 
-Aşağıdaki JSON formatında yanıt ver (başka açıklama yazma):
+JSON formatında yanıt ver:
 
 ```json
 {{
-  "senaryo": "{isim} ile ilgili günlük yaşam hikayesi ({topic} konusu)",
-  "soru_metni": "Soru kökü - ne soruluyor?",
+  "senaryo": "{isim} ile günlük yaşam hikayesi ({topic})",
+  "soru_metni": "Soru kökü",
   "secenekler": {{{secenekler}}},
   "dogru_cevap": "A",
-  "cozum_adimlari": ["Adım 1: açıklama ve hesaplama"],
-  "solution_detailed": "Detaylı çözüm açıklaması"
+  "cozum_adimlari": ["Adım 1: hesaplama"],
+  "solution_detailed": "Detaylı çözüm"
 }}
 ```'''
 
@@ -851,14 +923,13 @@ Aşağıdaki JSON formatında yanıt ver (başka açıklama yazma):
             config=types.GenerateContentConfig(
                 temperature=0.7,
                 max_output_tokens=1500
-                # response_mime_type kaldırıldı - text mode
             )
         )
         
         raw_text = response.text.strip() if response.text else ""
         soru = json_temizle(raw_text)
         
-        if soru and 'senaryo' in soru and 'secenekler' in soru:
+        if soru and 'senaryo' in soru:
             # Meta bilgileri ekle
             soru['sinif'] = sinif
             soru['curriculum_id'] = curriculum_row.get('id')
@@ -868,10 +939,14 @@ Aşağıdaki JSON formatında yanıt ver (başka açıklama yazma):
             soru['baglam_kategori'] = baglam.get('kategori', 'genel')
             
             # Eksik alanları tamamla
+            if 'secenekler' not in soru:
+                soru['secenekler'] = {'A': '?', 'B': '?', 'C': '?', 'D': '?'}
             if 'dogru_cevap' not in soru:
                 soru['dogru_cevap'] = 'A'
+            if 'soru_metni' not in soru:
+                soru['soru_metni'] = 'Sonuç kaçtır?'
             if 'cozum_adimlari' not in soru:
-                soru['cozum_adimlari'] = ['Çözüm adımları']
+                soru['cozum_adimlari'] = ['Hesaplama yapıldı']
             if 'solution_detailed' not in soru:
                 soru['solution_detailed'] = soru.get('senaryo', '')
             
