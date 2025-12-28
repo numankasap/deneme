@@ -166,7 +166,7 @@ def soru_hash(soru):
 def curriculum_getir():
     """Matematik kazanımlarını getir"""
     try:
-        result = supabase.table('curriculum').select('*').eq('subject', 'Matematik').gte('grade_level', 3).lte('grade_level', 12).execute()
+        result = supabase.table('curriculum').select('*').eq('lesson_name', 'Matematik').gte('grade_level', 3).lte('grade_level', 12).execute()
         return result.data if result.data else []
     except Exception as e:
         print(f"❌ Curriculum hatası: {e}")
