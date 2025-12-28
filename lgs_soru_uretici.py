@@ -102,7 +102,7 @@ class QuestionGenerator:
         if not GEMINI_API_KEY:
             raise ValueError("GEMINI_API_KEY gerekli!")
         genai.configure(api_key=GEMINI_API_KEY)
-        self.model = genai.GenerativeModel('gemini-2.5-flash')
+        self.model = genai.GenerativeModel('gemini-1.5-flash')
     
     def _system_prompt(self) -> str:
         return """Sen bir LGS matematik soru yazarısın.
@@ -164,44 +164,66 @@ Yukarıdaki kurallara uygun BİR soru üret, JSON döndür."""
         if start != -1 and end != -1:
             text = text[start:end+1]
         
-        # Satır sonlarını ve tab'ları temizle
+        return text
+    
+    def _fix_json(self, text: str) -> str:
+        """Bozuk JSON'u düzeltmeye çalış"""
+        import re
+        
+        # Kontrol karakterlerini kaldır
+        text = re.sub(r'[\x00-\x1f\x7f-\x9f]', ' ', text)
+        
+        # Satır sonlarını boşlukla değiştir
         text = text.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ')
         
-        # Çift boşlukları tek boşluğa indir
-        while '  ' in text:
-            text = text.replace('  ', ' ')
+        # Çoklu boşlukları tek boşluğa indir
+        text = re.sub(r'\s+', ' ', text)
         
-        # String içindeki sorunlu karakterleri düzelt
-        # Escape edilmemiş tırnak işaretlerini düzelt
-        text = re.sub(r'(?<!\\)"([^"]*?)(?<!\\)"', lambda m: '"' + m.group(1).replace('"', '\\"') + '"', text)
+        # String içindeki escape edilmemiş tırnakları düzelt
+        # "key": "value with "quote" inside" -> "key": "value with 'quote' inside"
+        def fix_quotes(match):
+            content = match.group(1)
+            # İç tırnakları tek tırnak yap
+            content = content.replace('\\"', "'").replace('"', "'")
+            return '"' + content + '"'
+        
+        # Her string değerini işle
+        text = re.sub(r'"((?:[^"\\]|\\.)*)(?:"|$)', fix_quotes, text)
         
         return text
     
     def generate(self, kazanim: Dict, difficulty: str = "orta") -> Optional[Dict]:
         import google.generativeai as genai
         try:
+            # JSON mode ile çağır
             response = self.model.generate_content(
                 f"{self._system_prompt()}\n\n{self._topic_prompt(kazanim, difficulty)}",
                 generation_config=genai.GenerationConfig(
-                    temperature=0.3,  # Daha düşük sıcaklık = daha tutarlı çıktı
-                    max_output_tokens=4000,
-                    candidate_count=1
+                    temperature=0.7,
+                    max_output_tokens=3000,
+                    response_mime_type="application/json"  # JSON formatı zorla
                 )
             )
             
             text = response.text
             text = self._clean_json(text)
             
+            # İlk deneme
             try:
                 data = json.loads(text)
-            except json.JSONDecodeError as e:
-                # İkinci deneme: daha agresif temizlik
-                import re
-                # Tüm kontrol karakterlerini kaldır
-                text = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', text)
-                # String içindeki yeni satırları \n ile değiştir
-                text = re.sub(r'"([^"]*)"', lambda m: '"' + m.group(1).replace('\n', '\\n') + '"', text)
-                data = json.loads(text)
+            except json.JSONDecodeError:
+                # İkinci deneme: JSON düzeltme
+                text = self._fix_json(text)
+                try:
+                    data = json.loads(text)
+                except json.JSONDecodeError as e:
+                    # Üçüncü deneme: eval ile dene (güvenli değil ama son çare)
+                    try:
+                        # Sadece basit düzeltme
+                        text = text.replace("'", '"')
+                        data = json.loads(text)
+                    except:
+                        raise e
             
             # Validasyon
             if len(data.get("scenario_text", "").split()) < 100:
@@ -223,14 +245,20 @@ Yukarıdaki kurallara uygun BİR soru üret, JSON döndür."""
     
     def generate_batch(self, kazanim: Dict, count: int, difficulty: str) -> List[Dict]:
         questions = []
-        for i in range(count * 3):
-            if len(questions) >= count:
-                break
+        max_attempts = count * 4  # Daha fazla deneme hakkı
+        attempts = 0
+        
+        while len(questions) < count and attempts < max_attempts:
+            attempts += 1
             diff = random.choice(["kolay", "orta", "zor"]) if difficulty == "karisik" else difficulty
             q = self.generate(kazanim, diff)
             if q and not any(x.get("title") == q.get("title") for x in questions):
                 questions.append(q)
                 print(f"  ✓ Soru {len(questions)}/{count}")
+        
+        if len(questions) < count:
+            print(f"  ⚠️ Sadece {len(questions)}/{count} soru üretilebildi")
+        
         return questions
     
     def format_for_db(self, q: Dict) -> Dict:
