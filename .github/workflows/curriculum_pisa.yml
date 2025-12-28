@@ -41,7 +41,7 @@ jobs:
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          SORU_PER_KAZANIM: ${{ github.event.inputs.soru_per_kazanim || '3' }}
+          SORU_PER_KAZANIM: ${{ github.event.inputs.soru_per_kazanim || '5' }}
           MAX_ISLEM_PER_RUN: ${{ github.event.inputs.kazanim_sayisi || '10' }}
         run: |
           python curriculum_pisa_bot.py
