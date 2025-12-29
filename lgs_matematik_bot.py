@@ -48,7 +48,7 @@ SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
 # ============================================================================
 
 GEMINI_TEXT_MODEL = "gemini-2.5-flash"
-GEMINI_IMAGE_MODEL = "gemini-3-pro-image-preview"
+GEMINI_IMAGE_MODEL = "imagen-3.0-generate-002"
 
 GEMINI_TEXT_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_TEXT_MODEL}:generateContent"
 GEMINI_IMAGE_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_IMAGE_MODEL}:predict"
@@ -699,6 +699,44 @@ class SupabaseClient:
             "Content-Type": "application/json",
             "Prefer": "return=representation"
         }
+        self._curriculum_cache = None
+    
+    def get_curriculum_for_grade(self, grade_level: int = 8, lesson_name: str = "Matematik") -> List[Dict]:
+        """Curriculum tablosundan kazanımları çek"""
+        
+        if self._curriculum_cache is not None:
+            return self._curriculum_cache
+        
+        query_url = f"{self.url}/rest/v1/curriculum?grade_level=eq.{grade_level}&lesson_name=eq.{lesson_name}&select=id,topic_code,topic_name,sub_topic,learning_outcome_code,learning_outcome_description,bloom_level"
+        
+        try:
+            response = requests.get(
+                query_url,
+                headers=self.headers,
+                timeout=30
+            )
+            response.raise_for_status()
+            self._curriculum_cache = response.json()
+            logger.info(f"  ✓ Curriculum'dan {len(self._curriculum_cache)} kazanım yüklendi")
+            return self._curriculum_cache
+        except Exception as e:
+            logger.error(f"  Curriculum yükleme hatası: {e}")
+            return []
+    
+    def get_random_kazanim(self, topic_filter: str = None) -> Optional[Dict]:
+        """Rastgele bir kazanım seç"""
+        curriculum = self.get_curriculum_for_grade()
+        
+        if not curriculum:
+            return None
+        
+        if topic_filter:
+            # Konu adına göre filtrele
+            filtered = [k for k in curriculum if topic_filter.lower() in k.get('topic_name', '').lower()]
+            if filtered:
+                return random.choice(filtered)
+        
+        return random.choice(curriculum)
     
     def upload_image(self, image_base64: str, filename: str) -> Optional[str]:
         """Storage'a görsel yükle"""
@@ -729,7 +767,7 @@ class SupabaseClient:
             logger.error(f"  Storage upload hatası: {e}")
             return None
     
-    def insert_question(self, question: GeneratedQuestion) -> Optional[int]:
+    def insert_question(self, question: GeneratedQuestion, kazanim_id: int = None) -> Optional[int]:
         """question_bank tablosuna soru ekle"""
         
         insert_url = f"{self.url}/rest/v1/question_bank"
@@ -754,7 +792,7 @@ class SupabaseClient:
             "grade_level": question.grade_level,
             "topic": question.topic,
             "topic_group": question.topic_group,
-            "kazanim_kodu": question.kazanim_kodu,
+            "kazanim_id": kazanim_id,  # curriculum tablosundan gelen id
             "bloom_level": question.bloom_level,
             "pisa_level": question.pisa_level,
             "pisa_context": question.pisa_context,
@@ -813,17 +851,24 @@ class LGSQuestionGenerator:
             "with_image": 0
         }
     
-    def generate_single_question(self, params: QuestionParams) -> Optional[int]:
+    def generate_single_question(self, params: QuestionParams, kazanim_from_db: Dict = None) -> Optional[int]:
         """Tek bir soru üret ve kaydet"""
         
         self.stats["total_attempts"] += 1
         konu_display = LGS_KONULAR.get(params.konu, {}).get("display_name", params.konu)
         
+        # Curriculum'dan kazanım bilgisi
+        kazanim_id = None
+        kazanim_info = ""
+        if kazanim_from_db:
+            kazanim_id = kazanim_from_db.get("id")
+            kazanim_info = f"\n   Kazanım ID: {kazanim_id} - {kazanim_from_db.get('learning_outcome_code', '')}"
+        
         logger.info(f"\n{'='*70}")
         logger.info(f"📝 SORU ÜRETİMİ BAŞLIYOR")
         logger.info(f"   Konu: {konu_display}")
         logger.info(f"   Alt Konu: {params.alt_konu}")
-        logger.info(f"   Kazanım: {params.kazanim_kodu}")
+        logger.info(f"   Kazanım: {params.kazanim_kodu}{kazanim_info}")
         logger.info(f"   Bloom: {params.bloom_seviyesi} | Zorluk: {params.zorluk}/5")
         logger.info(f"{'='*70}")
         
@@ -896,7 +941,7 @@ class LGSQuestionGenerator:
             
             # ADIM 4: Supabase'e kaydet
             logger.info("\n[4/4] Veritabanına kaydediliyor...")
-            question_id = self.supabase.insert_question(generated)
+            question_id = self.supabase.insert_question(generated, kazanim_id=kazanim_id)
             
             if question_id:
                 self.stats["successful"] += 1
@@ -915,14 +960,22 @@ class LGSQuestionGenerator:
             return None
     
     def generate_batch(self, count_per_topic: int = 1) -> Dict[str, Any]:
-        """Tüm konular için toplu soru üret"""
+        """Tüm konular için toplu soru üret - Curriculum tablosundan kazanım çeker"""
         
         logger.info(f"\n{'#'*70}")
         logger.info(f"🚀 TOPLU SORU ÜRETİMİ BAŞLIYOR")
         logger.info(f"   Her konu için {count_per_topic} soru üretilecek")
-        logger.info(f"   Toplam konu sayısı: {len(LGS_KONULAR)}")
-        logger.info(f"   Tahmini toplam soru: {len(LGS_KONULAR) * count_per_topic}")
         logger.info(f"{'#'*70}\n")
+        
+        # Önce curriculum'dan 8. sınıf matematik kazanımlarını çek
+        logger.info("📚 Curriculum tablosundan kazanımlar yükleniyor...")
+        curriculum = self.supabase.get_curriculum_for_grade(grade_level=8, lesson_name="Matematik")
+        
+        if not curriculum:
+            logger.error("❌ Curriculum'dan kazanım yüklenemedi!")
+            return {"generated_ids": [], "failed_topics": [], "stats": self.stats}
+        
+        logger.info(f"   ✓ {len(curriculum)} kazanım bulundu\n")
         
         results = {
             "generated_ids": [],
@@ -930,43 +983,86 @@ class LGSQuestionGenerator:
             "stats": {}
         }
         
-        for konu, konu_data in LGS_KONULAR.items():
-            logger.info(f"\n📚 Konu: {konu_data['display_name']}")
+        # Her konu için belirlenen sayıda soru üret
+        for i in range(count_per_topic * len(LGS_KONULAR)):
+            # Rastgele bir kazanım seç
+            kazanim = random.choice(curriculum)
             
-            for i in range(count_per_topic):
-                # Rastgele parametreler seç
-                alt_konu = random.choice(konu_data["alt_konular"])
-                kazanim = random.choice(konu_data["kazanimlar"])
-                bloom = random.choice(list(BLOOM_SEVIYELERI.keys()))
-                zorluk = random.randint(3, 5)
-                baglam = random.choice(konu_data["ornek_baglamlar"])
-                gorsel_tipi = random.choice(konu_data.get("gorsel_tipleri", ["geometrik_sekil"]))
-                
-                params = QuestionParams(
-                    konu=konu,
-                    alt_konu=alt_konu,
-                    kazanim_kodu=kazanim,
-                    bloom_seviyesi=bloom,
-                    zorluk=zorluk,
-                    baglam=baglam,
-                    gorsel_tipi=gorsel_tipi
-                )
-                
-                question_id = self.generate_single_question(params)
-                
-                if question_id:
-                    results["generated_ids"].append(question_id)
-                else:
-                    results["failed_topics"].append(f"{konu}_{i+1}")
-                
-                # Rate limiting
-                time.sleep(Config.RATE_LIMIT_DELAY)
+            topic_name = kazanim.get("topic_name", "Genel")
+            sub_topic = kazanim.get("sub_topic", "")
+            learning_code = kazanim.get("learning_outcome_code", "")
+            bloom = kazanim.get("bloom_level") or random.choice(list(BLOOM_SEVIYELERI.keys()))
+            
+            # LGS_KONULAR'dan en uygun konuyu bul
+            konu_key = self._find_matching_konu(topic_name)
+            konu_data = LGS_KONULAR.get(konu_key, {})
+            
+            logger.info(f"\n📚 Konu: {topic_name} (Kazanım ID: {kazanim.get('id')})")
+            
+            # Parametreleri oluştur
+            zorluk = random.randint(3, 5)
+            baglam = random.choice(konu_data.get("ornek_baglamlar", ["genel"]))
+            gorsel_tipi = random.choice(konu_data.get("gorsel_tipleri", ["geometrik_sekil"]))
+            
+            params = QuestionParams(
+                konu=konu_key,
+                alt_konu=sub_topic or konu_data.get("alt_konular", ["genel"])[0],
+                kazanim_kodu=learning_code or "M.8.1.1.1",
+                bloom_seviyesi=bloom if bloom in BLOOM_SEVIYELERI else "Analiz",
+                zorluk=zorluk,
+                baglam=baglam,
+                gorsel_tipi=gorsel_tipi
+            )
+            
+            question_id = self.generate_single_question(params, kazanim_from_db=kazanim)
+            
+            if question_id:
+                results["generated_ids"].append(question_id)
+            else:
+                results["failed_topics"].append(f"{topic_name}_{kazanim.get('id')}")
+            
+            # Rate limiting
+            time.sleep(Config.RATE_LIMIT_DELAY)
         
         results["stats"] = self.stats
         return results
     
+    def _find_matching_konu(self, topic_name: str) -> str:
+        """Curriculum topic_name'den LGS_KONULAR key'ini bul"""
+        topic_lower = topic_name.lower()
+        
+        mapping = {
+            "üslü": "uslu_ifadeler",
+            "kareköklü": "karekoklu_ifadeler",
+            "karekök": "karekoklu_ifadeler",
+            "cebirsel": "cebirsel_ifadeler",
+            "özdeşlik": "cebirsel_ifadeler",
+            "denklem": "denklemler",
+            "eşitsizlik": "esitsizlikler",
+            "üçgen": "ucgenler",
+            "benzerlik": "benzerlik",
+            "eşlik": "benzerlik",
+            "dönüşüm": "donusum_geometrisi",
+            "yansıma": "donusum_geometrisi",
+            "öteleme": "donusum_geometrisi",
+            "döndürme": "donusum_geometrisi",
+            "eğim": "egim",
+            "silindir": "geometrik_cisimler",
+            "geometrik cisim": "geometrik_cisimler",
+            "veri": "veri_analizi",
+            "istatistik": "veri_analizi",
+            "olasılık": "olasilik",
+        }
+        
+        for keyword, konu_key in mapping.items():
+            if keyword in topic_lower:
+                return konu_key
+        
+        # Varsayılan
+        return "karekoklu_ifadeler"
+    
     def generate_for_topic(self, konu: str, count: int = 5) -> List[int]:
-        """Belirli bir konu için soru üret"""
+        """Belirli bir konu için soru üret - Curriculum'dan kazanım çeker"""
         
         if konu not in LGS_KONULAR:
             logger.error(f"Geçersiz konu: {konu}")
@@ -976,27 +1072,44 @@ class LGSQuestionGenerator:
         konu_data = LGS_KONULAR[konu]
         generated_ids = []
         
+        # Curriculum'dan bu konuya uygun kazanımları çek
+        curriculum = self.supabase.get_curriculum_for_grade(grade_level=8, lesson_name="Matematik")
+        
+        # Konuya göre filtrele
+        filtered_curriculum = [
+            k for k in curriculum 
+            if self._find_matching_konu(k.get('topic_name', '')) == konu
+        ]
+        
+        if not filtered_curriculum:
+            logger.warning(f"  ⚠ {konu} için curriculum'da kazanım bulunamadı, tüm kazanımlar kullanılacak")
+            filtered_curriculum = curriculum
+        
         logger.info(f"\n📚 {konu_data['display_name']} için {count} soru üretilecek")
+        logger.info(f"   Uygun kazanım sayısı: {len(filtered_curriculum)}")
         
         for i in range(count):
-            alt_konu = random.choice(konu_data["alt_konular"])
-            kazanim = random.choice(konu_data["kazanimlar"])
-            bloom = random.choice(list(BLOOM_SEVIYELERI.keys()))
+            # Rastgele kazanım seç
+            kazanim = random.choice(filtered_curriculum) if filtered_curriculum else None
+            
+            alt_konu = kazanim.get("sub_topic") if kazanim else random.choice(konu_data["alt_konular"])
+            kazanim_kodu = kazanim.get("learning_outcome_code") if kazanim else konu_data["kazanimlar"][0]
+            bloom = kazanim.get("bloom_level") if kazanim and kazanim.get("bloom_level") in BLOOM_SEVIYELERI else random.choice(list(BLOOM_SEVIYELERI.keys()))
             zorluk = random.randint(3, 5)
             baglam = random.choice(konu_data["ornek_baglamlar"])
             gorsel_tipi = random.choice(konu_data.get("gorsel_tipleri", ["geometrik_sekil"]))
             
             params = QuestionParams(
                 konu=konu,
-                alt_konu=alt_konu,
-                kazanim_kodu=kazanim,
+                alt_konu=alt_konu or konu_data["alt_konular"][0],
+                kazanim_kodu=kazanim_kodu or "M.8.1.1.1",
                 bloom_seviyesi=bloom,
                 zorluk=zorluk,
                 baglam=baglam,
                 gorsel_tipi=gorsel_tipi
             )
             
-            question_id = self.generate_single_question(params)
+            question_id = self.generate_single_question(params, kazanim_from_db=kazanim)
             if question_id:
                 generated_ids.append(question_id)
             
