@@ -47,8 +47,8 @@ SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
 # API ENDPOINTS
 # ============================================================================
 
-GEMINI_TEXT_MODEL = "gemini-2.5-flash-preview-05-20"
-GEMINI_IMAGE_MODEL = "imagen-3.0-generate-002"
+GEMINI_TEXT_MODEL = "gemini-2.5-flash"
+GEMINI_IMAGE_MODEL = "gemini-3-pro-image-preview"
 
 GEMINI_TEXT_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_TEXT_MODEL}:generateContent"
 GEMINI_IMAGE_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_IMAGE_MODEL}:predict"
