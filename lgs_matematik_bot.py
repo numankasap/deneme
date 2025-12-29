@@ -48,10 +48,10 @@ SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
 # ============================================================================
 
 GEMINI_TEXT_MODEL = "gemini-2.5-flash"
-GEMINI_IMAGE_MODEL = "imagen-3.0-generate-002"
+GEMINI_IMAGE_MODEL = "gemini-2.5-flash-image"  # Görsel üretimi için experimental model
 
 GEMINI_TEXT_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_TEXT_MODEL}:generateContent"
-GEMINI_IMAGE_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_IMAGE_MODEL}:predict"
+GEMINI_IMAGE_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_IMAGE_MODEL}:generateContent"
 
 # ============================================================================
 # CONFIGURATION
@@ -619,15 +619,38 @@ Matematiksel olarak %100 DOĞRU olmalı. Tek bir doğru cevap olmalı.
                     logger.warning(f"  JSON parse hatası: {je}")
                     # JSON düzeltme denemesi
                     clean_text = text_content.strip()
+                    
+                    # Markdown code block temizliği
                     if clean_text.startswith("```json"):
                         clean_text = clean_text[7:]
                     if clean_text.startswith("```"):
                         clean_text = clean_text[3:]
                     if clean_text.endswith("```"):
                         clean_text = clean_text[:-3]
-                    question_data = json.loads(clean_text.strip())
-                    logger.info("  ✓ JSON düzeltme sonrası parse başarılı")
-                    return question_data
+                    clean_text = clean_text.strip()
+                    
+                    # Eksik kapanış parantezlerini düzelt
+                    open_braces = clean_text.count('{')
+                    close_braces = clean_text.count('}')
+                    if open_braces > close_braces:
+                        clean_text += '}' * (open_braces - close_braces)
+                    
+                    # Eksik string kapanışını düzelt (basit durum)
+                    if clean_text.count('"') % 2 != 0:
+                        # Son açık string'i bul ve kapat
+                        clean_text += '"'
+                    
+                    try:
+                        question_data = json.loads(clean_text)
+                        logger.info("  ✓ JSON düzeltme sonrası parse başarılı")
+                        return question_data
+                    except json.JSONDecodeError:
+                        # Son çare: API'yi yeniden çağır
+                        logger.warning("  JSON düzeltilemedi, yeniden deneniyor...")
+                        if attempt < Config.MAX_RETRIES - 1:
+                            time.sleep(Config.RETRY_DELAY)
+                            continue
+                        raise
                     
             except requests.exceptions.RequestException as e:
                 logger.error(f"  API hatası (deneme {attempt + 1}): {e}")
@@ -637,7 +660,7 @@ Matematiksel olarak %100 DOĞRU olmalı. Tek bir doğru cevap olmalı.
         raise Exception("Gemini API maksimum deneme sayısına ulaşıldı")
     
     def generate_image(self, gorsel_betimleme: Dict[str, str]) -> Optional[str]:
-        """Gemini 3 Pro Image Preview ile görsel üret"""
+        """Gemini 2.0 Flash ile görsel üret (native image generation)"""
         
         tip = gorsel_betimleme.get("tip", "geometrik_sekil")
         detay = gorsel_betimleme.get("detay", "")
@@ -647,12 +670,15 @@ Matematiksel olarak %100 DOĞRU olmalı. Tek bir doğru cevap olmalı.
         prompt = IMAGE_PROMPT_TEMPLATE.format(tip=tip, detay=full_detay)
         
         payload = {
-            "instances": [{"prompt": prompt}],
-            "parameters": {
-                "sampleCount": 1,
-                "aspectRatio": "4:3",
-                "safetyFilterLevel": "block_few",
-                "personGeneration": "dont_allow"
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [{"text": f"Generate an educational math diagram image:\n\n{prompt}"}]
+                }
+            ],
+            "generationConfig": {
+                "responseModalities": ["image", "text"],
+                "responseMimeType": "image/png"
             }
         }
         
@@ -670,13 +696,17 @@ Matematiksel olarak %100 DOĞRU olmalı. Tek bir doğru cevap olmalı.
                 
                 result = response.json()
                 
-                if "predictions" in result and len(result["predictions"]) > 0:
-                    image_data = result["predictions"][0].get("bytesBase64Encoded")
-                    if image_data:
-                        logger.info("  ✓ Görsel başarıyla üretildi")
-                        return image_data
+                # Yanıttan görsel verisini çıkar
+                if "candidates" in result and len(result["candidates"]) > 0:
+                    parts = result["candidates"][0].get("content", {}).get("parts", [])
+                    for part in parts:
+                        if "inlineData" in part:
+                            image_data = part["inlineData"].get("data")
+                            if image_data:
+                                logger.info("  ✓ Görsel başarıyla üretildi")
+                                return image_data
                 
-                logger.warning("  Görsel üretilemedi, predictions boş")
+                logger.warning("  Görsel üretilemedi, yanıtta image bulunamadı")
                 
             except requests.exceptions.RequestException as e:
                 logger.error(f"  Image API hatası (deneme {attempt + 1}): {e}")
@@ -885,28 +915,29 @@ class LGSQuestionGenerator:
             
             logger.info("  ✓ Soru metni hazır")
             
-            # ADIM 2: Görsel üret
+            # ADIM 2: Görsel üret (şimdilik devre dışı - API sorunu)
             image_url = None
             if question_data.get("gorsel_gerekli", False):
-                logger.info("\n[2/4] Görsel üretiliyor...")
-                gorsel_betimleme = question_data.get("gorsel_betimleme", {})
-                
-                if gorsel_betimleme and gorsel_betimleme.get("detay"):
-                    image_base64 = self.gemini.generate_image(gorsel_betimleme)
-                    
-                    if image_base64:
-                        filename = f"lgs_{params.konu}_{uuid.uuid4().hex[:8]}_{int(time.time())}.png"
-                        image_url = self.supabase.upload_image(image_base64, filename)
-                        
-                        if image_url:
-                            self.stats["with_image"] += 1
-                            logger.info("  ✓ Görsel hazır ve yüklendi")
-                        else:
-                            logger.warning("  ⚠ Görsel yüklenemedi")
-                    else:
-                        logger.warning("  ⚠ Görsel üretilemedi")
-                else:
-                    logger.warning("  ⚠ Görsel betimleme eksik")
+                logger.info("\n[2/4] Görsel üretimi (şimdilik devre dışı)...")
+                logger.info("  ℹ️ Görsel API sorunu çözülene kadar görselsiz devam ediliyor")
+                # gorsel_betimleme = question_data.get("gorsel_betimleme", {})
+                # 
+                # if gorsel_betimleme and gorsel_betimleme.get("detay"):
+                #     image_base64 = self.gemini.generate_image(gorsel_betimleme)
+                #     
+                #     if image_base64:
+                #         filename = f"lgs_{params.konu}_{uuid.uuid4().hex[:8]}_{int(time.time())}.png"
+                #         image_url = self.supabase.upload_image(image_base64, filename)
+                #         
+                #         if image_url:
+                #             self.stats["with_image"] += 1
+                #             logger.info("  ✓ Görsel hazır ve yüklendi")
+                #         else:
+                #             logger.warning("  ⚠ Görsel yüklenemedi")
+                #     else:
+                #         logger.warning("  ⚠ Görsel üretilemedi")
+                # else:
+                #     logger.warning("  ⚠ Görsel betimleme eksik")
             else:
                 logger.info("\n[2/4] Görsel gerekli değil, atlanıyor...")
             
