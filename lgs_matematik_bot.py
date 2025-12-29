@@ -1809,7 +1809,7 @@ Geçerli Konular:
                 sys.exit(1)
         
         generator.print_stats()
-        f
+        
     except ValueError as ve:
         logger.error(f"Konfigürasyon hatası: {ve}")
         sys.exit(1)
