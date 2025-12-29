@@ -77,7 +77,7 @@ class Config:
     DEFAULT_TOPIC_GROUP = "LGS"
     TEMPERATURE = 0.85
     MAX_OUTPUT_TOKENS = 8192
-    STORAGE_BUCKET = "question-images"
+    STORAGE_BUCKET = "questions-images"  # Üretilen görseller için bucket
 
 # ============================================================================
 # DATA CLASSES
