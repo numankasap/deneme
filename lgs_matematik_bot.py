@@ -443,6 +443,25 @@ Her yanlış şık, gerçek bir öğrenci hatasının sonucu olmalı:
 Rastgele sayılar ASLA kullanılmamalı. Her şık pedagojik bir hataya dayanmalı.
 "Hiçbiri" veya "Hepsi" şıkkı YASAK.
 
+### 5.5. GÖRSEL-METİN TUTARLILIĞI (KRİTİK!)
+⚠️ Soru metninde bahsedilen TÜM veriler görselde de olmalı!
+
+YANLIŞ ÖRNEK:
+- Metin: "Tip A, Tip B, Tip C, Tip D panellerden birini seçecek"
+- Görsel: Sadece duvar boyutları (6m x 5m)
+- SORUN: Panel tipleri görselde YOK!
+
+DOĞRU ÖRNEK:
+- Metin: "Aşağıdaki tabloda verilen panel tiplerinden birini seçecek"
+- Görsel: Duvar boyutları + Panel tipleri tablosu
+  | Tip | Kenar Uzunluğu |
+  | A   | √2 m          |
+  | B   | √5 m          |
+  | C   | √8 m          |
+  | D   | √13 m         |
+
+KURAL: Eğer soru metninde "görselde verilen", "tabloda gösterilen", "şekilde belirtilen" gibi ifadeler varsa, o bilgiler MUTLAKA görsel betimlemesinde de olmalı!
+
 ### 6. BİLİŞSEL SEVİYE
 Hedef Bloom seviyeleri:
 - ANALİZ: Karşılaştırma, ilişkilendirme, parça-bütün analizi
@@ -475,10 +494,11 @@ Yanıtını YALNIZCA aşağıdaki JSON formatında ver. Başka hiçbir açıklam
   },
   "gorsel_gerekli": true,
   "gorsel_betimleme": {
-    "tip": "geometrik_sekil / grafik / tablo / kareli_zemin / sayi_dogrusu / cisim_3d",
-    "detay": "Görsel tasarımcıya verilecek çok detaylı talimat. Boyutlar, renkler, etiketler, kareli zemin özellikleri, her şey net belirtilmeli.",
-    "gorunen_veriler": "Görselde görünecek sayısal değerler ve etiketler listesi",
-    "gizli_bilgi": "Görselde olmaması gereken, sadece metinde verilecek bilgiler"
+    "tip": "geometrik_sekil / grafik / tablo / kareli_zemin / sayi_dogrusu / cisim_3d / karma",
+    "detay": "ÇOK DETAYLI görsel talimatı. Soru metninde bahsedilen TÜM verileri içermeli! Örnek: 'Kareli zemin üzerinde 6x5 birim dikdörtgen ABCD + sağ tarafta panel tablosu: Tip A √2m, Tip B √5m, Tip C √8m, Tip D √13m'",
+    "gorunen_veriler": ["Görselde görünecek TÜM değerler - şekil boyutları, tablo verileri, etiketler"],
+    "gizli_bilgi": "SADECE görselde olmaması gereken bilgiler (çevre hesabı, cevap vb.)",
+    "dikkat": "Soru metninde 'görselde verilen', 'tabloda gösterilen' gibi ifadeler varsa, o bilgiler MUTLAKA burada detaylı belirtilmeli!"
   },
   "pisa_seviyesi": 3,
   "pisa_baglam": "Kişisel / Mesleki / Toplumsal / Bilimsel"
@@ -491,59 +511,62 @@ IMAGE_PROMPT_TEMPLATE = """LGS 8. sınıf matematik sorusu için eğitim görsel
 ## DETAYLI BETİMLEME:
 {detay}
 
-## KRİTİK KURALLAR - TÜRKÇE YAZIM:
+## KRİTİK KURALLAR:
 
-### ⚠️ TÜRKÇE KARAKTER DİKKAT:
+### 📐 GEOMETRİK ŞEKİL KURALLARI:
+
+**Kareli Zemin Kullanımı:**
+- Kareler eşit boyutlu, açık gri çizgili olmalı
+- Her kare 1 birim (1 m, 1 cm, vb.) temsil etmeli
+- Şekil kareli zemin üzerine doğru yerleşmeli
+- Köşeler kare kesişim noktalarında olmalı
+
+**Dikdörtgen/Kare Çizimi:**
+- 4 köşe noktası büyük harflerle: A, B, C, D (saat yönünde)
+- Her köşede küçük siyah nokta (●)
+- Kenar uzunlukları çift yönlü ok (↔) ile gösterilmeli
+- Ölçüler şeklin DIŞINDA yazılmalı (6 m, 5 m gibi)
+- Birim kare göstermek istiyorsan şeklin DIŞINDA küçük bir kare çiz ve "1 m" yaz
+
+**Üçgen Çizimi:**
+- 3 köşe noktası: A, B, C
+- Açılar gerekiyorsa yay ile göster
+- Kenar uzunlukları kenarın ortasına yakın
+
+**3 Boyutlu Cisim:**
+- Perspektif görünüm (izometrik veya kavalye)
+- Görünen kenarlar düz çizgi, görünmeyen kesikli çizgi
+- Boyut etiketleri: uzunluk, genişlik, yükseklik
+
+### ⚠️ TÜRKÇE YAZIM:
 - "ı" harfini DOĞRU yaz (noktalı "i" DEĞİL)
-- "ğ" harfini DOĞRU yaz
-- "ş" harfini DOĞRU yaz
-- "ü" ve "ö" harflerini DOĞRU yaz
-- "ç" harfini DOĞRU yaz
+- "ğ", "ş", "ü", "ö", "ç" harflerini DOĞRU yaz
+- Kelimeleri TAM yaz, yarıda KESME
+- Sadece kısa etiketler kullan (6 m, A, B, vb.)
+- Uzun kelimeler YAZMA
 
-### ⚠️ KELİMELERİ TAM YAZ:
-- "Kalınlığı" → "Kalınlığı" (eksik harf OLMASIN)
-- "Koruyucu" → "Koruyucu" (harf atlamadan)
-- "Katman" → "Katman"
-- Kelimeleri YARIDA KESME
-
-### STİL KURALLARI (MEB DERS KİTABI STİLİ):
-
-**Genel:**
-- Temiz, profesyonel, yüksek kontrastlı
-- Arka plan: Saf beyaz veya çok açık gri (#FAFAFA)
-- Çizgiler: Siyah, net, 2px kalınlık
-- Yazı tipi: Sans-serif (Arial benzeri), okunabilir boyutta
+### 🎨 STİL KURALLARI (MEB DERS KİTABI):
 
 **Renkler:**
-- Birincil dolgular: Açık sarı (#FFF9C4), Açık mavi (#BBDEFB)
-- İkincil dolgular: Açık yeşil (#C8E6C9), Açık pembe (#F8BBD9)
-- Çizgiler ve metinler: Siyah (#000000)
-- Vurgu noktaları: Koyu mavi (#1976D2)
+- Arka plan: Beyaz veya çok açık gri
+- Şekil dolgusu: Açık gri (#E0E0E0) veya pastel renk
+- Çizgiler: Siyah, 2px kalınlık
+- Etiketler: Siyah, kalın font
 
-**Geometrik Şekiller için:**
-- Köşe noktaları büyük harflerle etiketli (A, B, C, D, ...)
-- Köşelerde küçük siyah noktalar
-- Kenar uzunlukları veya açılar etiketli
-- Şekiller yarı saydam pastel renklerle dolgulu
+**Boyutlandırma:**
+- Şekil görsel alanının %60-70'ini kaplamalı
+- Etiketler için yeterli boşluk bırak
+- Çok küçük veya çok büyük çizme
 
-**Grafikler için:**
-- Eksen etiketleri net ve okunabilir
-- Birim çizgileri görünür
-- Veri noktaları belirgin
-
-**Tablolar için:**
-- Sütun başlıkları kalın
-- Hücreler düzgün hizalı
-- Kenarlıklar net
-
-### MUTLAK YASAKLAR:
-❌ Görselde çözüm adımları OLMASIN
-❌ Görselde soru metni OLMASIN ("Buna göre..." gibi)
-❌ Cevabı doğrudan veren bilgi OLMASIN
-❌ Gereksiz dekoratif öğeler OLMASIN
-❌ Türkçe karakter hatası OLMASIN
-❌ Eksik veya yarım kelime OLMASIN
-❌ Bulanık veya düşük kaliteli çizgiler OLMASIN"""
+### ❌ MUTLAK YASAKLAR:
+❌ Soru metni veya cümleler
+❌ "Buna göre...", "Aşağıdaki..." gibi ifadeler
+❌ A), B), C), D) şıkları
+❌ Çözüm adımları veya hesaplamalar
+❌ Cevabı veren bilgi
+❌ Gereksiz dekorasyon
+❌ Bulanık çizgiler
+❌ Türkçe karakter hatası"""
 
 # ============================================================================
 # API CLASSES
