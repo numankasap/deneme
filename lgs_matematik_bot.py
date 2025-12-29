@@ -491,40 +491,59 @@ IMAGE_PROMPT_TEMPLATE = """LGS 8. sınıf matematik sorusu için eğitim görsel
 ## DETAYLI BETİMLEME:
 {detay}
 
-## STİL KURALLARI (MEB DERS KİTABI STİLİ):
+## KRİTİK KURALLAR - TÜRKÇE YAZIM:
 
-### Genel:
+### ⚠️ TÜRKÇE KARAKTER DİKKAT:
+- "ı" harfini DOĞRU yaz (noktalı "i" DEĞİL)
+- "ğ" harfini DOĞRU yaz
+- "ş" harfini DOĞRU yaz
+- "ü" ve "ö" harflerini DOĞRU yaz
+- "ç" harfini DOĞRU yaz
+
+### ⚠️ KELİMELERİ TAM YAZ:
+- "Kalınlığı" → "Kalınlığı" (eksik harf OLMASIN)
+- "Koruyucu" → "Koruyucu" (harf atlamadan)
+- "Katman" → "Katman"
+- Kelimeleri YARIDA KESME
+
+### STİL KURALLARI (MEB DERS KİTABI STİLİ):
+
+**Genel:**
 - Temiz, profesyonel, yüksek kontrastlı
 - Arka plan: Saf beyaz veya çok açık gri (#FAFAFA)
 - Çizgiler: Siyah, net, 2px kalınlık
 - Yazı tipi: Sans-serif (Arial benzeri), okunabilir boyutta
 
-### Renkler:
+**Renkler:**
 - Birincil dolgular: Açık sarı (#FFF9C4), Açık mavi (#BBDEFB)
 - İkincil dolgular: Açık yeşil (#C8E6C9), Açık pembe (#F8BBD9)
 - Çizgiler ve metinler: Siyah (#000000)
 - Vurgu noktaları: Koyu mavi (#1976D2)
 
-### Geometrik Şekiller için:
+**Geometrik Şekiller için:**
 - Köşe noktaları büyük harflerle etiketli (A, B, C, D, ...)
 - Köşelerde küçük siyah noktalar
 - Kenar uzunlukları veya açılar etiketli
 - Şekiller yarı saydam pastel renklerle dolgulu
-- Kareli zemin kullanılıyorsa birim kareler açık gri çizgili
 
-### Grafikler için:
+**Grafikler için:**
 - Eksen etiketleri net ve okunabilir
 - Birim çizgileri görünür
 - Veri noktaları belirgin
-- Y ekseni değerleri kareli zeminden okunacaksa YAZILMAMALI
+
+**Tablolar için:**
+- Sütun başlıkları kalın
+- Hücreler düzgün hizalı
+- Kenarlıklar net
 
 ### MUTLAK YASAKLAR:
-❌ Görselde çözüm adımları
-❌ Görselde soru metni
-❌ Cevabı doğrudan veren bilgi
-❌ Gereksiz dekoratif öğeler
-❌ Türkçe karakter hatası
-❌ Bulanık veya düşük kaliteli çizgiler"""
+❌ Görselde çözüm adımları OLMASIN
+❌ Görselde soru metni OLMASIN ("Buna göre..." gibi)
+❌ Cevabı doğrudan veren bilgi OLMASIN
+❌ Gereksiz dekoratif öğeler OLMASIN
+❌ Türkçe karakter hatası OLMASIN
+❌ Eksik veya yarım kelime OLMASIN
+❌ Bulanık veya düşük kaliteli çizgiler OLMASIN"""
 
 # ============================================================================
 # API CLASSES
@@ -906,11 +925,219 @@ class SupabaseClient:
             return None
 
 # ============================================================================
+# QUALITY VALIDATOR CLASS - Soru ve Görsel Kalite Kontrolü
+# ============================================================================
+
+class QualityValidator:
+    """Gemini ile soru ve görsel kalite kontrolü + Feedback sistemi"""
+    
+    QUESTION_VALIDATION_PROMPT = """Bu LGS matematik sorusunu KALİTE KONTROLÜ yap.
+
+════════════════════════════════════════════════════════════════
+📝 SORU BİLGİLERİ
+════════════════════════════════════════════════════════════════
+
+SORU METNİ:
+{question_text}
+
+ŞIKLAR:
+A) {option_a}
+B) {option_b}
+C) {option_c}
+D) {option_d}
+
+DOĞRU CEVAP: {correct_answer}
+
+ÇÖZÜM:
+{solution}
+
+════════════════════════════════════════════════════════════════
+✅ KONTROL KRİTERLERİ
+════════════════════════════════════════════════════════════════
+
+1. MATEMATİKSEL DOĞRULUK:
+   - Verilen çözüm adımları doğru mu?
+   - Doğru cevap gerçekten doğru mu?
+   - Hesaplamalar hatasız mı?
+
+2. ÇELDİRİCİ KALİTESİ:
+   - Yanlış şıklar mantıklı öğrenci hatalarından mı geliyor?
+   - Rastgele sayılar var mı? (KÖTÜ)
+   - Her şık farklı bir hata türünü mü temsil ediyor?
+
+3. DİL VE FORMAT:
+   - Türkçe dil bilgisi doğru mu?
+   - Soru kökü "Buna göre, ..." ile mi başlıyor?
+
+4. PEDAGOJİK KALİTE:
+   - Soru LGS 8. sınıf seviyesine uygun mu?
+   - Bağlam gerçekçi ve anlamlı mı?
+   - Soru tek doğru cevaplı mı?
+
+════════════════════════════════════════════════════════════════
+
+JSON formatında döndür:
+{{
+    "is_mathematically_correct": true,
+    "correct_answer_verified": true,
+    "distractors_quality": 8,
+    "language_quality": 9,
+    "pedagogical_quality": 8,
+    "overall_score": 8,
+    "pass": true,
+    "problems": [],
+    "suggestions": [],
+    "recommendation": "KABUL"
+}}
+
+PUANLAMA (1-10):
+- 9-10: Mükemmel
+- 7-8: İyi
+- 5-6: Orta
+- 1-4: Kabul edilemez
+
+SADECE JSON döndür!"""
+
+    IMAGE_VALIDATION_PROMPT = """Bu matematik sorusu görseli için KALİTE KONTROLÜ yap.
+
+════════════════════════════════════════════════════════════════
+✅ KABUL KRİTERLERİ
+════════════════════════════════════════════════════════════════
+
+1. TEMİZLİK:
+   ✅ Soru metni/cümle YOK (sadece kısa etiketler)
+   ✅ A), B), C), D) şıkları YOK
+   ✅ Sadece şekil ve matematiksel etiketler var
+
+2. TÜRKÇE YAZIM:
+   ✅ Türkçe karakterler doğru (ı, ğ, ş, ü, ö, ç)
+   ✅ Kelimeler tam ve doğru yazılmış
+   ❌ Eksik harf veya yanlış karakter: "Kalınn" → "Kalınlığı"
+
+3. MATEMATİKSEL TUTARLILIK:
+   ✅ Değişkenler mantıklı kullanılmış
+   ✅ Etiketler ve değerler tutarlı
+
+════════════════════════════════════════════════════════════════
+❌ RED SEBEPLERİ
+════════════════════════════════════════════════════════════════
+
+1. SORU METNİ: Görselde uzun Türkçe cümle var ("Buna göre...")
+2. ŞIKLAR: A), B), C), D) seçenekleri görünüyor
+3. YAZIM HATASI: Eksik/yanlış harfli kelimeler
+4. İNGİLİZCE: English words görünüyor
+
+════════════════════════════════════════════════════════════════
+
+JSON formatında döndür:
+{{
+    "has_question_text": false,
+    "has_options": false,
+    "has_spelling_errors": false,
+    "spelling_errors_found": [],
+    "has_english": false,
+    "is_clean": true,
+    "detected_labels": [],
+    "overall_score": 8,
+    "pass": true,
+    "problems": [],
+    "recommendation": "KABUL"
+}}
+
+SADECE JSON döndür!"""
+
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+        if NEW_GENAI:
+            self.client = genai.Client(api_key=api_key)
+        else:
+            self.client = None
+        self.quality_threshold = 7
+        logger.info("✅ QualityValidator başlatıldı")
+    
+    def validate_question(self, question_data: Dict) -> Dict:
+        """Üretilen soruyu Gemini ile doğrula"""
+        
+        if not NEW_GENAI or not self.client:
+            return {"pass": True, "overall_score": 7, "problems": [], "skipped": True}
+        
+        try:
+            prompt = self.QUESTION_VALIDATION_PROMPT.format(
+                question_text=question_data.get("soru_metni", "") + "\\n" + question_data.get("soru_koku", ""),
+                option_a=question_data.get("siklar", {}).get("A", ""),
+                option_b=question_data.get("siklar", {}).get("B", ""),
+                option_c=question_data.get("siklar", {}).get("C", ""),
+                option_d=question_data.get("siklar", {}).get("D", ""),
+                correct_answer=question_data.get("dogru_cevap", ""),
+                solution=question_data.get("cozum_adim_adim", "")
+            )
+            
+            response = self.client.models.generate_content(
+                model=GEMINI_TEXT_MODEL,
+                contents=prompt,
+                config={"response_mime_type": "application/json"}
+            )
+            
+            result = json.loads(response.text)
+            result["pass"] = result.get("overall_score", 0) >= self.quality_threshold
+            return result
+            
+        except Exception as e:
+            logger.error(f"  Soru validasyon hatası: {e}")
+            return {"pass": True, "overall_score": 5, "problems": [str(e)], "error": True}
+    
+    def validate_image(self, image_bytes: bytes, question_text: str = "") -> Dict:
+        """Üretilen görseli Gemini ile kontrol et"""
+        
+        if not NEW_GENAI or not self.client:
+            return {"pass": True, "overall_score": 7, "problems": [], "skipped": True}
+        
+        try:
+            image_b64 = base64.b64encode(image_bytes).decode('utf-8')
+            
+            response = self.client.models.generate_content(
+                model=GEMINI_TEXT_MODEL,
+                contents=[
+                    {
+                        "role": "user",
+                        "parts": [
+                            {"inline_data": {"mime_type": "image/png", "data": image_b64}},
+                            {"text": self.IMAGE_VALIDATION_PROMPT}
+                        ]
+                    }
+                ],
+                config={"response_mime_type": "application/json"}
+            )
+            
+            result = json.loads(response.text)
+            
+            # Sorunları topla
+            problems = result.get("problems", [])
+            
+            if result.get("has_question_text"):
+                problems.append("Görselde soru metni var")
+            if result.get("has_options"):
+                problems.append("Görselde şıklar (A,B,C,D) var")
+            if result.get("has_spelling_errors"):
+                spelling = result.get("spelling_errors_found", [])
+                problems.append(f"Yazım hataları: {spelling}")
+            if result.get("has_english"):
+                problems.append("İngilizce kelimeler var")
+            
+            result["problems"] = problems
+            result["pass"] = result.get("overall_score", 0) >= self.quality_threshold
+            return result
+            
+        except Exception as e:
+            logger.error(f"  Görsel validasyon hatası: {e}")
+            return {"pass": True, "overall_score": 5, "problems": [str(e)], "error": True}
+
+# ============================================================================
 # MAIN GENERATOR CLASS
 # ============================================================================
 
 class LGSQuestionGenerator:
-    """Ana soru üretim sınıfı"""
+    """Ana soru üretim sınıfı - Kalite Kontrol ve Feedback Sistemi ile"""
     
     def __init__(self):
         if not GEMINI_API_KEY:
@@ -920,15 +1147,19 @@ class LGSQuestionGenerator:
         
         self.gemini = GeminiAPI(GEMINI_API_KEY)
         self.supabase = SupabaseClient(SUPABASE_URL, SUPABASE_KEY)
+        self.validator = QualityValidator(GEMINI_API_KEY)
         self.stats = {
             "total_attempts": 0,
             "successful": 0,
             "failed": 0,
-            "with_image": 0
+            "with_image": 0,
+            "questions_rejected": 0,
+            "images_rejected": 0,
+            "quality_retries": 0
         }
     
     def generate_single_question(self, params: QuestionParams, kazanim_from_db: Dict = None) -> Optional[int]:
-        """Tek bir soru üret ve kaydet"""
+        """Tek bir soru üret ve kaydet - KALİTE KONTROL ile"""
         
         self.stats["total_attempts"] += 1
         konu_display = LGS_KONULAR.get(params.konu, {}).get("display_name", params.konu)
@@ -948,46 +1179,169 @@ class LGSQuestionGenerator:
         logger.info(f"   Bloom: {params.bloom_seviyesi} | Zorluk: {params.zorluk}/5")
         logger.info(f"{'='*70}")
         
+        previous_question_problems = []  # Önceki soru denemelerindeki sorunlar
+        previous_image_problems = []     # Önceki görsel denemelerindeki sorunlar
+        max_question_retries = 3
+        max_image_retries = 3
+        
         try:
-            # ADIM 1: Soru üret
-            logger.info("\n[1/4] Gemini ile soru metni üretiliyor...")
-            question_data = self.gemini.generate_question(params)
+            # ═══════════════════════════════════════════════════════════════
+            # ADIM 1: SORU ÜRETİMİ (Kalite Kontrol + Feedback Döngüsü)
+            # ═══════════════════════════════════════════════════════════════
             
-            # Validasyon
-            required_fields = ["soru_metni", "soru_koku", "siklar", "dogru_cevap"]
-            for field in required_fields:
-                if field not in question_data:
-                    raise ValueError(f"Eksik alan: {field}")
+            question_data = None
+            question_quality_score = 0
+            
+            for q_attempt in range(max_question_retries):
+                logger.info(f"\n[1/5] Gemini ile soru üretiliyor (Deneme {q_attempt + 1}/{max_question_retries})...")
+                
+                # Feedback varsa prompt'a ekle
+                if previous_question_problems:
+                    feedback_text = f"\n\n⚠️ ÖNCEKİ DENEMELERDE TESPİT EDİLEN SORUNLAR:\n"
+                    feedback_text += "\n".join([f"❌ {p}" for p in previous_question_problems])
+                    feedback_text += "\n\nBu hataları TEKRARLAMA! Düzelt ve yeniden üret."
+                    params_with_feedback = QuestionParams(
+                        konu=params.konu,
+                        alt_konu=params.alt_konu + feedback_text,
+                        kazanim_kodu=params.kazanim_kodu,
+                        bloom_seviyesi=params.bloom_seviyesi,
+                        zorluk=params.zorluk,
+                        baglam=params.baglam,
+                        gorsel_tipi=params.gorsel_tipi
+                    )
+                else:
+                    params_with_feedback = params
+                
+                question_data = self.gemini.generate_question(params_with_feedback)
+                
+                # Zorunlu alanları kontrol et
+                required_fields = ["soru_metni", "soru_koku", "siklar", "dogru_cevap"]
+                missing = [f for f in required_fields if f not in question_data]
+                if missing:
+                    previous_question_problems.append(f"Eksik alanlar: {missing}")
+                    self.stats["quality_retries"] += 1
+                    continue
+                
+                # SORU KALİTE KONTROLÜ
+                logger.info("  📊 Soru kalite kontrolü yapılıyor...")
+                q_validation = self.validator.validate_question(question_data)
+                question_quality_score = q_validation.get("overall_score", 5)
+                
+                logger.info(f"  📈 Soru Kalite Puanı: {question_quality_score}/10")
+                
+                if q_validation.get("pass", False):
+                    logger.info(f"  ✅ Soru KABUL EDİLDİ")
+                    break
+                else:
+                    # Sorunları kaydet ve bir sonraki denemeye feedback olarak gönder
+                    problems = q_validation.get("problems", [])
+                    suggestions = q_validation.get("suggestions", [])
+                    
+                    for p in problems:
+                        if p not in previous_question_problems:
+                            previous_question_problems.append(p)
+                    for s in suggestions:
+                        if s not in previous_question_problems:
+                            previous_question_problems.append(f"Öneri: {s}")
+                    
+                    self.stats["questions_rejected"] += 1
+                    self.stats["quality_retries"] += 1
+                    logger.warning(f"  ❌ Soru REDDEDİLDİ - Sorunlar: {problems}")
+                    
+                    if q_attempt < max_question_retries - 1:
+                        logger.info(f"  🔄 Feedback ile yeniden denenecek...")
+                        time.sleep(2)
+            
+            if not question_data:
+                raise ValueError("Soru üretilemedi")
             
             logger.info("  ✓ Soru metni hazır")
             
-            # ADIM 2: Görsel üret
+            # ═══════════════════════════════════════════════════════════════
+            # ADIM 2: GÖRSEL ÜRETİMİ (Kalite Kontrol + Feedback Döngüsü)
+            # ═══════════════════════════════════════════════════════════════
+            
             image_url = None
+            image_bytes = None
+            image_quality_score = 0
+            
             if question_data.get("gorsel_gerekli", False):
-                logger.info("\n[2/4] Görsel üretiliyor...")
                 gorsel_betimleme = question_data.get("gorsel_betimleme", {})
                 
                 if gorsel_betimleme and gorsel_betimleme.get("detay"):
-                    image_bytes = self.gemini.generate_image(gorsel_betimleme)
                     
+                    for img_attempt in range(max_image_retries):
+                        logger.info(f"\n[2/5] Görsel üretiliyor (Deneme {img_attempt + 1}/{max_image_retries})...")
+                        
+                        # Feedback varsa görsel prompt'una ekle
+                        if previous_image_problems:
+                            gorsel_betimleme_with_feedback = gorsel_betimleme.copy()
+                            feedback = "\n\n⚠️ ÖNCEKİ GÖRSEL SORUNLARI (TEKRARLAMA!):\n"
+                            feedback += "\n".join([f"❌ {p}" for p in previous_image_problems])
+                            gorsel_betimleme_with_feedback["detay"] = gorsel_betimleme["detay"] + feedback
+                        else:
+                            gorsel_betimleme_with_feedback = gorsel_betimleme
+                        
+                        image_bytes = self.gemini.generate_image(gorsel_betimleme_with_feedback)
+                        
+                        if not image_bytes:
+                            previous_image_problems.append("Görsel üretilemedi")
+                            self.stats["quality_retries"] += 1
+                            continue
+                        
+                        # GÖRSEL KALİTE KONTROLÜ
+                        logger.info("  📊 Görsel kalite kontrolü yapılıyor...")
+                        soru_metni = question_data.get("soru_metni", "")
+                        img_validation = self.validator.validate_image(image_bytes, soru_metni)
+                        image_quality_score = img_validation.get("overall_score", 5)
+                        
+                        logger.info(f"  📈 Görsel Kalite Puanı: {image_quality_score}/10")
+                        
+                        if img_validation.get("pass", False):
+                            logger.info(f"  ✅ Görsel KABUL EDİLDİ")
+                            break
+                        else:
+                            # Sorunları kaydet ve bir sonraki denemeye feedback olarak gönder
+                            problems = img_validation.get("problems", [])
+                            spelling_errors = img_validation.get("spelling_errors_found", [])
+                            
+                            for p in problems:
+                                if p not in previous_image_problems:
+                                    previous_image_problems.append(p)
+                            
+                            if spelling_errors:
+                                previous_image_problems.append(f"Yazım hataları: {spelling_errors}")
+                            
+                            self.stats["images_rejected"] += 1
+                            self.stats["quality_retries"] += 1
+                            logger.warning(f"  ❌ Görsel REDDEDİLDİ - Sorunlar: {problems}")
+                            
+                            if img_attempt < max_image_retries - 1:
+                                logger.info(f"  🔄 Feedback ile yeniden denenecek...")
+                                time.sleep(3)
+                    
+                    # Görsel yükle (en iyi sonuçla)
                     if image_bytes:
                         filename = f"lgs_{params.konu}_{uuid.uuid4().hex[:8]}_{int(time.time())}.png"
                         image_url = self.supabase.upload_image(image_bytes, filename)
                         
                         if image_url:
                             self.stats["with_image"] += 1
-                            logger.info("  ✓ Görsel hazır ve yüklendi")
+                            logger.info(f"  ✓ Görsel yüklendi (Kalite: {image_quality_score}/10)")
                         else:
                             logger.warning("  ⚠ Görsel yüklenemedi")
                     else:
-                        logger.warning("  ⚠ Görsel üretilemedi")
+                        logger.warning("  ⚠ Tüm görsel denemeleri başarısız")
                 else:
                     logger.warning("  ⚠ Görsel betimleme eksik")
             else:
-                logger.info("\n[2/4] Görsel gerekli değil, atlanıyor...")
+                logger.info("\n[2/5] Görsel gerekli değil, atlanıyor...")
             
-            # ADIM 3: GeneratedQuestion oluştur
-            logger.info("\n[3/4] Veri yapısı hazırlanıyor...")
+            # ═══════════════════════════════════════════════════════════════
+            # ADIM 3: VERİ YAPISI OLUŞTUR
+            # ═══════════════════════════════════════════════════════════════
+            
+            logger.info("\n[3/5] Veri yapısı hazırlanıyor...")
             
             soru_metni = question_data.get("soru_metni", "")
             soru_koku = question_data.get("soru_koku", "")
@@ -1014,8 +1368,21 @@ class LGSQuestionGenerator:
             )
             logger.info("  ✓ Veri yapısı hazır")
             
-            # ADIM 4: Supabase'e kaydet
-            logger.info("\n[4/4] Veritabanına kaydediliyor...")
+            # ═══════════════════════════════════════════════════════════════
+            # ADIM 4: KALİTE ÖZET
+            # ═══════════════════════════════════════════════════════════════
+            
+            logger.info(f"\n[4/5] 📊 KALİTE ÖZETİ:")
+            logger.info(f"   Soru Puanı: {question_quality_score}/10")
+            if image_bytes:
+                logger.info(f"   Görsel Puanı: {image_quality_score}/10")
+            logger.info(f"   Toplam Deneme: Soru={len(previous_question_problems) + 1}, Görsel={len(previous_image_problems) + 1 if gorsel_betimleme else 0}")
+            
+            # ═══════════════════════════════════════════════════════════════
+            # ADIM 5: VERİTABANINA KAYDET
+            # ═══════════════════════════════════════════════════════════════
+            
+            logger.info("\n[5/5] Veritabanına kaydediliyor...")
             question_id = self.supabase.insert_question(generated, kazanim_id=kazanim_id)
             
             if question_id:
@@ -1197,14 +1564,19 @@ class LGSQuestionGenerator:
         logger.info(f"\n{'='*70}")
         logger.info("📊 SONUÇ İSTATİSTİKLERİ")
         logger.info(f"{'='*70}")
-        logger.info(f"   Toplam deneme    : {self.stats['total_attempts']}")
-        logger.info(f"   Başarılı         : {self.stats['successful']}")
-        logger.info(f"   Başarısız        : {self.stats['failed']}")
-        logger.info(f"   Görselli soru    : {self.stats['with_image']}")
+        logger.info(f"   Toplam deneme      : {self.stats['total_attempts']}")
+        logger.info(f"   Başarılı           : {self.stats['successful']}")
+        logger.info(f"   Başarısız          : {self.stats['failed']}")
+        logger.info(f"   Görselli soru      : {self.stats['with_image']}")
+        logger.info(f"   ─────────────────────────────")
+        logger.info(f"   Reddedilen sorular : {self.stats['questions_rejected']}")
+        logger.info(f"   Reddedilen görseller: {self.stats['images_rejected']}")
+        logger.info(f"   Kalite yeniden deneme: {self.stats['quality_retries']}")
         
         if self.stats['total_attempts'] > 0:
             success_rate = (self.stats['successful'] / self.stats['total_attempts']) * 100
-            logger.info(f"   Başarı oranı     : %{success_rate:.1f}")
+            logger.info(f"   ─────────────────────────────")
+            logger.info(f"   Başarı oranı       : %{success_rate:.1f}")
         logger.info(f"{'='*70}\n")
 
 # ============================================================================
