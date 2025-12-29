@@ -251,12 +251,13 @@ LGS_KONULAR: Dict[str, Dict[str, Any]] = {
             "Maket yapımı oranları",
             "Mimari çizim ölçeği"
         ],
-        "gorsel_tipleri": ["geometrik_sekil", "kareli_zemin"],
+        "gorsel_tipleri": ["geometrik_sekil", "duz_zemin_olcekli"],
         "celdirici_hatalari": [
             "Benzerlik oranını tersine çevirme",
             "Alan oranını kenar oranı gibi hesaplama",
             "Karşılıklı kenarları yanlış eşleştirme"
-        ]
+        ],
+        "gorsel_notu": "Benzerlik sorularında ölçüler genelde orantısızdır (örn: 0.8m ve 15m). Kareli zemin KULLANMA, düz beyaz zemin üzerine oklu ölçüler kullan."
     },
     
     "donusum_geometrisi": {
@@ -309,6 +310,11 @@ LGS_KONULAR: Dict[str, Dict[str, Any]] = {
             "Silindir vazo boyama"
         ],
         "gorsel_tipleri": ["cisim_3d", "acilim"],
+        "gorsel_renkleri": {
+            "dolgu": "#E3F2FD",  # Açık mavi
+            "cizgi": "#1565C0",   # Koyu mavi
+            "vurgu": "#0D47A1"    # Çok koyu mavi
+        },
         "celdirici_hatalari": [
             "Yanal yüzey alanını unutma",
             "Taban alanını tek hesaplama",
@@ -329,6 +335,13 @@ LGS_KONULAR: Dict[str, Dict[str, Any]] = {
             "Anket sonuçları değerlendirme"
         ],
         "gorsel_tipleri": ["grafik_sutun", "grafik_daire", "tablo", "kareli_zemin"],
+        "gorsel_renkleri": {
+            "seri1": "#42A5F5",  # Mavi
+            "seri2": "#66BB6A",  # Yeşil
+            "seri3": "#FFA726",  # Turuncu
+            "seri4": "#AB47BC",  # Mor
+            "arka_plan": "#FAFAFA"
+        },
         "celdirici_hatalari": [
             "Grafik eksenlerini yanlış okuma",
             "Ortalama hesabında toplam/sayı hatası",
@@ -421,11 +434,43 @@ Görselde ASLA:
 - Soru metni olmamalı
 - Doğrudan cevabı veren bilgi olmamalı
 - Gereksiz dekoratif öğeler olmamalı
+- SORUDA KULLANILMAYAN VERİLER OLMAMALI (Çok önemli!)
 
 Görselde MUTLAKA:
 - Çözüm için gerekli VERİ olmalı
 - Net etiketler ve ölçüler olmalı
 - Kareli zemin kullanılıyorsa birim kareler net olmalı
+
+### 3.5. KARELİ ZEMİN KURALLARI (KRİTİK!)
+⚠️ Kareli zemin SADECE ölçüler orantılı olduğunda kullanılabilir!
+
+**ÖRNEK YANLIŞ:**
+- Ölçüler: 0.80 m, 1.60 m, 15 m
+- Kareli zeminde 9 kare = 15 m, 3 kare = 0.80 m → ORANLAR TUTMUYOR!
+- Bu durumda kareli zemin KULLANILMAMALI
+
+**ÖRNEK DOĞRU:**
+- Ölçüler: 3 m, 4 m, 5 m
+- Her kare = 1 m → 3 kare, 4 kare, 5 kare → ORANLAR TUTUYOR
+- Bu durumda kareli zemin kullanılabilir
+
+**KARAR VERME:**
+1. Sorudaki tüm uzunluk ölçülerini listele
+2. Bu ölçülerin hepsini bölen ortak bir birim var mı?
+3. EVET → kareli zemin OK, HAYIR → düz beyaz zemin kullan
+
+### 3.6. KULLANILMAYAN VERİ YASAĞI (KRİTİK!)
+⚠️ Görselde SADECE soruda kullanılan veriler olmalı!
+
+**ÖRNEK YANLIŞ:**
+- Soru: "Anıtın yüksekliği kaç metredir?"
+- Görsel: Anıt yüksekliği H + fazladan "1 m" etiketi (soruda yok!)
+- SORUN: "1 m" soruda kullanılmıyor, kafa karıştırıcı!
+
+**ÖRNEK DOĞRU:**
+- Soru: "Öğrencinin boyu 1.60 m, gölgesi 0.80 m, anıtın gölgesi 15 m ise yüksekliği?"
+- Görsel: SADECE 1.60 m, 0.80 m, 15 m ve H (soru işareti ile)
+- TÜM değerler soruda var!
 
 ### 4. DİL VE ÜSLUP
 - %100 doğru Türkçe dil bilgisi
@@ -498,7 +543,9 @@ Yanıtını YALNIZCA aşağıdaki JSON formatında ver. Başka hiçbir açıklam
     "detay": "ÇOK DETAYLI görsel talimatı. Soru metninde bahsedilen TÜM verileri içermeli! Örnek: 'Kareli zemin üzerinde 6x5 birim dikdörtgen ABCD + sağ tarafta panel tablosu: Tip A √2m, Tip B √5m, Tip C √8m, Tip D √13m'",
     "gorunen_veriler": ["Görselde görünecek TÜM değerler - şekil boyutları, tablo verileri, etiketler"],
     "gizli_bilgi": "SADECE görselde olmaması gereken bilgiler (çevre hesabı, cevap vb.)",
-    "dikkat": "Soru metninde 'görselde verilen', 'tabloda gösterilen' gibi ifadeler varsa, o bilgiler MUTLAKA burada detaylı belirtilmeli!"
+    "dikkat": "Soru metninde 'görselde verilen', 'tabloda gösterilen' gibi ifadeler varsa, o bilgiler MUTLAKA burada detaylı belirtilmeli!",
+    "kareli_zemin_uygunlugu": "HESAPLA: Tüm ölçüler (örn: 0.80m, 1.60m, 15m) ortak bir birime bölünebiliyor mu? Evet ise kareli zemin kullan, hayır ise DÜZ ZEMİN kullan. Bu sorudaki ölçüler: [liste] → Kareli zemin: EVET/HAYIR",
+    "kullanilan_veriler_kontrolu": "Görseldeki TÜM veriler soru metninde kullanılıyor mu? Kullanılmayan veri varsa SİL!"
   },
   "pisa_seviyesi": 3,
   "pisa_baglam": "Kişisel / Mesleki / Toplumsal / Bilimsel"
@@ -515,11 +562,26 @@ IMAGE_PROMPT_TEMPLATE = """LGS 8. sınıf matematik sorusu için eğitim görsel
 
 ### 📐 GEOMETRİK ŞEKİL KURALLARI:
 
-**Kareli Zemin Kullanımı:**
-- Kareler eşit boyutlu, açık gri çizgili olmalı
-- Her kare 1 birim (1 m, 1 cm, vb.) temsil etmeli
-- Şekil kareli zemin üzerine doğru yerleşmeli
-- Köşeler kare kesişim noktalarında olmalı
+**⚠️ KARELİ ZEMİN - ÖLÇEK TUTARLILIĞI (ÇOK ÖNEMLİ!):**
+- Kareli zemin SADECE tüm ölçüler birbiriyle orantılı olduğunda kullanılabilir
+- Her kare AYNI birimi temsil etmeli (1 m, 1 cm, vb.)
+- ÖRNEK YANLIŞ: 9 kare = 15 m iken 3 kare = 0.8 m OLAMAZ (oranlar tutmuyor!)
+- ÖRNEK DOĞRU: 6 kare = 6 m ve 4 kare = 4 m (her kare = 1 m)
+- Eğer ölçüler orantısızsa (örn: 0.80 m ve 15 m), kareli zemin KULLANMA, düz beyaz zemin kullan
+- Kareli zemin kullanılacaksa: en_küçük_ölçü / kare_boyutu = tam_sayı olmalı
+
+**Kareli Zemin Kullanım Kontrolü:**
+1. Tüm ölçüleri listele
+2. En küçük ortak bölen hesapla
+3. Tüm ölçüler bu bölene bölünebiliyorsa → kareli zemin OK
+4. Bölünemiyorsa → DÜZ ZEMİN kullan
+
+**⚠️ KULLANILMAYAN VERİ YASAĞI (ÇOK ÖNEMLİ!):**
+- Görselde SADECE soru çözümünde KULLANILAN veriler olmalı
+- Soruda geçmeyen ölçüler ASLA görsele eklenmemeli
+- Her görsel verisi soru metninde MUTLAKA referans verilmeli
+- ÖRNEK YANLIŞ: Soruda sadece "yükseklik H" soruluyorken görsele fazladan "1 m" eklemek
+- ÖRNEK DOĞRU: Görseldeki TÜM değerler soru metninde kullanılıyor
 
 **Dikdörtgen/Kare Çizimi:**
 - 4 köşe noktası büyük harflerle: A, B, C, D (saat yönünde)
@@ -532,6 +594,12 @@ IMAGE_PROMPT_TEMPLATE = """LGS 8. sınıf matematik sorusu için eğitim görsel
 - 3 köşe noktası: A, B, C
 - Açılar gerekiyorsa yay ile göster
 - Kenar uzunlukları kenarın ortasına yakın
+
+**Benzerlik/Gölge Soruları:**
+- Kareli zemin KULLANMA (ölçekler genelde orantısız)
+- Düz beyaz/açık gri zemin kullan
+- Ölçüleri oklu çizgilerle göster
+- Gölge bölgesini açık gri dolgulu göster
 
 **3 Boyutlu Cisim:**
 - Perspektif görünüm (izometrik veya kavalye)
@@ -547,11 +615,31 @@ IMAGE_PROMPT_TEMPLATE = """LGS 8. sınıf matematik sorusu için eğitim görsel
 
 ### 🎨 STİL KURALLARI (MEB DERS KİTABI):
 
-**Renkler:**
-- Arka plan: Beyaz veya çok açık gri
-- Şekil dolgusu: Açık gri (#E0E0E0) veya pastel renk
-- Çizgiler: Siyah, 2px kalınlık
-- Etiketler: Siyah, kalın font
+**Renkler (CANLI AMA GÖZ YORMAYAN):**
+- Arka plan: Beyaz veya çok açık krem (#FFFEF5)
+- Şekil dolguları - FARKLI RENKLER KULLAN:
+  * Açık mavi: #E3F2FD (su, gökyüzü temaları)
+  * Açık yeşil: #E8F5E9 (doğa, bahçe temaları)
+  * Açık turuncu: #FFF3E0 (enerji, sıcak temalar)
+  * Açık mor: #F3E5F5 (bilim, teknoloji temaları)
+  * Açık sarı: #FFFDE7 (güneş, ışık temaları)
+  * Açık pembe: #FCE4EC (sanat, tasarım temaları)
+  * Açık turkuaz: #E0F7FA (deniz, su temaları)
+- Çizgiler: Koyu gri (#424242), 2px kalınlık
+- Etiketler: Siyah veya koyu gri, kalın font
+- Vurgular: Koyu mavi (#1565C0) veya koyu yeşil (#2E7D32)
+
+**Renk Kombinasyonu Önerileri:**
+- Silindir/Depo: Açık mavi dolgu + koyu mavi çizgi
+- Bahçe/Tarla: Açık yeşil dolgu + koyu yeşil çizgi  
+- Bina/Yapı: Açık turuncu dolgu + kahverengi çizgi
+- Grafik: Her seri farklı pastel renk (mavi, yeşil, turuncu, mor)
+- Tablo: Başlık satırı açık mavi, satırlar beyaz/açık gri sıralı
+
+**YASAK:**
+- Sade gri tonlar (#E0E0E0, #BDBDBD) - ÇOK SIKICI!
+- Tek renk kullanımı - HER ELEMAN FARKLI RENK OLSUN
+- Koyu renkler dolgu için - SADECE pastel/açık tonlar
 
 **Boyutlandırma:**
 - Şekil görsel alanının %60-70'ini kaplamalı
@@ -566,7 +654,9 @@ IMAGE_PROMPT_TEMPLATE = """LGS 8. sınıf matematik sorusu için eğitim görsel
 ❌ Cevabı veren bilgi
 ❌ Gereksiz dekorasyon
 ❌ Bulanık çizgiler
-❌ Türkçe karakter hatası"""
+❌ Türkçe karakter hatası
+❌ Orantısız kareli zemin
+❌ Soruda kullanılmayan veriler"""
 
 # ============================================================================
 # API CLASSES
@@ -747,7 +837,7 @@ Matematiksel olarak %100 DOĞRU olmalı. Tek bir doğru cevap olmalı.
                     
         raise Exception("Gemini API maksimum deneme sayısına ulaşıldı")
     
-    def generate_image(self, gorsel_betimleme: Dict[str, str]) -> Optional[bytes]:
+    def generate_image(self, gorsel_betimleme: Dict[str, str], konu: str = None) -> Optional[bytes]:
         """Gemini 2.5 Flash Image ile görsel üret (google-genai SDK)"""
         
         if not NEW_GENAI or not self.client:
@@ -758,7 +848,24 @@ Matematiksel olarak %100 DOĞRU olmalı. Tek bir doğru cevap olmalı.
         detay = gorsel_betimleme.get("detay", "")
         gorunen_veriler = gorsel_betimleme.get("gorunen_veriler", "")
         
-        full_detay = f"{detay}\n\nGörselde görünecek değerler: {gorunen_veriler}"
+        # Konuya göre renk önerisi ekle
+        renk_talimat = ""
+        if konu and konu in LGS_KONULAR:
+            renkler = LGS_KONULAR[konu].get("gorsel_renkleri", {})
+            if renkler:
+                renk_talimat = f"\n\n🎨 RENK TALİMATI: Bu görsel için şu renkleri kullan: {json.dumps(renkler, ensure_ascii=False)}"
+        
+        # Varsayılan renk talimatı
+        if not renk_talimat:
+            renk_talimat = """
+
+🎨 RENK TALİMATI: 
+- Şekil dolgusu için AÇIK PASTEL renkler kullan (açık mavi #E3F2FD, açık yeşil #E8F5E9, açık turuncu #FFF3E0)
+- GRİ TONLARI KULLANMA! Sıkıcı görünüyor.
+- Her farklı eleman için FARKLI renk kullan
+- Çizgiler koyu renk olsun (koyu mavi #1565C0, koyu yeşil #2E7D32)"""
+        
+        full_detay = f"{detay}\n\nGörselde görünecek değerler: {gorunen_veriler}{renk_talimat}"
         prompt = IMAGE_PROMPT_TEMPLATE.format(tip=tip, detay=full_detay)
         
         self._rate_limit()
@@ -1305,7 +1412,7 @@ class LGSQuestionGenerator:
                         else:
                             gorsel_betimleme_with_feedback = gorsel_betimleme
                         
-                        image_bytes = self.gemini.generate_image(gorsel_betimleme_with_feedback)
+                        image_bytes = self.gemini.generate_image(gorsel_betimleme_with_feedback, konu=params.konu)
                         
                         if not image_bytes:
                             previous_image_problems.append("Görsel üretilemedi")
@@ -1702,7 +1809,7 @@ Geçerli Konular:
                 sys.exit(1)
         
         generator.print_stats()
-        
+        f
     except ValueError as ve:
         logger.error(f"Konfigürasyon hatası: {ve}")
         sys.exit(1)
