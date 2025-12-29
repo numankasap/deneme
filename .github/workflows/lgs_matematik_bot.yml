@@ -1,0 +1,168 @@
+# ============================================================================
+# LGS Matematik Soru Üretim Botu - GitHub Actions Workflow
+# ============================================================================
+# Günlük otomatik soru üretimi + Manuel tetikleme desteği
+# ============================================================================
+
+name: LGS matematik bot
+
+on:
+  # Zamanlı çalışma - Her gün saat 03:00 UTC (06:00 TR)
+  schedule:
+    - cron: '0 3 * * *'
+  
+  # Manuel tetikleme
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Çalışma modu'
+        required: true
+        default: 'batch'
+        type: choice
+        options:
+          - batch
+          - single
+          - topic
+      
+      topic:
+        description: 'Konu (topic/single modu için)'
+        required: false
+        default: 'karekoklu_ifadeler'
+        type: choice
+        options:
+          - uslu_ifadeler
+          - karekoklu_ifadeler
+          - cebirsel_ifadeler
+          - denklemler
+          - esitsizlikler
+          - ucgenler
+          - benzerlik
+          - donusum_geometrisi
+          - egim
+          - geometrik_cisimler
+          - veri_analizi
+          - olasilik
+      
+      count:
+        description: 'Soru sayısı (topic/batch için)'
+        required: false
+        default: '1'
+        type: string
+      
+      bloom:
+        description: 'Bloom seviyesi (single için)'
+        required: false
+        default: 'Analiz'
+        type: choice
+        options:
+          - Analiz
+          - Değerlendirme
+          - Yaratma
+      
+      zorluk:
+        description: 'Zorluk 1-5 (single için)'
+        required: false
+        default: '4'
+        type: string
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  generate-questions:
+    name: 📝 Soru Üret
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      # 1. Repository checkout
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      # 2. Python kurulumu
+      - name: 🐍 Setup Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      # 3. Bağımlılıkları yükle
+      - name: 📦 Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r lgs_matematik_bot_requirements.txt
+
+      # 4. Zamanlanmış çalışma
+      - name: 🤖 Generate Questions (Scheduled)
+        if: github.event_name == 'schedule'
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          echo "🚀 Zamanlanmış soru üretimi başlıyor..."
+          echo "📅 Tarih: $(TZ='Europe/Istanbul' date '+%Y-%m-%d %H:%M:%S')"
+          echo ""
+          python lgs_matematik_bot.py --mode batch --count 1
+
+      # 5. Manuel tetikleme
+      - name: 🤖 Generate Questions (Manual)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          echo "🚀 Manuel soru üretimi başlıyor..."
+          echo "📅 Tarih: $(TZ='Europe/Istanbul' date '+%Y-%m-%d %H:%M:%S')"
+          echo ""
+          echo "⚙️ Parametreler:"
+          echo "   Mod: ${{ github.event.inputs.mode }}"
+          echo "   Konu: ${{ github.event.inputs.topic }}"
+          echo "   Sayı: ${{ github.event.inputs.count }}"
+          echo "   Bloom: ${{ github.event.inputs.bloom }}"
+          echo "   Zorluk: ${{ github.event.inputs.zorluk }}"
+          echo ""
+          
+          MODE="${{ github.event.inputs.mode }}"
+          
+          if [ "$MODE" = "batch" ]; then
+            python lgs_matematik_bot.py --mode batch --count ${{ github.event.inputs.count }}
+          
+          elif [ "$MODE" = "topic" ]; then
+            python lgs_matematik_bot.py --mode topic \
+              --topic ${{ github.event.inputs.topic }} \
+              --count ${{ github.event.inputs.count }}
+          
+          elif [ "$MODE" = "single" ]; then
+            python lgs_matematik_bot.py --mode single \
+              --konu ${{ github.event.inputs.topic }} \
+              --bloom "${{ github.event.inputs.bloom }}" \
+              --zorluk ${{ github.event.inputs.zorluk }}
+          fi
+
+      # 6. Job özeti
+      - name: 📊 Job Summary
+        if: always()
+        run: |
+          echo "## 📊 LGS Soru Üretim Sonuçları" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Parametre | Değer |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Tarih | $(TZ='Europe/Istanbul' date '+%Y-%m-%d %H:%M:%S') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tetikleyen | ${{ github.event_name }} |" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "| Mod | ${{ github.event.inputs.mode }} |" >> $GITHUB_STEP_SUMMARY
+            echo "| Konu | ${{ github.event.inputs.topic }} |" >> $GITHUB_STEP_SUMMARY
+            echo "| Sayı | ${{ github.event.inputs.count }} |" >> $GITHUB_STEP_SUMMARY
+            echo "| Bloom | ${{ github.event.inputs.bloom }} |" >> $GITHUB_STEP_SUMMARY
+            echo "| Zorluk | ${{ github.event.inputs.zorluk }} |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Mod | batch (zamanlanmış) |" >> $GITHUB_STEP_SUMMARY
+            echo "| Sayı | Her konudan 1 |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📚 Desteklenen Konular" >> $GITHUB_STEP_SUMMARY
+          echo "uslu_ifadeler, karekoklu_ifadeler, cebirsel_ifadeler, denklemler, esitsizlikler, ucgenler, benzerlik, donusum_geometrisi, egim, geometrik_cisimler, veri_analizi, olasilik" >> $GITHUB_STEP_SUMMARY
