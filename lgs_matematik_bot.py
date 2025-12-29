@@ -24,6 +24,15 @@ from datetime import datetime
 from typing import Optional, Dict, Any, List, Tuple
 from dataclasses import dataclass, asdict, field
 
+# Google GenAI SDK
+try:
+    from google import genai
+    from google.genai import types
+    NEW_GENAI = True
+except ImportError:
+    NEW_GENAI = False
+    print("⚠️ google-genai paketi bulunamadı. pip install google-genai yapın.")
+
 # ============================================================================
 # LOGGING CONFIGURATION
 # ============================================================================
@@ -522,15 +531,46 @@ IMAGE_PROMPT_TEMPLATE = """LGS 8. sınıf matematik sorusu için eğitim görsel
 # ============================================================================
 
 class GeminiAPI:
-    """Gemini API wrapper"""
+    """Gemini API wrapper - google-genai SDK ile"""
     
     def __init__(self, api_key: str):
         self.api_key = api_key
+        
+        if NEW_GENAI:
+            self.client = genai.Client(api_key=api_key)
+            logger.info("✅ Google GenAI client başlatıldı")
+        else:
+            # Fallback: requests kullan
+            self.client = None
+            logger.warning("⚠️ google-genai SDK yok, requests kullanılacak")
+        
         self.text_url = f"{GEMINI_TEXT_URL}?key={api_key}"
         self.image_url = f"{GEMINI_IMAGE_URL}?key={api_key}"
+        self.request_count = 0
+        self.last_request_time = 0
+    
+    def _rate_limit(self):
+        """Rate limiting"""
+        current_time = time.time()
+        if current_time - self.last_request_time > 60:
+            self.request_count = 0
+            self.last_request_time = current_time
+        
+        if self.request_count >= 4:
+            wait_time = 65 - (current_time - self.last_request_time)
+            if wait_time > 0:
+                logger.info(f"⏳ Rate limit - {wait_time:.0f}s bekleniyor...")
+                time.sleep(wait_time)
+                self.request_count = 0
+                self.last_request_time = time.time()
+        
+        if self.request_count > 0:
+            time.sleep(3)
+        
+        self.request_count += 1
     
     def generate_question(self, params: QuestionParams) -> Dict[str, Any]:
-        """Gemini 2.5 Flash ile soru üret"""
+        """Gemini ile soru üret"""
         
         # Konu bilgilerini al
         konu_data = LGS_KONULAR.get(params.konu, {})
@@ -571,42 +611,52 @@ Yukarıdaki tüm kriterlere uygun, özgün ve yaratıcı bir LGS matematik sorus
 Matematiksel olarak %100 DOĞRU olmalı. Tek bir doğru cevap olmalı.
 """
         
-        payload = {
-            "contents": [
-                {
-                    "role": "user",
-                    "parts": [{"text": user_prompt}]
-                }
-            ],
-            "systemInstruction": {
-                "parts": [{"text": SYSTEM_PROMPT_QUESTION}]
-            },
-            "generationConfig": {
-                "temperature": Config.TEMPERATURE,
-                "maxOutputTokens": Config.MAX_OUTPUT_TOKENS,
-                "responseMimeType": "application/json"
-            }
-        }
+        self._rate_limit()
         
         for attempt in range(Config.MAX_RETRIES):
             try:
                 logger.info(f"  Gemini API çağrısı (deneme {attempt + 1}/{Config.MAX_RETRIES})...")
                 
-                response = requests.post(
-                    self.text_url,
-                    headers={"Content-Type": "application/json"},
-                    json=payload,
-                    timeout=Config.REQUEST_TIMEOUT
-                )
-                response.raise_for_status()
-                
-                result = response.json()
-                
-                if "candidates" not in result or len(result["candidates"]) == 0:
-                    logger.warning("  Gemini yanıtında candidate bulunamadı")
-                    continue
-                
-                text_content = result["candidates"][0]["content"]["parts"][0]["text"]
+                if NEW_GENAI and self.client:
+                    # Yeni SDK kullan
+                    response = self.client.models.generate_content(
+                        model=GEMINI_TEXT_MODEL,
+                        contents=user_prompt,
+                        config={
+                            "system_instruction": SYSTEM_PROMPT_QUESTION,
+                            "temperature": Config.TEMPERATURE,
+                            "max_output_tokens": Config.MAX_OUTPUT_TOKENS,
+                            "response_mime_type": "application/json"
+                        }
+                    )
+                    
+                    text_content = response.text
+                else:
+                    # Fallback: requests kullan
+                    payload = {
+                        "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
+                        "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT_QUESTION}]},
+                        "generationConfig": {
+                            "temperature": Config.TEMPERATURE,
+                            "maxOutputTokens": Config.MAX_OUTPUT_TOKENS,
+                            "responseMimeType": "application/json"
+                        }
+                    }
+                    
+                    response = requests.post(
+                        self.text_url,
+                        headers={"Content-Type": "application/json"},
+                        json=payload,
+                        timeout=Config.REQUEST_TIMEOUT
+                    )
+                    response.raise_for_status()
+                    result = response.json()
+                    
+                    if "candidates" not in result or len(result["candidates"]) == 0:
+                        logger.warning("  Gemini yanıtında candidate bulunamadı")
+                        continue
+                    
+                    text_content = result["candidates"][0]["content"]["parts"][0]["text"]
                 
                 # JSON parse
                 try:
@@ -635,7 +685,6 @@ Matematiksel olarak %100 DOĞRU olmalı. Tek bir doğru cevap olmalı.
                     
                     # Eksik string kapanışını düzelt (basit durum)
                     if clean_text.count('"') % 2 != 0:
-                        # Son açık string'i bul ve kapat
                         clean_text += '"'
                     
                     try:
@@ -643,22 +692,25 @@ Matematiksel olarak %100 DOĞRU olmalı. Tek bir doğru cevap olmalı.
                         logger.info("  ✓ JSON düzeltme sonrası parse başarılı")
                         return question_data
                     except json.JSONDecodeError:
-                        # Son çare: API'yi yeniden çağır
                         logger.warning("  JSON düzeltilemedi, yeniden deneniyor...")
                         if attempt < Config.MAX_RETRIES - 1:
                             time.sleep(Config.RETRY_DELAY)
                             continue
                         raise
                     
-            except requests.exceptions.RequestException as e:
+            except Exception as e:
                 logger.error(f"  API hatası (deneme {attempt + 1}): {e}")
                 if attempt < Config.MAX_RETRIES - 1:
                     time.sleep(Config.RETRY_DELAY)
                     
         raise Exception("Gemini API maksimum deneme sayısına ulaşıldı")
     
-    def generate_image(self, gorsel_betimleme: Dict[str, str]) -> Optional[str]:
-        """Gemini 2.0 Flash ile görsel üret (native image generation)"""
+    def generate_image(self, gorsel_betimleme: Dict[str, str]) -> Optional[bytes]:
+        """Gemini 2.5 Flash Image ile görsel üret (google-genai SDK)"""
+        
+        if not NEW_GENAI or not self.client:
+            logger.warning("  google-genai SDK yok, görsel üretilemiyor")
+            return None
         
         tip = gorsel_betimleme.get("tip", "geometrik_sekil")
         detay = gorsel_betimleme.get("detay", "")
@@ -667,46 +719,38 @@ Matematiksel olarak %100 DOĞRU olmalı. Tek bir doğru cevap olmalı.
         full_detay = f"{detay}\n\nGörselde görünecek değerler: {gorunen_veriler}"
         prompt = IMAGE_PROMPT_TEMPLATE.format(tip=tip, detay=full_detay)
         
-        payload = {
-            "contents": [
-                {
-                    "role": "user",
-                    "parts": [{"text": f"Generate an educational math diagram image:\n\n{prompt}"}]
-                }
-            ],
-            "generationConfig": {
-                "responseModalities": ["image", "text"],
-                "responseMimeType": "image/png"
-            }
-        }
+        self._rate_limit()
         
         for attempt in range(Config.MAX_RETRIES):
             try:
                 logger.info(f"  Image API çağrısı (deneme {attempt + 1}/{Config.MAX_RETRIES})...")
                 
-                response = requests.post(
-                    self.image_url,
-                    headers={"Content-Type": "application/json"},
-                    json=payload,
-                    timeout=120
+                # google-genai SDK ile görsel üret
+                response = self.client.models.generate_content(
+                    model=GEMINI_IMAGE_MODEL,
+                    contents=prompt,
+                    config={
+                        "response_modalities": ["IMAGE", "TEXT"],
+                    }
                 )
-                response.raise_for_status()
                 
-                result = response.json()
+                # Response'dan görsel çıkar
+                if response.candidates:
+                    for part in response.candidates[0].content.parts:
+                        if hasattr(part, 'inline_data') and part.inline_data:
+                            inline = part.inline_data
+                            if hasattr(inline, 'data') and inline.data:
+                                image_data = inline.data
+                                if isinstance(image_data, str):
+                                    image_bytes = base64.b64decode(image_data)
+                                else:
+                                    image_bytes = bytes(image_data) if not isinstance(image_data, bytes) else image_data
+                                logger.info(f"  ✓ Görsel üretildi ({len(image_bytes)} bytes)")
+                                return image_bytes
                 
-                # Yanıttan görsel verisini çıkar
-                if "candidates" in result and len(result["candidates"]) > 0:
-                    parts = result["candidates"][0].get("content", {}).get("parts", [])
-                    for part in parts:
-                        if "inlineData" in part:
-                            image_data = part["inlineData"].get("data")
-                            if image_data:
-                                logger.info("  ✓ Görsel başarıyla üretildi")
-                                return image_data
+                logger.warning("  Görsel response'da bulunamadı")
                 
-                logger.warning("  Görsel üretilemedi, yanıtta image bulunamadı")
-                
-            except requests.exceptions.RequestException as e:
+            except Exception as e:
                 logger.error(f"  Image API hatası (deneme {attempt + 1}): {e}")
                 if attempt < Config.MAX_RETRIES - 1:
                     time.sleep(Config.RETRY_DELAY)
@@ -766,14 +810,19 @@ class SupabaseClient:
         
         return random.choice(curriculum)
     
-    def upload_image(self, image_base64: str, filename: str) -> Optional[str]:
-        """Storage'a görsel yükle"""
+    def upload_image(self, image_data: bytes, filename: str) -> Optional[str]:
+        """Storage'a görsel yükle (bytes olarak)"""
         
         bucket = Config.STORAGE_BUCKET
         upload_url = f"{self.url}/storage/v1/object/{bucket}/{filename}"
         
         try:
-            image_bytes = base64.b64decode(image_base64)
+            # image_data zaten bytes olarak geliyor
+            if isinstance(image_data, str):
+                # base64 string ise decode et
+                image_bytes = base64.b64decode(image_data)
+            else:
+                image_bytes = image_data
             
             response = requests.post(
                 upload_url,
@@ -919,11 +968,11 @@ class LGSQuestionGenerator:
                 gorsel_betimleme = question_data.get("gorsel_betimleme", {})
                 
                 if gorsel_betimleme and gorsel_betimleme.get("detay"):
-                    image_base64 = self.gemini.generate_image(gorsel_betimleme)
+                    image_bytes = self.gemini.generate_image(gorsel_betimleme)
                     
-                    if image_base64:
+                    if image_bytes:
                         filename = f"lgs_{params.konu}_{uuid.uuid4().hex[:8]}_{int(time.time())}.png"
-                        image_url = self.supabase.upload_image(image_base64, filename)
+                        image_url = self.supabase.upload_image(image_bytes, filename)
                         
                         if image_url:
                             self.stats["with_image"] += 1
