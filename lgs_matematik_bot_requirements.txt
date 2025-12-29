@@ -1,0 +1,9 @@
+# ============================================================================
+# LGS Matematik Bot - Python Bağımlılıkları
+# ============================================================================
+
+# HTTP istekleri (Gemini API, Supabase)
+requests>=2.31.0
+
+# Tip kontrolü (Python 3.10 öncesi uyumluluk için)
+typing-extensions>=4.9.0
