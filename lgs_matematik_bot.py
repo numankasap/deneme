@@ -48,7 +48,7 @@ SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
 # ============================================================================
 
 GEMINI_TEXT_MODEL = "gemini-2.5-flash"
-GEMINI_IMAGE_MODEL = "gemini-2.5-flash-image"  # Görsel üretimi için experimental model
+GEMINI_IMAGE_MODEL = "gemini-2.5-flash-image"  # Görsel üretimi için
 
 GEMINI_TEXT_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_TEXT_MODEL}:generateContent"
 GEMINI_IMAGE_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_IMAGE_MODEL}:generateContent"
@@ -94,8 +94,7 @@ class GeneratedQuestion:
     original_text: str
     options: Dict[str, str]
     correct_answer: str
-    solution_short: str
-    solution_detailed: str
+    solution_text: str  # Adım adım çözüm
     difficulty: int
     subject: str
     grade_level: int
@@ -458,8 +457,7 @@ Yanıtını YALNIZCA aşağıdaki JSON formatında ver. Başka hiçbir açıklam
     "D": "Şık D içeriği"
   },
   "dogru_cevap": "A, B, C veya D",
-  "cozum_kisa": "2-3 cümlelik özet çözüm",
-  "cozum_detayli": "Adım adım detaylı çözüm. Her adım numaralandırılmış.",
+  "cozum_adim_adim": "Adım 1: [ilk adım açıklaması]\nAdım 2: [ikinci adım açıklaması]\nAdım 3: [üçüncü adım açıklaması]\n...\nSonuç: [final cevap]",
   "celdirici_analizi": {
     "A": "Bu şıkkı seçen öğrencinin yaptığı hata açıklaması",
     "B": "Bu şıkkı seçen öğrencinin yaptığı hata açıklaması",
@@ -815,8 +813,7 @@ class SupabaseClient:
             "original_text": question.original_text,
             "options": options_json,
             "correct_answer": question.correct_answer,
-            "solution_short": question.solution_short,
-            "solution_detailed": question.solution_detailed,
+            "solution_text": question.solution_text,  # Adım adım çözüm
             "difficulty": question.difficulty,
             "subject": question.subject,
             "grade_level": question.grade_level,
@@ -915,29 +912,28 @@ class LGSQuestionGenerator:
             
             logger.info("  ✓ Soru metni hazır")
             
-            # ADIM 2: Görsel üret (şimdilik devre dışı - API sorunu)
+            # ADIM 2: Görsel üret
             image_url = None
             if question_data.get("gorsel_gerekli", False):
-                logger.info("\n[2/4] Görsel üretimi (şimdilik devre dışı)...")
-                logger.info("  ℹ️ Görsel API sorunu çözülene kadar görselsiz devam ediliyor")
-                # gorsel_betimleme = question_data.get("gorsel_betimleme", {})
-                # 
-                # if gorsel_betimleme and gorsel_betimleme.get("detay"):
-                #     image_base64 = self.gemini.generate_image(gorsel_betimleme)
-                #     
-                #     if image_base64:
-                #         filename = f"lgs_{params.konu}_{uuid.uuid4().hex[:8]}_{int(time.time())}.png"
-                #         image_url = self.supabase.upload_image(image_base64, filename)
-                #         
-                #         if image_url:
-                #             self.stats["with_image"] += 1
-                #             logger.info("  ✓ Görsel hazır ve yüklendi")
-                #         else:
-                #             logger.warning("  ⚠ Görsel yüklenemedi")
-                #     else:
-                #         logger.warning("  ⚠ Görsel üretilemedi")
-                # else:
-                #     logger.warning("  ⚠ Görsel betimleme eksik")
+                logger.info("\n[2/4] Görsel üretiliyor...")
+                gorsel_betimleme = question_data.get("gorsel_betimleme", {})
+                
+                if gorsel_betimleme and gorsel_betimleme.get("detay"):
+                    image_base64 = self.gemini.generate_image(gorsel_betimleme)
+                    
+                    if image_base64:
+                        filename = f"lgs_{params.konu}_{uuid.uuid4().hex[:8]}_{int(time.time())}.png"
+                        image_url = self.supabase.upload_image(image_base64, filename)
+                        
+                        if image_url:
+                            self.stats["with_image"] += 1
+                            logger.info("  ✓ Görsel hazır ve yüklendi")
+                        else:
+                            logger.warning("  ⚠ Görsel yüklenemedi")
+                    else:
+                        logger.warning("  ⚠ Görsel üretilemedi")
+                else:
+                    logger.warning("  ⚠ Görsel betimleme eksik")
             else:
                 logger.info("\n[2/4] Görsel gerekli değil, atlanıyor...")
             
@@ -953,8 +949,7 @@ class LGSQuestionGenerator:
                 original_text=full_text,
                 options=question_data.get("siklar", {}),
                 correct_answer=question_data.get("dogru_cevap", "A"),
-                solution_short=question_data.get("cozum_kisa", ""),
-                solution_detailed=question_data.get("cozum_detayli", ""),
+                solution_text=question_data.get("cozum_adim_adim", ""),
                 difficulty=params.zorluk,
                 subject=Config.DEFAULT_SUBJECT,
                 grade_level=params.grade_level,
