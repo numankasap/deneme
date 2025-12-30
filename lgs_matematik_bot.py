@@ -145,6 +145,61 @@ LGS_KONULAR: Dict[str, Dict[str, Any]] = {
         ]
     },
     
+    "carpanlar_ve_katlar": {
+        "display_name": "Çarpanlar ve Katlar (EBOB-EKOK)",
+        "alt_konular": ["carpanlar", "ebob", "ekok", "aralerinda_asal"],
+        "kazanimlar": ["M.8.1.3.1", "M.8.1.3.2", "M.8.1.3.3"],
+        "kazanim_aciklamalari": {
+            "M.8.1.3.1": "Verilen pozitif tam sayıların pozitif tam sayı çarpanlarını bulur, üslü ifadelerin çarpımı şeklinde yazar.",
+            "M.8.1.3.2": "İki doğal sayının EBOB ve EKOK değerlerini hesaplar, ilgili problemleri çözer.",
+            "M.8.1.3.3": "Verilen iki doğal sayının aralarında asal olup olmadığını belirler."
+        },
+        "ornek_baglamlar": [
+            "Koşu parkurunda aynı anda buluşma zamanı",
+            "Radyo programlarında aynı anda reklam yayını",
+            "Şeker ve poşet dağıtımı (eşit gruplar)",
+            "Bisiklet tekerlek çevresi ve mesafe",
+            "Fiyatları eşit ürün satışı ve gelir hesabı",
+            "Salon numarası ve EKOK hesabı",
+            "Maraton su ve gıda istasyonları",
+            "Merdiven basamak yüksekliği (standart)",
+            "Madeni para tartma ve miktar hesabı",
+            "Koltuk yerleştirme ve salon uzunluğu",
+            "Sinema bileti (tam ve indirimli) hesabı",
+            "Bal satışı ve gelir eşitliği",
+            "Çay-kahve makinesi ve bardak hesabı",
+            "Cep telefonu satışı ve kâr eşitliği",
+            "Demir paketleme ve TIR yüklemesi",
+            "Pencere tülü ve orta kısım genişliği",
+            "Lastik ve jant rafa dizme",
+            "Gübre çeşidi ve azot miktarı",
+            "Saksı dizimi ve raf uzunluğu",
+            "Merdiven yapımı ve tahta kullanımı",
+            "Çerçeve asma ve ip uzunluğu farkı",
+            "Tarla sulama (fıskiye/damlama) sistemi",
+            "Kermes satışı ve tekerlekli sandalye alımı"
+        ],
+        "gorsel_tipleri": ["tablo", "bilgi_kutusu", "sekil_diyagram", "kareli_zemin"],
+        "celdirici_hatalari": [
+            "EBOB yerine EKOK hesaplama veya tersi",
+            "Asal çarpanlara ayırmada hata",
+            "Ortak çarpanları yanlış belirleme",
+            "Aralarında asal kavramını EBOB=1 yerine EKOK ile karıştırma",
+            "Çevreyi hesaplarken π değerini yanlış kullanma (bisiklet sorusu)",
+            "En az ve en çok ifadelerini karıştırma",
+            "Birim dönüşümlerinde hata (cm-m, kg-ton)",
+            "Oran ve orantı kurulumunda hata"
+        ],
+        "soru_kaliplari": [
+            "Buna göre, en az kaç ... gerekir?",
+            "Buna göre, en çok kaç tanesi ... ?",
+            "Buna göre, toplam kaç ... olabilir?",
+            "Buna göre, kaç kez/defa ... ?",
+            "Buna göre, en küçük ortak katı kaçtır?",
+            "Buna göre, aralarındaki fark en fazla kaçtır?"
+        ]
+    },
+    
     "karekoklu_ifadeler": {
         "display_name": "Kareköklü İfadeler",
         "alt_konular": ["karekök_tahmini", "islemler", "rasyonel_irrasyonel", "sayi_dogrusu"],
@@ -325,49 +380,94 @@ LGS_KONULAR: Dict[str, Dict[str, Any]] = {
     
     "veri_analizi": {
         "display_name": "Veri Analizi",
-        "alt_konular": ["grafik_gosterim", "merkezi_egilim", "yorumlama"],
+        "alt_konular": ["grafik_gosterim", "grafik_donusum", "coklu_grafik_yorumlama"],
         "kazanimlar": ["M.8.5.1.1", "M.8.5.1.2"],
+        "kazanim_aciklamalari": {
+            "M.8.5.1.1": "Verileri uygun istatistiksel temsil biçimleri ile gösterir.",
+            "M.8.5.1.2": "Verileri sütun, daire veya çizgi grafiği ile gösterir ve bu gösterimler arasında uygun olan dönüşümleri yapar."
+        },
         "ornek_baglamlar": [
-            "Müze ziyaretçi istatistikleri",
-            "Sınav sonuçları analizi",
-            "Hava durumu grafikleri",
-            "Satış verileri karşılaştırma",
-            "Anket sonuçları değerlendirme"
+            "Baraj doluluk oranları (sütun + daire grafiği)",
+            "Tren vagonlarındaki yolcu dağılımı (sütun + daire grafiği)",
+            "Müze ziyaretçi sayıları ve saatler (sütun grafiği + tablo)",
+            "Mağaza alışverişi ve taksit hesabı (daire + sütun grafiği)",
+            "Elektrikli otomobil anket sonuçları (iki daire grafiği)",
+            "Süt fabrikası üretimi ve aroma oranları (daire + sütun grafiği)",
+            "Televizyon satışları yıllık karşılaştırma (iki daire grafiği)",
+            "Stadyum bilet satışları (tablo + daire grafiği)",
+            "Kitap türleri dağılımı (daire + sütun grafiği)",
+            "Lokanta yemek porsiyonları ve tuz miktarı (sütun + daire grafiği)"
         ],
-        "gorsel_tipleri": ["grafik_sutun", "grafik_daire", "tablo", "kareli_zemin"],
+        "gorsel_tipleri": ["grafik_sutun_daire", "grafik_iki_daire", "grafik_sutun_tablo", "kareli_zemin"],
         "gorsel_renkleri": {
             "seri1": "#42A5F5",  # Mavi
             "seri2": "#66BB6A",  # Yeşil
             "seri3": "#FFA726",  # Turuncu
             "seri4": "#AB47BC",  # Mor
+            "seri5": "#EF5350",  # Kırmızı
             "arka_plan": "#FAFAFA"
         },
         "celdirici_hatalari": [
-            "Grafik eksenlerini yanlış okuma",
-            "Ortalama hesabında toplam/sayı hatası",
+            "Sütun grafiğinde kareli zeminden değer okuma hatası",
+            "Daire grafiğinde açı-oran dönüşümü hatası (360° = toplam)",
+            "İki grafik arasındaki ilişkiyi kuramama",
             "Yüzde hesabını yanlış yapma",
-            "Daire grafiğinde açı-oran dönüşümü hatası"
-        ]
+            "Merkezi açı hesabında toplam açıyı 360° yerine 180° alma",
+            "Grafik eksenlerini yanlış okuma",
+            "Orantı kurulumunda hata",
+            "Toplam miktarı yanlış hesaplama"
+        ],
+        "soru_kaliplari": [
+            "Buna göre, ... merkez açısı kaç derecedir?",
+            "Buna göre, toplam ... sayısı kaçtır?",
+            "Buna göre, ... oranı kaçtır?",
+            "Buna göre, aşağıdaki tablolardan hangisi grafiğe uygundur?",
+            "Buna göre, ... en az kaçtır?",
+            "Buna göre, ... en fazla kaçtır?"
+        ],
+        "gorsel_notu": "Veri analizi sorularında MUTLAKA iki farklı grafik türü birlikte kullanılmalıdır (örn: sütun + daire, iki daire grafiği, sütun + tablo). Veriler her iki grafikten de okunarak birleştirilmelidir."
     },
     
     "olasilik": {
-        "display_name": "Olasılık",
-        "alt_konular": ["basit_olasilik", "bagimli_bagimsiz", "olay_cesitleri"],
-        "kazanimlar": ["M.8.4.1.1", "M.8.4.1.2", "M.8.4.1.3"],
+        "display_name": "Basit Olayların Olma Olasılığı",
+        "alt_konular": ["olasi_durumlar", "olasilik_karsilastirma", "olasilik_hesaplama"],
+        "kazanimlar": ["M.8.4.1.1", "M.8.4.1.2", "M.8.4.1.3", "M.8.4.1.4", "M.8.4.1.5"],
+        "kazanim_aciklamalari": {
+            "M.8.4.1.1": "Bir olaya ait olası durumları belirler.",
+            "M.8.4.1.2": "'Daha fazla', 'eşit', 'daha az' olasılıklı olayları ayırt eder, örnek verir.",
+            "M.8.4.1.3": "Eşit şansa sahip olan olaylarda her bir çıktının olasılık değerinin eşit olduğunu ve bu değerin 1/n olduğunu açıklar.",
+            "M.8.4.1.4": "Olasılık değerinin 0 ile 1 arasında (0 ve 1 dâhil) olduğunu anlar.",
+            "M.8.4.1.5": "Basit bir olayın olma olasılığını hesaplar."
+        },
         "ornek_baglamlar": [
-            "Oyun ve şans oyunları",
-            "Çekiliş ve kura",
-            "Renkli top seçimi",
-            "Zar ve yazı-tura",
-            "Kart oyunu olasılıkları"
+            "Zar atma ve sonuç tahmini",
+            "Renkli top çekme",
+            "Yazı-tura oyunu",
+            "Çark çevirme ve ödül kazanma",
+            "Kart seçimi ve renk/sayı tahmini",
+            "Çekiliş ve kura sonuçları",
+            "Tombala ve sayı çekimi",
+            "Düzgün çokgen şeklinde çark",
+            "Torba içinden nesne seçimi",
+            "Sayı kartları ve koşul sağlama"
         ],
-        "gorsel_tipleri": ["tablo", "kutular", "agac_diyagrami"],
+        "gorsel_tipleri": ["tablo", "kutular", "cark_diyagrami", "toplar_kutu"],
         "celdirici_hatalari": [
-            "Pay ve paydayı karıştırma",
-            "Bağımlı/bağımsız olayları ayırt edememe",
+            "Pay ve paydayı karıştırma (tersini alma)",
             "Toplam sonuç sayısını yanlış hesaplama",
-            "Koşullu olasılıkta paydayı yanlış alma"
-        ]
+            "İstenen sonuç sayısını yanlış belirleme",
+            "Olasılık değerini 1'den büyük bulma (geçersiz)",
+            "Eşit şans kavramını yanlış uygulama",
+            "Kesir sadeştirmede hata"
+        ],
+        "soru_kaliplari": [
+            "Buna göre, ... olma olasılığı kaçtır?",
+            "Buna göre, hangi olay daha olasıdır?",
+            "Buna göre, ... olasılığı en fazla kaçtır?",
+            "Buna göre, olası durumların sayısı kaçtır?",
+            "Buna göre, ... olma olasılığı ... olma olasılığından kaç fazladır?"
+        ],
+        "gorsel_notu": "Olasılık sorularında bağımlı ve bağımsız olaylar KULLANILMAZ. Sadece basit olasılık hesaplamaları yapılır. Tüm çıktılar eşit şansa sahip olmalıdır."
     }
 }
 
@@ -1605,6 +1705,11 @@ class LGSQuestionGenerator:
         
         mapping = {
             "üslü": "uslu_ifadeler",
+            "çarpan": "carpanlar_ve_katlar",
+            "katlar": "carpanlar_ve_katlar",
+            "ebob": "carpanlar_ve_katlar",
+            "ekok": "carpanlar_ve_katlar",
+            "asal": "carpanlar_ve_katlar",
             "kareköklü": "karekoklu_ifadeler",
             "karekök": "karekoklu_ifadeler",
             "cebirsel": "cebirsel_ifadeler",
@@ -1622,6 +1727,7 @@ class LGSQuestionGenerator:
             "silindir": "geometrik_cisimler",
             "geometrik cisim": "geometrik_cisimler",
             "veri": "veri_analizi",
+            "grafik": "veri_analizi",
             "istatistik": "veri_analizi",
             "olasılık": "olasilik",
         }
@@ -1726,8 +1832,8 @@ def main():
   python lgs_matematik_bot.py --mode single --konu ucgenler --bloom Analiz --zorluk 4
 
 Geçerli Konular:
-  uslu_ifadeler, karekoklu_ifadeler, cebirsel_ifadeler, denklemler,
-  esitsizlikler, ucgenler, benzerlik, donusum_geometrisi, egim,
+  uslu_ifadeler, carpanlar_ve_katlar, karekoklu_ifadeler, cebirsel_ifadeler,
+  denklemler, esitsizlikler, ucgenler, benzerlik, donusum_geometrisi, egim,
   geometrik_cisimler, veri_analizi, olasilik
         """
     )
