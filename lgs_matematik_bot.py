@@ -179,7 +179,39 @@ LGS_KONULAR: Dict[str, Dict[str, Any]] = {
             "Tarla sulama (fıskiye/damlama) sistemi",
             "Kermes satışı ve tekerlekli sandalye alımı"
         ],
-        "gorsel_tipleri": ["tablo", "bilgi_kutusu", "sekil_diyagram", "kareli_zemin"],
+        "gorsel_tipleri": [
+            "renkli_salon_kutulari",
+            "raf_dizilim_3d",
+            "kesim_serit_diyagram",
+            "koli_istifleme_3d",
+            "renkli_bilgi_kartlari",
+            "detayli_urun_tablosu",
+            "karsilastirmali_sekil"
+        ],
+        "gorsel_aciklamalari": {
+            "renkli_salon_kutulari": "Farklı renklerde (mavi, kırmızı, yeşil, turuncu) dikdörtgen salonlar yan yana. Her salonun altında kapı numarası kuralı (örn: '6'nın Katları', '8'in Katları'). Salonlar eşit boyutta, renkli dolgulu ve çerçeveli.",
+            "raf_dizilim_3d": "Metal raf sistemi üzerinde yan yana dizilmiş nesneler (lastikler, jantlar, saksılar vb.). Üst rafta bir tür, alt rafta başka tür. Nesnelerin çapları/boyutları ölçülü (örn: 90 cm, 60 cm). '...' ile devam işareti. 3D perspektif görünüm.",
+            "kesim_serit_diyagram": "Uzun dikdörtgen şerit (sarı, mavi vb.) kesik çizgilerle parçalara ayrılmış. Üstünde makas sembolleri. Parça boyutları yazılı (örn: 6 cm, 10 cm). Kısa kenar ölçüsü de belirtilmeli (örn: 2 cm).",
+            "koli_istifleme_3d": "Zemin ve tavan arası 3D görünüm. Kare dik prizma şeklinde koliler üst üste istifleniyor. Koli boyutları (80 cm x 30 cm) gösterilmeli. İki farklı istifleme yöntemi yan yana (yatay/dikey konumlandırma).",
+            "renkli_bilgi_kartlari": "2-3 adet renkli kart/kutu yan yana veya alt alta. Her kartta model/ürün adı ve bir sayısal değer (birim kâr, fiyat vb.). Kartlar farklı renklerde (yeşil-turuncu, mavi-sarı). Modern, temiz tasarım.",
+            "detayli_urun_tablosu": "Başlıklı tablo, 2-3 sütun. Satırlar farklı renk bantlarıyla ayrılmış (yeşil, turuncu, mor, sarı). Ürün çeşidi + miktar + fiyat gibi çoklu bilgi. Tablo başlığı üstte büyük puntoyla.",
+            "karsilastirmali_sekil": "İki farklı nesne/durum yan yana karşılaştırmalı. Ölçüler okla gösterilmiş. Nesneler gerçekçi (bisiklet tekerlekleri, tüller, tahta parçaları vb.). Arka plan sade."
+        },
+        "gorsel_notu": """EBOB-EKOK sorularında ASLA sadece basit tablo kullanma! Görseller şu özelliklerde olmalı:
+        
+1. RENKLI SALON/KUTU: Mavi, kırmızı, yeşil, turuncu dikdörtgenler yan yana. Altlarında kural yazısı.
+
+2. RAF DİZİLİM (3D): Metal raf üzerinde lastik/jant/saksı dizilimi. Nesneler gerçekçi, çapları ölçülü.
+
+3. KESİM DİYAGRAMI: Uzun şerit + makas simgesi + kesik çizgiler. Parça boyutları net.
+
+4. KOLİ İSTİFLEME: Zemin-tavan arası 3D görünüm, kutular üst üste, iki farklı dizilim.
+
+5. BİLGİ KARTLARI: Renkli kutular içinde model adı + sayısal değer. Modern tasarım.
+
+6. DETAYLI TABLO: Renkli satır bantları, çok sütunlu, başlık büyük punto.
+
+YASAK: Sadece siyah-beyaz basit tablo, metin ağırlıklı görsel, süs öğesi olmayan düz tasarım.""",
         "celdirici_hatalari": [
             "EBOB yerine EKOK hesaplama veya tersi",
             "Asal çarpanlara ayırmada hata",
@@ -801,6 +833,33 @@ class GeminiAPI:
         
         self.request_count += 1
     
+    def _get_gorsel_ozel_talimat(self, konu: str, gorsel_tipi: str) -> str:
+        """Konuya özel görsel talimatı döndür"""
+        
+        if konu == "carpanlar_ve_katlar":
+            gorsel_aciklamalari = LGS_KONULAR.get(konu, {}).get("gorsel_aciklamalari", {})
+            aciklama = gorsel_aciklamalari.get(gorsel_tipi, "")
+            
+            return f"""
+
+⚠️ EBOB-EKOK GÖRSELİ İÇİN KRİTİK TALİMAT:
+ASLA basit siyah-beyaz tablo kullanma! Görsel zengin ve renkli olmalı.
+
+Seçilen görsel tipi: **{gorsel_tipi}**
+{f'Açıklama: {aciklama}' if aciklama else ''}
+
+Kullanılabilir görsel tipleri ve açıklamaları:
+1. **renkli_salon_kutulari**: Farklı renklerde (mavi, turuncu, yeşil) dikdörtgen salonlar yan yana. Her salonun altında kapı numarası kuralı.
+2. **raf_dizilim_3d**: Metal raf üzerinde lastik/jant/saksı dizilimi. 3D perspektif, nesneler gerçekçi.
+3. **kesim_serit_diyagram**: Uzun şerit + makas simgesi + kesik çizgiler. Parça boyutları net.
+4. **koli_istifleme_3d**: Zemin-tavan arası koliler, iki farklı istifleme yöntemi.
+5. **renkli_bilgi_kartlari**: Renkli kutular içinde model adı + sayısal değer.
+6. **detayli_urun_tablosu**: Renkli satır bantları, çok sütunlu, başlık büyük punto.
+
+Görsel betimlemesinde bu tipe uygun DETAYLI talimat ver."""
+        
+        return ""
+    
     def generate_question(self, params: QuestionParams) -> Dict[str, Any]:
         """Gemini ile soru üret"""
         
@@ -830,6 +889,7 @@ class GeminiAPI:
 ### Görsel Talimatı:
 - **Görsel tipi**: {params.gorsel_tipi}
 - Görsel betimlemesi ÇOK DETAYLI olmalı
+{self._get_gorsel_ozel_talimat(params.konu, params.gorsel_tipi)}
 
 ### Dikkat Edilecek Yaygın Öğrenci Hataları:
 {chr(10).join(['- ' + h for h in konu_data.get('celdirici_hatalari', [])])}
@@ -965,7 +1025,63 @@ Matematiksel olarak %100 DOĞRU olmalı. Tek bir doğru cevap olmalı.
 - Her farklı eleman için FARKLI renk kullan
 - Çizgiler koyu renk olsun (koyu mavi #1565C0, koyu yeşil #2E7D32)"""
         
-        full_detay = f"{detay}\n\nGörselde görünecek değerler: {gorunen_veriler}{renk_talimat}"
+        # EBOB-EKOK konusu için ÖZEL görsel talimatları
+        konu_ozel_talimat = ""
+        if konu == "carpanlar_ve_katlar":
+            gorsel_aciklamalari = LGS_KONULAR[konu].get("gorsel_aciklamalari", {})
+            gorsel_notu = LGS_KONULAR[konu].get("gorsel_notu", "")
+            
+            konu_ozel_talimat = f"""
+
+📦 EBOB-EKOK GÖRSEL TALİMATI (ÇOK ÖNEMLİ!):
+
+⚠️ ASLA basit siyah-beyaz tablo yapma! Görseller MUTLAKA şu tiplerden biri olmalı:
+
+1. **RENKLİ SALON/KUTU GÖRSELİ:**
+   - 2-4 adet renkli dikdörtgen yan yana (mavi #E3F2FD, turuncu #FFF3E0, yeşil #E8F5E9, mor #F3E5F5)
+   - Her kutunun üstünde salon adı (örn: "Mavi Salon", "Kırmızı Salon")
+   - Her kutunun altında kural (örn: "Kapı Numaraları: 6'nın Katları")
+   - Kutular eşit boyutta, çerçeveli, dolgulu
+
+2. **3D RAF DİZİLİM GÖRSELİ:**
+   - Metal raf sistemi (gümüş/gri çerçeve)
+   - Üst rafta bir tür nesne (lastikler, saksılar vb.) - gerçekçi görünüm
+   - Alt rafta başka tür nesne (jantlar, farklı saksılar vb.)
+   - Nesnelerin boyutları okla gösterilmiş (örn: "90 cm", "60 cm")
+   - "..." ile devam işareti
+   - 3D perspektif görünüm
+
+3. **KESİM/ŞERİT DİYAGRAMI:**
+   - Uzun dikdörtgen şerit (sarı, mavi vb. dolgulu)
+   - Üstte makas sembolleri (✂)
+   - Kesik çizgilerle parçalara ayrılmış
+   - Parça boyutları yazılı (örn: "6 cm", "10 cm")
+   - Kısa kenar ölçüsü de gösterilmeli (örn: "2 cm")
+
+4. **KOLİ İSTİFLEME (3D):**
+   - Zemin ve tavan arası 3D görünüm
+   - Kare dik prizma şeklinde koliler üst üste
+   - İki farklı istifleme yöntemi yan yana gösterilmeli
+   - Koli boyutları etiketli (örn: "80 cm x 30 cm")
+
+5. **RENKLİ BİLGİ KARTLARI:**
+   - 2-3 adet renkli kart yan yana veya alt alta
+   - Her kartta: Model/ürün adı + sayısal değer
+   - Kartlar farklı renklerde (yeşil-turuncu, mavi-sarı)
+   - Modern, temiz tasarım, yuvarlak köşeler
+
+6. **DETAYLI ÜRÜN TABLOSU:**
+   - Başlık büyük punto, üstte
+   - 2-3 sütun (Ürün, Miktar, Fiyat vb.)
+   - HER SATIR FARKLI RENK BANTI (yeşil, turuncu, mor, sarı, mavi)
+   - Tablo çerçeveli, profesyonel görünüm
+
+{gorsel_notu}
+
+SEÇİLEN GÖRSEL TİPİ: {tip}
+"""
+        
+        full_detay = f"{detay}\n\nGörselde görünecek değerler: {gorunen_veriler}{renk_talimat}{konu_ozel_talimat}"
         prompt = IMAGE_PROMPT_TEMPLATE.format(tip=tip, detay=full_detay)
         
         self._rate_limit()
