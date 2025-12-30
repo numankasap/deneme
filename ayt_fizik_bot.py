@@ -701,17 +701,49 @@ Verilen konu, kazanim ve zorluk seviyesine uygun, ozgun, bilimsel olarak hatasiz
 - Her oncul ayri fiziksel analiz gerektirir
 - En kucuk kavram yanilgisi yanlisa goturur
 
+## ONCULU SORU FORMATI - KRITIK KURALLAR
+
+ONCULU (I, II, III) tipinde soru uretildiginde MUTLAKA asagidaki formata uy:
+
+1. Soru metninde ONCE senaryo/baglam anlat
+2. SONRA "Buna gore, ... ile ilgili asagidaki ifadelerden hangileri dogrudur?" yaz
+3. ARDINDAN I, II, III onculleri AYRI SATIRLARDA ve ACIK SEKILDE yaz:
+
+ORNEK FORMAT:
+"[Senaryo metni burada yer alir.]
+
+Buna gore, [konu] ile ilgili asagidaki ifadelerden hangileri dogrudur?
+
+I. [Birinci ifade - tam ve anlasilir cumle]
+II. [Ikinci ifade - tam ve anlasilir cumle]  
+III. [Ucuncu ifade - tam ve anlasilir cumle]"
+
+SIKLAR FORMATI (Onculu sorular icin):
+- A) Yalniz I
+- B) Yalniz II
+- C) I ve II
+- D) II ve III
+- E) I, II ve III
+
+YASAK: Onculleri (I, II, III) soru metnine YAZMADAN "Yalniz I", "I ve II" gibi siklar olusturmak!
+Her oncul EN AZ 15-20 kelimelik, fiziksel bir YARGI CUMLESI olmali.
+
 ## CIKTI FORMATI (JSON)
 
 {
-  "soru_metni": "Hikayeli senaryo anlatimi. OSYM jargonu kullan.",
-  "soru_koku": "Buna gore, [soru cumlesi]",
+  "soru_metni": "Hikayeli senaryo + ONCULU SORULARDA I, II, III IFADELERI BURADA OLMALI",
+  "soru_koku": "Buna gore, [konu] ile ilgili asagidaki ifadelerden hangileri dogrudur?",
+  "oncul_ifadeler": {
+    "I": "Birinci yargi cumlesi (tam ve anlasilir)",
+    "II": "Ikinci yargi cumlesi (tam ve anlasilir)",
+    "III": "Ucuncu yargi cumlesi (tam ve anlasilir)"
+  },
   "siklar": {
-    "A": "[Sik icerigi]",
-    "B": "[Sik icerigi]",
-    "C": "[Sik icerigi]",
-    "D": "[Sik icerigi]",
-    "E": "[Sik icerigi]"
+    "A": "Yalniz I / veya normal sik",
+    "B": "Yalniz II / veya normal sik",
+    "C": "I ve II / veya normal sik",
+    "D": "II ve III / veya normal sik",
+    "E": "I, II ve III / veya normal sik"
   },
   "dogru_cevap": "A/B/C/D/E",
   "cozum_adim_adim": "Adim 1: [aciklama]\\nAdim 2: [aciklama]\\nSonuc: [cevap]",
@@ -1018,6 +1050,40 @@ ONEMLI:
 3. 5 sikli (A, B, C, D, E) olmali.
 4. Her celdirici SPESIFIK bir kavram yanilgisini hedeflemeli.
 5. Soru tipi "{params.soru_tipi}" formatinda olmali.
+"""
+        
+        # ONCULU SORU TIPI ICIN OZEL TALIMAT
+        if params.soru_tipi == "onculu":
+            user_prompt += """
+
+### !!! ONCULU SORU FORMATI - ZORUNLU !!!
+
+Bu soru ONCULU (I, II, III) tipinde olmali. ASAGIDAKI FORMATI KESINLIKLE UYGULA:
+
+1. SORU METNINDE once senaryoyu anlat
+2. Sonra "Buna gore, ... ile ilgili asagidaki ifadelerden hangileri dogrudur?" yaz
+3. ARDINDAN I, II, III onculleri SORU METNININ ICINDE, AYRI SATIRLARDA yaz:
+
+ORNEK:
+"Bir fizik laboratuvarinda yapilan deneyde... [senaryo devam eder]
+
+Buna gore, bu sistemle ilgili asagidaki ifadelerden hangileri dogrudur?
+
+I. [Birinci fiziksel yargi - EN AZ 15 kelime, tam cumle]
+II. [Ikinci fiziksel yargi - EN AZ 15 kelime, tam cumle]
+III. [Ucuncu fiziksel yargi - EN AZ 15 kelime, tam cumle]"
+
+SIKLAR MUTLAKA SU FORMATTA OLMALI:
+A) Yalniz I
+B) Yalniz II  
+C) I ve II
+D) II ve III
+E) I, II ve III
+
+KRITIK: I, II, III ifadeleri "soru_metni" alaninda MUTLAKA yer almali!
+JSON'da ayrica "oncul_ifadeler" alaninda da ayri ayri yaz.
+
+YASAK: Onculleri yazmadan "Yalniz I" gibi siklar olusturmak KESINLIKLE YASAKTIR!
 """
         
         self._rate_limit()
@@ -1463,6 +1529,32 @@ class AYTFizikGenerator:
                     self.stats["quality_retries"] += 1
                     continue
                 
+                # ONCULU SORU KONTROLU
+                if params.soru_tipi == "onculu":
+                    soru_metni_check = question_data.get("soru_metni", "")
+                    oncul_ifadeler = question_data.get("oncul_ifadeler", {})
+                    
+                    # Oncullerin varligini kontrol et
+                    has_oncul_in_text = "I." in soru_metni_check or "I)" in soru_metni_check
+                    has_oncul_field = oncul_ifadeler and len(oncul_ifadeler) >= 2
+                    
+                    if not has_oncul_in_text and not has_oncul_field:
+                        logger.warning("  ONCULU soru tipinde I, II, III ifadeleri eksik!")
+                        self.stats["quality_retries"] += 1
+                        continue
+                    
+                    # Siklarin onculu formatinda olup olmadigini kontrol et
+                    sik_values = list(siklar.values())
+                    onculu_sik_keywords = ["Yalniz", "yalniz", "ve II", "ve III", "I, II", "II ve"]
+                    has_onculu_siklar = any(any(kw in str(sik) for kw in onculu_sik_keywords) for sik in sik_values)
+                    
+                    if not has_onculu_siklar:
+                        logger.warning("  ONCULU soru tipinde siklar yanlis formatta!")
+                        self.stats["quality_retries"] += 1
+                        continue
+                    
+                    logger.info("  Onculu soru formati kontrol edildi - OK")
+                
                 # Kalite kontrolu
                 logger.info("  Kalite kontrolu yapiliyor...")
                 q_validation = self.validator.validate_question(question_data, params)
@@ -1520,6 +1612,24 @@ class AYTFizikGenerator:
             
             soru_metni = question_data.get("soru_metni", "")
             soru_koku = question_data.get("soru_koku", "")
+            
+            # ONCULU SORULAR ICIN: Onculleri soru metnine ekle
+            oncul_ifadeler = question_data.get("oncul_ifadeler", {})
+            if oncul_ifadeler and params.soru_tipi == "onculu":
+                # Eger onculler soru_metni icinde yoksa ekle
+                if "I." not in soru_metni and "II." not in soru_metni:
+                    oncul_text = "\n\n"
+                    if oncul_ifadeler.get("I"):
+                        oncul_text += f"I. {oncul_ifadeler['I']}\n"
+                    if oncul_ifadeler.get("II"):
+                        oncul_text += f"II. {oncul_ifadeler['II']}\n"
+                    if oncul_ifadeler.get("III"):
+                        oncul_text += f"III. {oncul_ifadeler['III']}\n"
+                    
+                    # Soru kokunden once onculleri ekle
+                    soru_metni = soru_metni + oncul_text
+                    logger.info("  Oncul ifadeler soru metnine eklendi")
+            
             full_text = f"{soru_metni}\n\n{soru_koku}"
             
             generated = GeneratedQuestion(
