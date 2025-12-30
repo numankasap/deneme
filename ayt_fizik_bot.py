@@ -1,12 +1,18 @@
 """
-AYT Fizik Soru Üretim Botu
-==========================
-Gemini 2.5 Flash (soru) + Gemini 3 Pro Image Preview (görsel) + Supabase
-GitHub Actions ile otomatik çalışır
+AYT Fizik Soru Uretim Botu v2.0
+================================
+Gemini 2.5 Flash + Imagen 3 + Supabase
+OSYM Formatinda AYT Fizik Sorulari
 
-YKS/AYT Fizik müfredatına uygun, ÖSYM formatında sorular üretir.
+Yenilikler v2.0:
+- Kavram Yanilgisi Veri Tabani (Misconception Database)
+- Psikometrik Zorluk Dagilimi
+- Gelistirilmis Prompt Muhendisligi (Few-Shot)
+- Renkli Gorsel Sablonlari
+- OSYM Jargonu ve Uslubu
+- 2025 Trend Bazli Soru Tipleri
 
-Kullanım:
+Kullanim:
   python ayt_fizik_bot.py --mode batch --count 1
   python ayt_fizik_bot.py --mode topic --topic elektrostatik --count 5
   python ayt_fizik_bot.py --mode single --konu hareket_ve_kuvvet --bloom Analiz --zorluk 4
@@ -62,7 +68,6 @@ GEMINI_TEXT_MODEL = "gemini-2.5-flash"
 GEMINI_IMAGE_MODEL = "gemini-3-pro-image-preview"
 
 GEMINI_TEXT_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_TEXT_MODEL}:generateContent"
-GEMINI_IMAGE_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_IMAGE_MODEL}:generateContent"
 
 # ============================================================================
 # CONFIGURATION
@@ -81,6 +86,168 @@ class Config:
     STORAGE_BUCKET = "questions-images"
 
 # ============================================================================
+# PSIKOMETRIK ZORLUK DAGILIMI (OSYM Tarzi)
+# ============================================================================
+
+ZORLUK_DAGILIMI = {
+    1: {"oran": 0.10, "aciklama": "Kolay - Temel tanim ve basit uygulama", "adim_sayisi": 1},
+    2: {"oran": 0.25, "aciklama": "Orta-Kolay - Standart formul uygulamasi", "adim_sayisi": 2},
+    3: {"oran": 0.30, "aciklama": "Orta - Bilinen senaryolarda kazanim uygulamasi", "adim_sayisi": 2},
+    4: {"oran": 0.25, "aciklama": "Zor - Coklu kazanim veya detayli grafik analizi", "adim_sayisi": 3},
+    5: {"oran": 0.10, "aciklama": "Secici - Onculu (I,II,III) format, derin kavramsal analiz", "adim_sayisi": 4}
+}
+
+# ============================================================================
+# KAVRAM YANILGISI VERI TABANI (MISCONCEPTION DATABASE)
+# ============================================================================
+
+KAVRAM_YANILGILARI = {
+    "dinamik": {
+        "yanilgilar": [
+            "Hizin oldugu yerde mutlaka kuvvet de vardir",
+            "Sabit hizla giden cisme net kuvvet etki eder",
+            "Agir cisimler daha hizli duser",
+            "Kuvvet olmadan hareket olmaz"
+        ],
+        "celdirici_stratejileri": [
+            "Sabit hizla giden cisme net kuvvet etki ettigini iddia eden sik",
+            "Kutlenin dusme hizini etkiledigini gosteren sik",
+            "Surtunen cisimlerin mutlaka yavasladigini soyleyen sik"
+        ]
+    },
+    "atislar": {
+        "yanilgilar": [
+            "Tepe noktasinda ivme sifirdir",
+            "Tepe noktasinda hiz sifirdir (egik atista)",
+            "Yatay atis serbest dusme degildir",
+            "Havada asili kalma ani vardir"
+        ],
+        "celdirici_stratejileri": [
+            "Tepe noktasindaki ivmeyi sifir alan hesaplama",
+            "Yatay hiz bilesenini tepe noktasinda sifir alan sik",
+            "Ucus suresini yanlis hesaplayan sik"
+        ]
+    },
+    "elektrik": {
+        "yanilgilar": [
+            "Akim devrede harcanir, eksi kutba daha az akim doner",
+            "Elektrik alanin sifir oldugu yerde potansiyel de sifirdir",
+            "Paralel bagli lambalarin hepsi ayni parlakliktadir",
+            "Pil bittikce akim azalir ama gerilim ayni kalir"
+        ],
+        "celdirici_stratejileri": [
+            "Seri bagli lambalarda akimin azaldigini ima eden sik",
+            "Alan sifir = Potansiyel sifir yanilgisini kullanan sik",
+            "Direnc artinca akimin her yerde azaldigini soyleyen sik"
+        ]
+    },
+    "manyetizma": {
+        "yanilgilar": [
+            "Manyetik kuvvet duragan yuklere de etki eder",
+            "Manyetik alan cizgileri birbirini keser",
+            "Bobindeki akim artinca manyetik alan azalir",
+            "Manyetik kuvvet hiz yonundedir"
+        ],
+        "celdirici_stratejileri": [
+            "Hizi sifir olan yuke F=qvB uygulayan tuzak",
+            "Manyetik kuvveti hiz yonunde gosteren sik",
+            "Alan cizgilerinin kesistigini ima eden sik"
+        ]
+    },
+    "induksiyon": {
+        "yanilgilar": [
+            "Manyetik aki buyukse induksiyon emk buyuktur",
+            "Bobinden gecen aki sabitse akim olusur",
+            "Lenz yasasi sadece yonu belirler, buyuklugu degil"
+        ],
+        "celdirici_stratejileri": [
+            "Aki degisim hizi yerine dogrudan aki buyuklugune odaklanan sik",
+            "Sabit akida bile akim oldugunu soyleyen sik"
+        ]
+    },
+    "dalgalar": {
+        "yanilgilar": [
+            "Dalga hizi frekansa baglidir",
+            "Ses dalgalari bosluktada yayilir",
+            "Kirilmada frekans degisir",
+            "Girisimde enerji yok olur"
+        ],
+        "celdirici_stratejileri": [
+            "Frekans artinca dalga hizinin arttigini gosteren sik",
+            "Kirilmada frekansin degistigini soyleyen sik"
+        ]
+    },
+    "modern_fizik": {
+        "yanilgilar": [
+            "Foton sayisi artinca elektron hizi artar",
+            "Esik frekansinin altinda uzun sure beklersek elektron kopar",
+            "X-isinlari ve gama isinlari ayni seyi yapar",
+            "Radyoaktif bozunma hizi sicakliga baglidir"
+        ],
+        "celdirici_stratejileri": [
+            "Isik siddetinin elektron hizini artirdigini soyleyen sik",
+            "Esik altinda beklemeyle elektron kopacagini ima eden sik"
+        ]
+    },
+    "enerji": {
+        "yanilgilar": [
+            "Enerji harcanir ve biter",
+            "Kinetik enerji vektoreldir",
+            "Potansiyel enerji her zaman pozitiftir",
+            "Is ve enerji ayni seydir"
+        ],
+        "celdirici_stratejileri": [
+            "Enerjinin kayboldugunua soyleyen sik",
+            "Kinetik enerjiyi vektorel hesaplayan sik"
+        ]
+    },
+    "cembersel_hareket": {
+        "yanilgilar": [
+            "Merkezkac kuvveti gercek bir kuvvettir",
+            "Hiz sabitse ivme sifirdir",
+            "Merkezcil kuvvet ayri bir kuvvet turudur"
+        ],
+        "celdirici_stratejileri": [
+            "Duzgun cembersel harekette ivmenin sifir oldugunu soyleyen sik",
+            "Merkezkac kuvvetini gercek kuvvet olarak hesaplayan sik"
+        ]
+    }
+}
+
+# ============================================================================
+# OSYM JARGONU VE STANDART IFADELER
+# ============================================================================
+
+OSYM_JARGON = {
+    "ortam": [
+        "Surtunmeler ve hava direnci ihmal edilmektedir.",
+        "Yalitkan bir zemin uzerinde",
+        "Homojen ve duzgun yogunluklu",
+        "Noktasal cisim olarak kabul edilen",
+        "Ozdes K ve L cisimleri",
+        "Baslangicta durgun haldeki",
+        "Sabit hizla hareket eden"
+    ],
+    "soru_kokleri": [
+        "Buna gore,",
+        "Bu bilgilere gore,",
+        "Yukaridaki bilgilere gore,",
+        "Buna gore asagidaki yargIlardan hangileri kesinlikle dogrudur?",
+        "Buna gore I, II ve III numarali ifadelerden hangileri dogrudur?"
+    ],
+    "karsilastirma": [
+        "buyuktur", "kucuktur", "esittir",
+        "artar", "azalir", "degismez",
+        "2 katidir", "yarisidir", "4 katidir"
+    ],
+    "oncul_format": [
+        "I. [ifade1]\nII. [ifade2]\nIII. [ifade3]",
+        "ifadelerinden hangileri dogrudur?",
+        "A) Yalniz I  B) Yalniz II  C) I ve II  D) II ve III  E) I, II ve III"
+    ]
+}
+
+# ============================================================================
 # DATA CLASSES
 # ============================================================================
 
@@ -93,6 +260,7 @@ class QuestionParams:
     zorluk: int
     baglam: str
     gorsel_tipi: str
+    soru_tipi: str = "hikayeli"  # hikayeli, grafik, onculu, deney
     grade_level: int = 12
     topic_group: str = "AYT"
 
@@ -120,7 +288,7 @@ class GeneratedQuestion:
     verified: bool = False
 
 # ============================================================================
-# AYT FIZIK MUFREDATI - KONULAR VE KAZANIMLAR
+# AYT FIZIK MUFREDATI - KONULAR VE KAZANIMLAR (GENISLETILMIS)
 # ============================================================================
 
 AYT_FIZIK_KONULAR: Dict[str, Dict[str, Any]] = {
@@ -132,398 +300,634 @@ AYT_FIZIK_KONULAR: Dict[str, Dict[str, Any]] = {
             "newton_kanunlari", "surtunme_kuvveti", "momentum", "carpismalar"
         ],
         "kazanimlar": ["F.12.1.1.1", "F.12.1.1.2", "F.12.1.1.3", "F.12.1.1.4", "F.12.1.2.1", "F.12.1.2.2", "F.12.1.2.3"],
-        "kazanim_aciklamalari": {
-            "F.12.1.1.1": "Dusey atis hareketini analiz eder.",
-            "F.12.1.1.2": "Yatay atis hareketini analiz eder.",
-            "F.12.1.1.3": "Egik atis hareketini analiz eder.",
-            "F.12.1.1.4": "Bagil hiz problemlerini cozer.",
-            "F.12.1.2.1": "Newton hareket yasalarini uygular.",
-            "F.12.1.2.2": "Momentum ve impuls kavramlarini uygular.",
-            "F.12.1.2.3": "Esnek ve esnek olmayan carpismalari analiz eder."
-        },
         "ornek_baglamlar": [
-            "Basketbol atisi ve yorunge analizi",
-            "Futbolda kaleye sut ve egik atis",
-            "Ucaktan yardim paketi atisi",
-            "Golf topu atisi ve ruzgar etkisi"
+            "Batiya dogru ucan karga ve ceviz",
+            "Tren uzerinde yuruyеn yolcu",
+            "Nehirde yuzen yuzucu ve antrenor",
+            "Lunaparkta donen hedef tahtasi",
+            "Asansor icindeki tartI",
+            "Balonlu oyuncak araba"
         ],
-        "gorsel_tipleri": ["yorunge_diyagrami", "hiz_vektoru", "kuvvet_diyagrami", "carpma_oncesi_sonrasi"],
-        "gorsel_aciklamalari": {
-            "yorunge_diyagrami": "Parabolik yorunge, baslangic noktasi, maksimum yukseklik, menzil gosterilmeli.",
-            "kuvvet_diyagrami": "Cisim uzerine etkiyen tum kuvvetler oklu vektorler olarak."
-        },
-        "celdirici_hatalari": [
-            "Yatay ve dusey hareketi ayirmama",
-            "g ivmesinin isaretini yanlis alma",
-            "sin ve cos aci fonksiyonlarini karistirma",
-            "Momentum korunumunda isaret hatasi"
-        ],
-        "soru_kaliplari": [
-            "Buna gore, cismin yere carpma hizi kac m/s'dir?",
-            "Buna gore, topun menzili kac m'dir?",
-            "Buna gore, ortalama hizin buyuklugu kac m/s'dir?"
-        ],
-        "formul_bilgisi": "Egik Atis: v_x = v0*cos(theta), v_y = v0*sin(theta) - gt, Menzil = v0^2*sin(2*theta)/g"
+        "gorsel_tipleri": ["yorunge_diyagrami", "hiz_vektoru", "kuvvet_diyagrami", "carpma_oncesi_sonrasi", "referans_cercevesi"],
+        "celdirici_kategorisi": "atislar",
+        "trend_2025": "Hikayeli birlеsik hareket, bagil hiz ile atislarin kombinasyonu",
+        "soru_tipleri": ["hikayeli", "grafik", "onculu"],
+        "formul_bilgisi": """
+        Egik Atis: vx = v0*cos(θ), vy = v0*sin(θ) - gt
+        Menzil = v0²*sin(2θ)/g, h_max = v0²*sin²(θ)/2g
+        Momentum: p = mv, Impuls: J = F*Δt = Δp
+        """,
+        "few_shot_ornek": """
+        ORNEK SORU (2025 Tarzi - Karga ve Ceviz):
+        Yatay raylarda 30 m/s sabit hizla ilerleyen ustu acik bir vagonun 
+        80 m yukarsindan, vagonla ayni yonde 10 m/s hizla ucan bir kus, 
+        tasidigi cevizi serbest birakiyor. (g=10 m/s²)
+        Buna gore, ceviz vagona duser mi? Aciklayiniz.
+        
+        COZUM MANTIGI:
+        - Cevizin yere gore yatay hizi = 10 m/s (kusun hizi)
+        - Dusme suresi: h = ½gt² → 80 = 5t² → t = 4s
+        - Cevizin yatayda aldigi yol = 10 × 4 = 40 m
+        - Vagonun aldigi yol = 30 × 4 = 120 m
+        - Fark = 80 m, vagon cevizi gecer, ceviz vagona dusmez.
+        """
     },
     
     "tork_ve_denge": {
         "display_name": "Tork ve Denge",
-        "alt_konular": ["tork_kavrami", "denge_kosullari", "agirlik_merkezi", "kaldiraci_sistemleri"],
+        "alt_konular": ["tork_kavrami", "denge_kosullari", "agirlik_merkezi", "kaldiraci_sistemleri", "basit_makineler"],
         "kazanimlar": ["F.12.1.3.1", "F.12.1.3.2", "F.12.1.3.3"],
-        "kazanim_aciklamalari": {
-            "F.12.1.3.1": "Tork kavramini aciklar ve hesaplar.",
-            "F.12.1.3.2": "Denge kosullarini analiz eder.",
-            "F.12.1.3.3": "Agirlik merkezi kavramini uygular."
-        },
-        "ornek_baglamlar": ["El arabasi dengeleme", "Tahterevalli dengesi", "Kapi mentesesi ve tork"],
-        "gorsel_tipleri": ["kaldiraci_diyagrami", "tork_vektoru", "denge_sistemi"],
-        "gorsel_aciklamalari": {"kaldiraci_diyagrami": "Destek noktasi, kuvvet kolu, yuk kolu gosterilmeli."},
-        "celdirici_hatalari": ["Tork yonunu karistirma", "Kuvvet kolunu yanlis belirleme"],
-        "soru_kaliplari": ["Buna gore, uygulanan kuvvet kac N'dur?", "Buna gore, torkun buyuklugu kac N*m'dir?"]
+        "ornek_baglamlar": [
+            "Makas ve kesme kuvveti",
+            "El arabasi dengeleme",
+            "Tahterevalli ve kutle dagilimu",
+            "Vinc kolu ve yuk kaldirma",
+            "Kapi mentesesi ve tork"
+        ],
+        "gorsel_tipleri": ["kaldiraci_diyagrami", "tork_vektoru", "denge_sistemi", "kutle_merkezi"],
+        "celdirici_kategorisi": "dinamik",
+        "trend_2025": "Gunluk hayat aletleri uzerinden tork uygulamalari",
+        "soru_tipleri": ["hikayeli", "deney"],
+        "formul_bilgisi": "Tork: τ = F × d, Denge: Στ = 0"
     },
     
     "dairesel_hareket": {
         "display_name": "Dairesel Hareket",
-        "alt_konular": ["duzgun_dairesel_hareket", "acisal_hiz", "merkezcil_ivme", "uydu_hareketi"],
+        "alt_konular": ["duzgun_dairesel_hareket", "acisal_hiz", "merkezcil_ivme", "uydu_hareketi", "viraj_problemleri"],
         "kazanimlar": ["F.12.1.4.1", "F.12.1.4.2", "F.12.1.4.3"],
-        "kazanim_aciklamalari": {
-            "F.12.1.4.1": "Duzgun cembersel hareketi analiz eder.",
-            "F.12.1.4.2": "Acisal hiz ve cizgisel hiz iliskisini kurar.",
-            "F.12.1.4.3": "Uydu ve gezegen hareketlerini analiz eder."
-        },
-        "ornek_baglamlar": ["Televizyon uydusu yorungesi", "Lunaparktaki donme dolap", "ISS yorungesi"],
-        "gorsel_tipleri": ["cembersel_yorunge", "uydu_diyagrami", "hiz_ivme_vektorleri"],
-        "gorsel_aciklamalari": {"cembersel_yorunge": "Cember yorunge, merkez, yaricap, hiz vektoru teget yonde."},
-        "celdirici_hatalari": ["Acisal hiz ile cizgisel hizi karistirma", "Merkezcil ivme yonunu yanlis alma"],
-        "soru_kaliplari": ["Buna gore, acisal hizlari arasindaki iliski nedir?", "Buna gore, uydu hangi yorungede dolanmalidir?"]
+        "ornek_baglamlar": [
+            "Virajda donen arac ve eylemsizlik",
+            "Lunapark donme dolabi",
+            "Uydu yorungeleri ve GPS",
+            "Camas9r makinesi sikma",
+            "Atletizm viraj kosușu"
+        ],
+        "gorsel_tipleri": ["cembersel_yorunge", "uydu_diyagrami", "hiz_ivme_vektorleri", "viraj_kesiti"],
+        "celdirici_kategorisi": "cembersel_hareket",
+        "trend_2025": "Merkezcil/merkezkac kavramsallaștirmasi",
+        "soru_tipleri": ["hikayeli", "onculu"]
     },
     
     "basit_harmonik_hareket": {
         "display_name": "Basit Harmonik Hareket",
         "alt_konular": ["yayli_sarkac", "basit_sarkac", "periyod_ve_frekans", "enerji_donusumleri"],
         "kazanimlar": ["F.12.1.5.1", "F.12.1.5.2", "F.12.1.5.3"],
-        "kazanim_aciklamalari": {
-            "F.12.1.5.1": "Basit harmonik hareketin ozelliklerini aciklar.",
-            "F.12.1.5.2": "Yayli ve basit sarkac sistemlerini analiz eder.",
-            "F.12.1.5.3": "BHH'de enerji donusumlerini inceler."
-        },
-        "ornek_baglamlar": ["Metronom salinimi", "Saat sarkaci periyodu", "Arac suspansiyon sistemi"],
+        "ornek_baglamlar": [
+            "Metronom ve tempo ayari",
+            "Saat sarkaci periyodu",
+            "Arac suspansiyon sistemi",
+            "Deprem sismografi"
+        ],
         "gorsel_tipleri": ["konum_zaman_grafigi", "sarkac_diyagrami", "yayli_sistem", "enerji_grafigi"],
-        "gorsel_aciklamalari": {"konum_zaman_grafigi": "Sinuzoidal grafik, genlik A, periyod T gosterilmeli."},
-        "celdirici_hatalari": ["Periyod formulunde genlik kullanma", "Denge konumunda ivmenin maksimum oldugunu sanma"],
-        "soru_kaliplari": ["Buna gore, periyodu T_K / T_L orani kactir?", "Buna gore, hareketin genligi kac cm'dir?"]
+        "celdirici_kategorisi": "enerji",
+        "trend_2025": "Kutle merkezi ve periyod iliskisi (Metronom sorusu)",
+        "soru_tipleri": ["grafik", "hikayeli"],
+        "few_shot_ornek": """
+        ORNEK SORU (2024 - Metronom):
+        Bir metronomun sarkac kolunun kutle merkezi yukari kaydiriliyor.
+        Buna gore metronomun periyodu nasil degisir?
+        
+        COZUM: T = 2π√(L/g) formulunde L, kutle merkezinin 
+        donme noktasina uzakligidir. L artinca T artar.
+        """
     },
     
     "elektrostatik": {
         "display_name": "Elektrostatik",
-        "alt_konular": ["elektrik_yuk", "coulomb_kanunu", "elektrik_alan", "elektrik_potansiyel", "es_potansiyel_yuzeyler"],
+        "alt_konular": ["elektrik_yuk", "coulomb_kanunu", "elektrik_alan", "elektrik_potansiyel", "es_potansiyel_yuzeyler", "sigaclar"],
         "kazanimlar": ["F.12.2.1.1", "F.12.2.1.2", "F.12.2.1.3", "F.12.2.1.4"],
-        "kazanim_aciklamalari": {
-            "F.12.2.1.1": "Coulomb yasasini uygular.",
-            "F.12.2.1.2": "Elektrik alan kavramini aciklar ve hesaplar.",
-            "F.12.2.1.3": "Elektriksel potansiyel ve potansiyel enerji kavramlarini aciklar.",
-            "F.12.2.1.4": "Es potansiyel yuzeyleri analiz eder."
-        },
-        "ornek_baglamlar": ["Yuklu cisimler arasi kuvvet", "Elektrik alan cizgileri analizi", "Noktasal yuk potansiyeli"],
-        "gorsel_tipleri": ["yuk_diyagrami", "alan_cizgileri", "es_potansiyel_cemberler", "kuvvet_vektorleri"],
-        "gorsel_aciklamalari": {"yuk_diyagrami": "X, Y, Z noktasal yukleri, (+) ve (-) isaretleri, aralarindaki mesafeler."},
-        "celdirici_hatalari": ["Kuvvet ve alan yonunu karistirma", "Potansiyel farki hesabinda isaret hatasi"],
-        "soru_kaliplari": ["Buna gore, bileske kuvvetin yonu hangisidir?", "Buna gore, potansiyel farki sifir olabilecek noktalar hangileridir?"]
+        "ornek_baglamlar": [
+            "Es potansiyel cizgileri ve is hesabi",
+            "Yuklu parcacik sapmasi",
+            "Sigac levhalari arasi alan",
+            "Van de Graaff jeneratoru"
+        ],
+        "gorsel_tipleri": ["yuk_diyagrami", "alan_cizgileri", "es_potansiyel_cemberler", "sigac_semasi"],
+        "celdirici_kategorisi": "elektrik",
+        "trend_2025": "Es potansiyel yuzeyler ve W = qΔV uygulamalari",
+        "soru_tipleri": ["grafik", "onculu"],
+        "few_shot_ornek": """
+        ORNEK SORU (2025 - Es Potansiyel):
+        Sekilde es potansiyel cizgileri gosterilen bolgedе 
+        +q yuklu parcacik K noktasindan L noktasina tasiniyor.
+        Buna gore yapilan is kac J'dur?
+        
+        COZUM: W = q(V_K - V_L) = q × ΔV
+        Es potansiyel cizgisi uzerinde hareket edildiginde W = 0
+        """
     },
     
     "manyetizma": {
         "display_name": "Manyetizma",
         "alt_konular": ["manyetik_alan", "yuklu_parcacik_hareketi", "manyetik_kuvvet", "elektromanyetik_induksiyon", "transformator"],
         "kazanimlar": ["F.12.2.2.1", "F.12.2.2.2", "F.12.2.2.3", "F.12.2.2.4"],
-        "kazanim_aciklamalari": {
-            "F.12.2.2.1": "Manyetik alan ve manyetik kuvvet kavramlarini aciklar.",
-            "F.12.2.2.2": "Yuklu parcacigin manyetik alandaki hareketini analiz eder.",
-            "F.12.2.2.3": "Elektromanyetik induksiyon olayini aciklar.",
-            "F.12.2.2.4": "Transformator calisma prensibini aciklar."
-        },
-        "ornek_baglamlar": ["Bobin ve manyetik alan", "Yuklu parcacik sapmasi", "Elektrik santralinde enerji iletimi"],
+        "ornek_baglamlar": [
+            "Parcacik yorungesi tespiti",
+            "Bobinden gecen akim",
+            "Transformator ve enerji iletimi",
+            "MR cihazi prensibi"
+        ],
         "gorsel_tipleri": ["manyetik_alan_cizgileri", "parcacik_yolu", "transformator_sema", "bobin_devresi"],
-        "gorsel_aciklamalari": {"manyetik_alan_cizgileri": "Iceri veya disari sembolleri, duzgun manyetik alan bolgesi."},
-        "celdirici_hatalari": ["Manyetik kuvvet yonunu bulmada sag el kuralini yanlis uygulama"],
-        "soru_kaliplari": ["Buna gore, alan cizgilerinin yonu hangisi olabilir?", "Buna gore, parcacik hangi yolu izler?"]
+        "celdirici_kategorisi": "manyetizma",
+        "trend_2025": "Parcacik yorgesi ve alan tipi tespiti (E mi B mi?)",
+        "soru_tipleri": ["grafik", "onculu"],
+        "few_shot_ornek": """
+        ORNEK SORU (2025 - Yorunge Tespiti):
+        Bir parcacik I. bolgede duz, II. bolgede cembersel yorunge izliyor.
+        Buna gore I ve II bolgelerinde hangi alan turleri vardir?
+        
+        COZUM: 
+        - Duz yorunge: Elektrik alan (F = qE, hiz yonunde/tersinde)
+        - Cembersel yorunge: Manyetik alan (F = qvB, hiza dik)
+        """
     },
     
     "alternatif_akim": {
         "display_name": "Alternatif Akim",
-        "alt_konular": ["ac_devreler", "empedans", "rezonans", "siga_ve_bobin", "guc_hesabi"],
+        "alt_konular": ["ac_devreler", "empedans", "rezonans", "siga_ve_bobin", "transformator"],
         "kazanimlar": ["F.12.2.3.1", "F.12.2.3.2", "F.12.2.3.3"],
-        "kazanim_aciklamalari": {
-            "F.12.2.3.1": "Alternatif akim devrelerini analiz eder.",
-            "F.12.2.3.2": "Empedans ve rezonans kavramlarini aciklar.",
-            "F.12.2.3.3": "RLC devrelerinde guc hesabi yapar."
-        },
-        "ornek_baglamlar": ["Ev tipi elektrik prizleri", "Hoparlor empedansi", "Radyo alicisi ve rezonans frekansi"],
+        "ornek_baglamlar": [
+            "Cep telefonu sarj cihazi",
+            "Kablosuz sarj (induksiyon)",
+            "Metal dedektoru",
+            "Radyo alicisi ve rezonans"
+        ],
         "gorsel_tipleri": ["devre_semasi", "empedans_ucgeni", "rezonans_grafigi"],
-        "gorsel_aciklamalari": {"devre_semasi": "AC kaynak, direnc, bobin, sigac sembolleri."},
-        "celdirici_hatalari": ["Rezonans frekansinda empedansin maksimum oldugunu sanma"],
-        "soru_kaliplari": ["Buna gore, ampulun parlakligi hangileriyle ayni olabilir?", "Buna gore, rezonans frekansi kac Hz'dir?"]
+        "celdirici_kategorisi": "induksiyon",
+        "trend_2025": "Teknoloji baglami (sarj cihazlari, kablosuz iletim)",
+        "soru_tipleri": ["deney", "hikayeli"]
     },
     
     "dalgalar": {
         "display_name": "Dalgalar",
         "alt_konular": ["dalga_ozellikleri", "ses_dalgalari", "doppler_etkisi", "girisim", "kirinim"],
         "kazanimlar": ["F.12.3.1.1", "F.12.3.1.2", "F.12.3.1.3", "F.12.3.1.4"],
-        "kazanim_aciklamalari": {
-            "F.12.3.1.1": "Dalga ozelliklerini aciklar.",
-            "F.12.3.1.2": "Doppler etkisini aciklar.",
-            "F.12.3.1.3": "Girisim olayini analiz eder.",
-            "F.12.3.1.4": "Kirinim olayini aciklar."
-        },
-        "ornek_baglamlar": ["Ambulans sireni ve Doppler etkisi", "Cift yarik deneyi", "Radar hiz olcumu"],
+        "ornek_baglamlar": [
+            "Young cift yarik deneyi",
+            "Ambulans sireni ve Doppler",
+            "Huygens ilkesi",
+            "Radar hiz olcumu"
+        ],
         "gorsel_tipleri": ["dalga_grafigi", "girisim_deseni", "kirinim_deseni", "doppler_diyagrami"],
-        "gorsel_aciklamalari": {"girisim_deseni": "Cift yarik, ekran, aydinlik ve karanlik sacaklar."},
-        "celdirici_hatalari": ["Girisimde dalga boyunun degistigini sanma", "Dopplerde frekans ve dalga boyunu karistirma"],
-        "soru_kaliplari": ["Buna gore, sacak genisligi nasil degisir?", "Buna gore, isitilen frekans kac Hz'dir?"]
+        "celdirici_kategorisi": "dalgalar",
+        "trend_2025": "Huygens ilkesi ve dalga yayilimi",
+        "soru_tipleri": ["grafik", "onculu"]
     },
     
     "elektromanyetik_dalgalar": {
         "display_name": "Elektromanyetik Dalgalar",
         "alt_konular": ["em_spektrum", "gama_isini", "x_isini", "radyo_dalgalari"],
         "kazanimlar": ["F.12.3.2.1", "F.12.3.2.2"],
-        "kazanim_aciklamalari": {
-            "F.12.3.2.1": "Elektromanyetik spektrumu aciklar.",
-            "F.12.3.2.2": "Elektromanyetik dalgalarin ozelliklerini ve kullanim alanlarini aciklar."
-        },
-        "ornek_baglamlar": ["Supernova patlamasi ve gama isini", "X-isini goruntuleme", "Radyo ve TV yayini"],
+        "ornek_baglamlar": [
+            "Goruntuleme cihazlari eslestirmesi",
+            "Radar ve radyo dalgasi",
+            "Kizilotesi kamera",
+            "UV sterilizasyon"
+        ],
         "gorsel_tipleri": ["spektrum_diyagrami", "dalga_karsilastirma"],
-        "gorsel_aciklamalari": {"spektrum_diyagrami": "EM spektrum, dalga boyu ve frekans ekseni."},
-        "celdirici_hatalari": ["Dalga boyu ve frekans iliskisini ters kurma"],
-        "soru_kaliplari": ["Buna gore, incelenen dalgalar hangisidir?", "Buna gore, enerji siralamasi nasildir?"]
+        "celdirici_kategorisi": "modern_fizik",
+        "trend_2025": "Hangi cihaz hangi dalgayi kullanir? eslestirmesi",
+        "soru_tipleri": ["eslestirme", "onculu"]
     },
     
     "ozel_gorelilik": {
         "display_name": "Ozel Gorelilik",
         "alt_konular": ["isik_hizi_sabiti", "zaman_genlesmesi", "boy_kisalmasi", "kutle_enerji_esdegerligi"],
         "kazanimlar": ["F.12.4.1.1", "F.12.4.1.2"],
-        "kazanim_aciklamalari": {
-            "F.12.4.1.1": "Ozel gorelilik postulalarini aciklar.",
-            "F.12.4.1.2": "Kutle-enerji esdegerliligini aciklar."
-        },
-        "ornek_baglamlar": ["Isik hizina yakin hareketli uzay gemisi", "GPS uyduları ve zaman duzeltmesi"],
+        "ornek_baglamlar": [
+            "GPS uyduları ve zaman duzeltmesi",
+            "Muon omru deneyi",
+            "Parcacik hizlandiricisi"
+        ],
         "gorsel_tipleri": ["referans_cerceve", "zaman_diyagrami"],
-        "gorsel_aciklamalari": {"referans_cerceve": "Iki farkli referans cercevesi, hiz vektoru."},
-        "celdirici_hatalari": ["Fizik yasalarinin hiza gore degistigini sanma"],
-        "soru_kaliplari": ["Buna gore, hangileri postula arasindadir?", "Buna gore, E = mc^2 ifadesi neyi gosterir?"]
+        "celdirici_kategorisi": "modern_fizik",
+        "trend_2025": "Kavramsal yorumlama, E=mc² uygulamalari",
+        "soru_tipleri": ["onculu", "hikayeli"]
     },
     
     "kuantum_fizigi": {
         "display_name": "Kuantum Fizigi",
         "alt_konular": ["fotoelektrik_olay", "compton_sacilmasi", "bohr_atom_modeli", "foton_enerjisi"],
         "kazanimlar": ["F.12.4.2.1", "F.12.4.2.2", "F.12.4.2.3"],
-        "kazanim_aciklamalari": {
-            "F.12.4.2.1": "Fotoelektrik olayi aciklar.",
-            "F.12.4.2.2": "Compton sacilmasini analiz eder.",
-            "F.12.4.2.3": "Bohr atom modelini aciklar."
-        },
-        "ornek_baglamlar": ["Elektroskop ve mor otesi isik", "Gunes pili calisma prensibi", "Hidrojen atom spektrumu"],
-        "gorsel_tipleri": ["enerji_grafigi", "foton_elektron_etkilesimi", "elektroskop_diyagrami"],
-        "gorsel_aciklamalari": {"enerji_grafigi": "E_k - f grafigi, esik frekansi, dogrusal iliski."},
-        "celdirici_hatalari": ["Esik frekansini astiktan sonra foton sayisinin hizi artirdigini sanma"],
-        "soru_kaliplari": ["Buna gore, yapraklari kapanan elektroskobun yuku nedir?", "Buna gore, metalin esik enerjisi kac eV'dur?"]
+        "ornek_baglamlar": [
+            "Fotosel devresi ve V-I grafigi",
+            "Gunes pili calIsma prensibi",
+            "Hidrojen atom spektrumu"
+        ],
+        "gorsel_tipleri": ["enerji_grafigi", "foton_elektron_etkilesimi", "fotosel_devresi"],
+        "celdirici_kategorisi": "modern_fizik",
+        "trend_2025": "Grafik okuma (V-I, E-f grafikleri)",
+        "soru_tipleri": ["grafik", "onculu"],
+        "few_shot_ornek": """
+        ORNEK SORU (Fotoelektrik - Grafik):
+        Bir fotosel devresinde iki farkli isik kaynagi (K ve L) icin 
+        gerilim-akim (V-I) grafigi ciziliyor.
+        - K icin kesme potansiyeli: -2V
+        - L icin kesme potansiyeli: -3V
+        - Her ikisinin maksimum akimi ayni
+        
+        Buna gore K ve L isinlarinin frekanslari ve siddetleri 
+        hakkinda ne soylenebilir?
+        
+        COZUM:
+        - Kesme potansiyeli buyuk → Frekans buyuk (f_L > f_K)
+        - Maksimum akim ayni → Isik siddeti (foton sayisi) ayni
+        """
     },
     
     "atom_fizigi": {
         "display_name": "Atom Fizigi ve Radyoaktivite",
         "alt_konular": ["radyoaktif_bozunum", "yarilanma_omru", "alfa_beta_gama", "nukleer_fisyon", "nukleer_fuzyon"],
         "kazanimlar": ["F.12.4.3.1", "F.12.4.3.2", "F.12.4.3.3"],
-        "kazanim_aciklamalari": {
-            "F.12.4.3.1": "Radyoaktif bozunma turlerini aciklar.",
-            "F.12.4.3.2": "Yarilanma omru kavramini uygular.",
-            "F.12.4.3.3": "Nukleer fisyon ve fuzyon tepkimelerini aciklar."
-        },
-        "ornek_baglamlar": ["Karbon-14 ile yas tayini", "Nukleer santral calisma prensibi", "Gunesteki fuzyon tepkimeleri"],
-        "gorsel_tipleri": ["bozunma_serisi", "cekirdek_diyagrami", "yarilanma_grafigi"],
-        "gorsel_aciklamalari": {"yarilanma_grafigi": "N-t grafigi, ustel azalma, T1/2 isareti."},
-        "celdirici_hatalari": ["Fisyon ve fuzyonu karistirma", "Atom numarasi ve kutle numarasini karistirma"],
-        "soru_kaliplari": ["Buna gore, ortak ozellikler hangileridir?", "Buna gore, atom numarasi toplami kactir?"]
+        "ornek_baglamlar": [
+            "Karbon-14 ile yas tayini",
+            "Nukleer santral",
+            "Gunesin enerji kaynagi"
+        ],
+        "gorsel_tipleri": ["bozunma_serisi", "yarilanma_grafigi", "cekirdek_diyagrami"],
+        "celdirici_kategorisi": "modern_fizik",
+        "trend_2025": "Yarilanma omru grafik yorumu",
+        "soru_tipleri": ["grafik", "hesaplama"]
     },
     
     "standart_model": {
         "display_name": "Standart Model ve Temel Kuvvetler",
         "alt_konular": ["temel_parcaciklar", "kuarklar", "leptonlar", "dort_temel_kuvvet", "higgs_bozonu"],
         "kazanimlar": ["F.12.4.4.1", "F.12.4.4.2"],
-        "kazanim_aciklamalari": {
-            "F.12.4.4.1": "Standart modeldeki temel parcaciklari tanir.",
-            "F.12.4.4.2": "Dort temel kuvveti ve araci parcaciklari aciklar."
-        },
-        "ornek_baglamlar": ["CERN parcacik hizlandiricisi", "Higgs bozonu kesfi", "Kozmik isinlar"],
+        "ornek_baglamlar": [
+            "CERN ve Higgs kesfi",
+            "Kozmik isinlar",
+            "Notrino dedektorleri"
+        ],
         "gorsel_tipleri": ["parcacik_tablosu", "kuvvet_karsilastirma"],
-        "gorsel_aciklamalari": {"parcacik_tablosu": "Kuarklar, leptonlar, bozonlar tablosu."},
-        "celdirici_hatalari": ["Fotonun Higgs ile etkilestigini sanma"],
-        "soru_kaliplari": ["Buna gore, Higgs bozonu ile etkilesen parcaciklar hangileridir?"]
+        "celdirici_kategorisi": "modern_fizik",
+        "trend_2025": "Guncel bilimsel gelismeler (CERN)",
+        "soru_tipleri": ["eslestirme", "onculu"]
     },
     
     "tibbi_goruntuleme": {
         "display_name": "Tibbi Goruntuleme Teknikleri",
         "alt_konular": ["x_isini_goruntuleme", "bilgisayarli_tomografi", "mr_goruntuleme", "ultrason", "pet_tarama"],
         "kazanimlar": ["F.12.5.1.1"],
-        "kazanim_aciklamalari": {
-            "F.12.5.1.1": "Tibbi goruntuleme tekniklerinin fiziksel prensiplerini aciklar."
-        },
-        "ornek_baglamlar": ["MR cekimi ve manyetik alan", "X-isini ve kemik goruntuleme", "Ultrason ile bebek goruntuleme"],
+        "ornek_baglamlar": [
+            "MR ve manyetik alan",
+            "X-isini ve kemik goruntuleme",
+            "Ultrason ve ses dalgasi",
+            "PET ve radyoaktif izleyici"
+        ],
         "gorsel_tipleri": ["cihaz_semasi", "dalga_karsilastirma"],
-        "gorsel_aciklamalari": {"cihaz_semasi": "Goruntuleme cihazi semasi."},
-        "celdirici_hatalari": ["MR'da X-isini kullanildigini sanma", "Ultrasonda elektromanyetik dalga kullanildigini sanma"],
-        "soru_kaliplari": ["Buna gore, hangi yargilar dogru olabilir?", "Buna gore, hangi goruntuleme yontemi kullanilmaktadir?"]
+        "celdirici_kategorisi": "modern_fizik",
+        "trend_2025": "Cihaz-dalga eslestirmesi",
+        "soru_tipleri": ["eslestirme", "onculu"]
     },
     
-    "superleitkenlik": {
+    "superiletkenlik": {
         "display_name": "Superiletkenlik",
         "alt_konular": ["sifir_direnc", "kritik_sicaklik", "meissner_etkisi", "uygulamalar"],
         "kazanimlar": ["F.12.5.2.1"],
-        "kazanim_aciklamalari": {
-            "F.12.5.2.1": "Superiletkenlik kavramini ve uygulamalarini aciklar."
-        },
-        "ornek_baglamlar": ["Superiletken miknatislar", "MR cihazlarinda superiletken", "Maglev trenleri"],
+        "ornek_baglamlar": [
+            "MR cihazlarinda superiletken",
+            "Maglev trenleri",
+            "Parcacik hizlandiricisi bobinleri"
+        ],
         "gorsel_tipleri": ["direnc_sicaklik_grafigi", "meissner_diyagrami"],
-        "gorsel_aciklamalari": {"direnc_sicaklik_grafigi": "R-T grafigi, kritik sicaklik Tc noktasi."},
-        "celdirici_hatalari": ["Kritik sicaklik ustunde superiletkenligin devam ettigini sanma"],
-        "soru_kaliplari": ["Buna gore, T_C uzerinde ne olur?", "Buna gore, hangi yargilar dogrudur?"]
+        "celdirici_kategorisi": "elektrik",
+        "trend_2025": "Teknoloji uygulamalari",
+        "soru_tipleri": ["grafik", "hikayeli"]
     }
 }
 
 # ============================================================================
-# BLOOM TAKSONOMISI
+# BLOOM TAKSONOMISI (AYT ICIN)
 # ============================================================================
 
 BLOOM_SEVIYELERI = {
     "Uygulama": {
         "aciklama": "Bilgiyi yeni durumlara uygulama, problem cozme, hesaplama yapma",
         "fiiller": ["hesaplar", "uygular", "cozer", "kullanir", "gosterir"],
-        "soru_kaliplari": ["Buna gore, degeri kac birimdir?", "Buna gore, buyuklugu kactir?"]
+        "zorluk_aralik": [1, 2, 3]
     },
     "Analiz": {
         "aciklama": "Parca-butun iliskisi, karsilastirma, siniflandirma, iliskilendirme",
         "fiiller": ["karsilastirir", "analiz eder", "ayirt eder", "iliskilendirir"],
-        "soru_kaliplari": ["Buna gore, asagidaki ifadelerden hangisi dogrudur?", "Buna gore, I, II ve III ifadelerinden hangileri dogrudur?"]
+        "zorluk_aralik": [2, 3, 4]
     },
     "Degerlendirme": {
         "aciklama": "Yargilama, karar verme, olcut kullanma, secim yapma",
         "fiiller": ["degerlendirir", "yargilar", "karar verir", "secer"],
-        "soru_kaliplari": ["Buna gore, en uygun secenek hangisidir?", "Buna gore, hangisi kesinlikle soylenebilir?"]
+        "zorluk_aralik": [3, 4, 5]
     },
     "Yaratma": {
         "aciklama": "Tasarlama, planlama, uretme, sentezleme, ozgun cozum gelistirme",
-        "fiiller": ["tasarlar", "olusturur", "planlar", "uretir"],
-        "soru_kaliplari": ["Buna gore, problem nasil duzeltilmelidir?", "Buna gore, sistem nasil degistirilmelidir?"]
+        "fiiller": ["tasarlar", "olusturur", "planlar", "sentezler"],
+        "zorluk_aralik": [4, 5]
     }
 }
 
-PISA_BAGLAMLAR = ["Kisisel", "Mesleki", "Toplumsal", "Bilimsel"]
-
 # ============================================================================
-# SYSTEM PROMPTS
+# SYSTEM PROMPTS - GELISTIRILMIS (Rapora Dayali)
 # ============================================================================
 
-SYSTEM_PROMPT_QUESTION = """Sen, OSYM'de gorev yapan, 20 yillik deneyimli kidemli bir fizik soru yazarisin. AYT Fizik sinavina uygun, universite giris sinavi kalitesinde sorular hazirlamakta uzmansin.
+SYSTEM_PROMPT_QUESTION = """Sen, OSYM'de 20 yillik deneyime sahip, AYT Fizik soru hazirlama komisyonunun kidemli uyesi olan uzman bir fizik egitimcisi ve olcme-degerlendirme uzmanisin.
 
-## TEMEL PRENSIPLER
+## TEMEL GOREV
+Verilen konu, kazanim ve zorluk seviyesine uygun, ozgun, bilimsel olarak hatasiz ve pedagojik degeri yuksek coktan secmeli fizik sorulari uretmek.
 
-### 1. OSYM SORU FORMATI
-- 5 sik (A, B, C, D, E)
-- Genellikle "Buna gore, ..." ile baslayan soru koku
-- Senaryo/durum anlatimi + soru koku yapisi
-- Matematiksel hesaplama gerektiren veya kavramsal sorular
+## OSYM SORU FELSEFESI (2025 TRENDI)
 
-### 2. BAGLAM ENTEGRASYONU
-- Fiziksel problem GERCEK HAYAT senaryosu icinde sunulmali
-- Turkiye kulturune uygun isimler (Efe, Ayse, Altay vb.)
+### 1. BAGLAMSAL CERCELEME (Contextual Framing)
+- Fiziksel olaylar izole laboratuvar ortamindan cikarilmali
+- Ogrencinin zihninde canlandirabịlecegi SOMUT SENARYOLAR kullan
+- YANLIS: "V hiziyla giden cisim..."
+- DOGRU: "Batiya dogru 30 m/s hizla ucan karga..." veya "Lunaparkta donen hedef tahtasi..."
 
-### 3. GORSEL-METIN ILISKISI
-- Gorselde VERI olmali
-- Soru metninde BAHSEDILEN TUM veriler gorselde OLMALI
+### 2. ORTUK DEGISKEN ANALIZI (Implicit Variable Analysis)
+- Sayisal deger vermek yerine ILISKILERI sorgula (artar, azalir, degismez)
+- Bir degiskenin degisiminin sistemin geri kalani uzerindeki "kelebek etkisi"ni test et
+- Ornek: Sigac levha araligi arttiginda siga, yuk ve enerji nasil degisir?
 
-### 4. DIL VE USLUP
-- %100 dogru Turkce dil bilgisi
-- MEB/OSYM terminolojisi
-- Soru koku MUTLAKA "Buna gore, ..." ile baslamali
+### 3. GORSEL OKURYAZARLIK
+- Grafikler, devre semalari, kuvvet diyagramlari verinin KENDISIDIR
+- Metinde verilmeyen kritik bilgiler GORSLDEN okunmali
+- Ornek: Fotoelektrik grafiginden esik enerjisi, es potansiyel cizgilerinden potansiyel farki
 
-### 5. CELDIRICI MANTIGI
-5 yanlis sik, gercek ogrenci hatalarindan gelmeli:
-- Isaret hatalari
-- Formul karistirma
-- Birim donusum hatalari
+### 4. CELDIRICI MUHENDISLIGI
+- Yanlis secenekler RASTGELE SAYILAR DEGIL
+- Ogrencilerin YAYGIN KAVRAM YANILGILARINI hedefleyen tuzaklar
+- Her celdirici bir HATA TURUNU temsil etmeli
 
-### 6. MATEMATIKSEL DEGERLER
-- sin 30 = 0,5 ; cos 30 = 0,87
-- sin 37 = 0,6 ; cos 37 = 0,8
-- sin 53 = 0,8 ; cos 53 = 0,6
-- g = 10 m/s^2
+## GLOBAL KISITLAMALAR
 
-## CIKTI FORMATI
-Yanitini YALNIZCA asagidaki JSON formatinda ver:
+### Mufredat Uyumu
+- 2025 MEB Fizik Dersi Ogretim Programi disina ASLA cikma
+- Eylemsizlik momenti tensoru, karmasik devre analizi, integral ile cozum YASAK
+
+### Dil ve Uslup (OSYM Jargonu)
+- Akademik, net, anlasilir Turkce
+- Standart ifadeler: "ihmal edilmektedir", "noktasal cisim", "ozdes", "yalitkan zemin"
+- Soru koku MUTLAKA "Buna gore," ile baslamali
+
+### Islem Yuku
+- Hesap makinesi GEREKTIRMEYEN, sadelesen sayilar
+- Orantiyla (artar/azalir/degismez) cozulebilir sorular
+- KAVRAMSAL DERINLIK > Aritmetik zorluk
+
+### Matematiksel Degerler
+- sin30=0.5, cos30=0.87
+- sin37=0.6, cos37=0.8
+- sin53=0.8, cos53=0.6
+- sin45=cos45=0.71
+- g = 10 m/s²
+- Yukseklikler: 5m, 20m, 45m, 80m (kolay hesaplama)
+
+## ZORLUK SEVIYELERI
+
+### Seviye 1 (Kolay - %10)
+- Tek adimli, temel formul uygulamasi
+- Dogrudan hesaplama
+
+### Seviye 2-3 (Orta - %55)
+- 2 adimli cozum
+- Standart senaryo, bilinen kazanimlar
+- Grafik okuma veya basit karsilastirma
+
+### Seviye 4 (Zor - %25)
+- 3+ adimli, coklu kazanim (hibrit)
+- Detayli grafik analizi
+- Beklenmedik senaryo
+
+### Seviye 5 (Secici - %10)
+- Onculu format (I, II, III)
+- Her oncul ayri fiziksel analiz gerektirir
+- En kucuk kavram yanilgisi yanlisa goturur
+
+## CIKTI FORMATI (JSON)
 
 {
-  "soru_metni": "Senaryo ve durum anlatimi.",
-  "soru_koku": "Buna gore, ... seklinde biten soru cumlesi",
+  "soru_metni": "Hikayeli senaryo anlatimi. OSYM jargonu kullan.",
+  "soru_koku": "Buna gore, [soru cumlesi]",
   "siklar": {
-    "A": "Sik A icerigi",
-    "B": "Sik B icerigi",
-    "C": "Sik C icerigi",
-    "D": "Sik D icerigi",
-    "E": "Sik E icerigi"
+    "A": "[Sik icerigi]",
+    "B": "[Sik icerigi]",
+    "C": "[Sik icerigi]",
+    "D": "[Sik icerigi]",
+    "E": "[Sik icerigi]"
   },
-  "dogru_cevap": "A, B, C, D veya E",
+  "dogru_cevap": "A/B/C/D/E",
   "cozum_adim_adim": "Adim 1: [aciklama]\\nAdim 2: [aciklama]\\nSonuc: [cevap]",
   "celdirici_analizi": {
-    "A": "Bu sikki secen ogrencinin yaptigi hata",
-    "B": "Bu sikki secen ogrencinin yaptigi hata",
-    "C": "Bu sikki secen ogrencinin yaptigi hata",
-    "D": "Bu sikki secen ogrencinin yaptigi hata",
-    "E": "Bu sikki secen ogrencinin yaptigi hata"
+    "A": "Bu sikki secen ogrencinin yaptigi SPESIFIK hata",
+    "B": "Bu sikki secen ogrencinin yaptigi SPESIFIK hata",
+    "C": "Bu sikki secen ogrencinin yaptigi SPESIFIK hata",
+    "D": "Bu sikki secen ogrencinin yaptigi SPESIFIK hata",
+    "E": "Bu sikki secen ogrencinin yaptigi SPESIFIK hata"
   },
-  "gorsel_gerekli": true,
+  "gorsel_gerekli": true/false,
   "gorsel_betimleme": {
-    "tip": "yorunge_diyagrami / devre_semasi / kuvvet_diyagrami / grafik / vb.",
-    "detay": "COK DETAYLI gorsel talimati.",
-    "gorunen_veriler": ["Gorselde gorunecek TUM degerler listesi"],
-    "gizli_bilgi": "Gorselde OLMAMASI gereken bilgiler"
+    "tip": "yorunge_diyagrami / devre_semasi / kuvvet_diyagrami / grafik / es_potansiyel",
+    "detay": "Grafik tasarimcinin cizebilecegi DETAYLI talimat",
+    "ogeler": ["oge1", "oge2", "oge3"],
+    "etiketler": ["etiket1", "etiket2"],
+    "renkler": {"cisim": "mavi", "vektor": "kirmizi", "arka_plan": "beyaz"}
   },
-  "pisa_seviyesi": 4,
-  "pisa_baglam": "Kisisel / Mesleki / Toplumsal / Bilimsel"
+  "pisa_seviyesi": 3/4/5/6,
+  "pisa_baglam": "Kisisel / Mesleki / Toplumsal / Bilimsel",
+  "kavram_yanilgisi_hedefi": "Bu sorunun hedefledigi spesifik kavram yanilgisi"
 }"""
 
-IMAGE_PROMPT_TEMPLATE = """AYT Fizik sorusu icin egitim gorseli olustur.
+# ============================================================================
+# RENKLI GORSEL PROMPT SABLONU
+# ============================================================================
+
+IMAGE_PROMPT_TEMPLATE = """AYT Fizik sorusu icin PROFESYONEL ve RENKLI egitim gorseli olustur.
 
 ## GORSEL TIPI: {tip}
 
 ## DETAYLI BETIMLEME:
 {detay}
 
-## KRITIK KURALLAR:
+## RENK SEMASI (OSYM + Modern Egitim)
 
-### FIZIK GORSELI KURALLARI:
-- Kuvvet vektorleri: Kalin oklar, ucu sivri
-- Hiz vektorleri: Ince oklar
-- x ve y eksenleri net cizilmeli
-- Direnc: Zigzag cizgi
-- Sigac: Iki paralel cizgi
-- Bobin: Spiral
-- Cisimler net geometrik sekillerle
-- Kose noktalari harflerle (A, B, C, D)
-- Acilar yay ile gosterilmeli
+### Ana Renkler:
+- **Arka plan**: Beyaz (#FFFFFF) veya cok acik gri (#F5F5F5)
+- **Ana cizgiler**: Koyu gri (#333333) veya siyah
+- **Grid/yardimci cizgiler**: Acik gri (#CCCCCC)
 
-### STIL (OSYM TARZI):
-- Arka plan: Beyaz
-- Cizgiler: Siyah veya koyu gri
-- Font: Net, okunaklı
+### Fiziksel Ogeler:
+- **Cisimler/Kutleler**: Mavi tonlari (#2196F3, #1976D2)
+- **Kuvvet vektorleri**: Kirmizi (#E53935) veya turuncu (#FF5722)
+- **Hiz vektorleri**: Yesil (#4CAF50)
+- **Ivme vektorleri**: Mor (#9C27B0)
+- **Elektrik alan**: Sari-turuncu (#FFC107)
+- **Manyetik alan**: Cyan/turkuaz (#00BCD4)
+- **Isik/Dalga**: Sari (#FFEB3B)
 
-### MUTLAK YASAKLAR:
-- Soru metni veya cumleler
-- A), B), C), D), E) siklari
-- Cozum adimlari
-- Cevabi veren dogrudan bilgi
-- Ingilizce kelimeler
+### Grafik Ogeleri:
+- **Eksenler**: Siyah, kalin (2-3px)
+- **Veri cizgisi 1**: Mavi (#2196F3)
+- **Veri cizgisi 2**: Kirmizi (#F44336)
+- **Veri cizgisi 3**: Yesil (#4CAF50)
+- **Dolgu alani**: Yarisaydam (%20 opacity)
 
-### OLMASI GEREKENLER:
-- Net etiketler ve olculer
-- Vektor yonleri acikca belirli
-- Profesyonel ve temiz gorunum"""
+### Devre Elemanlari:
+- **Direnc**: Kahverengi/bej (#795548)
+- **Kondansator/Sigac**: Mavi (#2196F3)
+- **Bobin**: Mor (#673AB7)
+- **Pil/Kaynak**: Yesil-siyah
+- **Ampul**: Sari (#FFC107)
+- **Iletken teller**: Siyah
+
+## KRITIK KURALLAR
+
+### Vektor ve Ok Gosterimi:
+- Kuvvet vektorleri: KIRMIZI, kalin oklar (3-4px), ucu sivri
+- Hiz vektorleri: YESIL, orta kalinlik (2-3px)
+- Yer degistirme: MAVI kesikli ok
+- Her vektorun yaninda etiketi (F, v, a, x)
+
+### Koordinat Sistemi:
+- x ve y eksenleri NET cizilmeli
+- Pozitif yonler okla belirtilmeli
+- Orijin noktasi (O) etiketli
+- Eksen etiketleri: x(m), t(s), v(m/s)
+
+### Devre Semasi:
+- Direnc: Zigzag cizgi (kahverengi)
+- Sigac: Iki paralel cizgi (mavi)
+- Bobin: Spiral (mor)
+- AC kaynak: Dalgali daire
+- Akim yonu: Kirmizi oklar
+
+### Cisim ve Sekil:
+- Kutleler: Dolu dikdortgen/kare (mavi tonlari)
+- Noktasal cisimler: Dolu daire
+- Kose noktalari: A, B, C, D harfleri
+- Acilar: Yay ile gosterilmeli (θ, α, β)
+- Uzunluklar: Cift yonlu ok (↔)
+
+### Grafik Standartlari:
+- Eksen etiketleri: Degisken adi ve birimi [m], [s], [N]
+- Grid cizgileri: Acik gri, ince
+- Veri noktalari: Dolu daire (●)
+- Egri: Puruzsuz, anti-aliased
+
+## MUTLAK YASAKLAR
+❌ Soru metni veya cumleler
+❌ A), B), C), D), E) siklari
+❌ Cozum adimlari veya formul yazisi
+❌ Cevabi dogrudan veren bilgi
+❌ Ingilizce kelimeler
+❌ Dusuk cozunurluk veya bulanik cizim
+❌ Asiri karisik veya kalabalik gorsel
+
+## OLMASI GEREKENLER
+✅ Temiz, profesyonel gorunum
+✅ Tutarli renk kullanimi
+✅ Net etiketler ve olculer
+✅ Yuksek kontrast (okunabilirlik)
+✅ OSYM sinav kitapcigi tarzi
+✅ 300 DPI kalite
+✅ 800x600 veya 600x400 boyut orani"""
+
+# ============================================================================
+# FEW-SHOT ORNEKLERI (PROMPT ZINCIRLERI)
+# ============================================================================
+
+FEW_SHOT_EXAMPLES = {
+    "bagil_hareket": """
+## ORNEK: Bagil Hareket ve Dinamik (2025 "Karga ve Ceviz" Tarzi)
+
+KULLANICI ISTEMI:
+- Konu: Iki Boyutta Hareket ve Bagil Hiz
+- Seviye: Orta-Zor (4)
+- Baglam: Hareket halindeki tasit ve disaridan etki eden cisim
+- Soru Tipi: Hikayeli
+
+BEKLENEN SORU:
+"Yatay raylarda 30 m/s sabit hizla bati yonunde ilerleyen ustu acik bir vagonun 
+80 m yukarisindan, vagonla ayni yonde 10 m/s hizla ucan bir karga, gagasindaki 
+cevizi serbest birakiyor. Surtuhmeler ihmal edilmektedir. (g = 10 m/s²)
+
+Buna gore, ceviz vagona duser mi? Duserse vagonun neresine duser?"
+
+COZUM MANTIGI:
+1. Cevizin yere gore yatay hizi = 10 m/s (karganin hizi, referans: yer)
+2. Dusme suresi: h = ½gt² → 80 = 5t² → t = 4s
+3. Cevizin yatayda aldigi yol = 10 × 4 = 40 m
+4. Vagonun 4 saniyede aldigi yol = 30 × 4 = 120 m
+5. Fark = 120 - 40 = 80 m → Vagon cevizi gecer
+6. Sonuc: Ceviz vagona DUSMEZ
+
+CELDIRICILER:
+- A) "Tam ortasina duser" → Cevizin vagonla ayni hizda oldugunu sanan ogrenci
+- B) "On tarafina duser" → Referans sistemini karistiran ogrenci
+- C) "Arka tarafina duser" → Kismen dogru dusunup hesap hatasi yapan
+- D) "Vagona dusmez, 80 m geride kalir" → DOGRU
+- E) "Vagona dusmez, 40 m geride kalir" → Sadece cevizin yolunu hesaplayan
+""",
+
+    "fotoelektrik_grafik": """
+## ORNEK: Fotoelektrik Olay (Grafik Analizi)
+
+KULLANICI ISTEMI:
+- Konu: Fotoelektrik Olay
+- Seviye: Zor (4)
+- Soru Tipi: Grafik Yorumlama
+
+BEKLENEN SORU:
+"Sekilde bir fotosel devresinde K ve L isik kaynaklari icin olcolen 
+gerilim-akim (V-I) grafigi gosterilmistir.
+
+[GRAFIK: X ekseni V(Volt), Y ekseni I(mA). 
+K egrisi: -2V'da keser, 5mA'de doyuma ulasir
+L egrisi: -3V'da keser, 5mA'de doyuma ulasir]
+
+Buna gore K ve L isiklarinin frekanslari (f) ve siddetleri (P) 
+hakkinda asagidakilerden hangisi dogrudur?"
+
+SIKLAR:
+A) f_K > f_L, P_K > P_L
+B) f_K > f_L, P_K = P_L
+C) f_K < f_L, P_K = P_L  ← DOGRU
+D) f_K < f_L, P_K < P_L
+E) f_K = f_L, P_K < P_L
+
+CELDIRICI ANALIZI:
+- Kesme potansiyeli BUYUK → Frekans BUYUK (|V_L| > |V_K| → f_L > f_K)
+- Maksimum akim AYNI → Isik siddeti (foton sayisi) AYNI
+""",
+
+    "induksiyon_onculu": """
+## ORNEK: Elektromanyetik Induksiyon (Onculu Yargi)
+
+KULLANICI ISTEMI:
+- Konu: Induksiyon Emk ve Lenz Yasasi
+- Seviye: Secici (5)
+- Soru Tipi: I, II, III onculu yargi
+
+BEKLENEN SORU:
+"Sekilde, duzgun manyetik alan icinde sabit hizla saga dogru cekilen 
+iletken cubuk gosterilmistir.
+
+Bu sistemle ilgili;
+I. Induksiyon akimi, Lenz yasasina gore hareketi zorlastiran yonde olusur.
+II. Cubuga etki eden manyetik kuvvet, hareket yonunun tersinedir.
+III. Mekanik enerji, elektrik enerjisine ve isi enerjisine donusur.
+
+yargIlarindan hangileri dogrudur?"
+
+SIKLAR:
+A) Yalniz I
+B) Yalniz II
+C) I ve II
+D) II ve III
+E) I, II ve III ← DOGRU
+
+KAVRAM YANILGISI HEDEFI:
+"Sabit hizla cekiliyorsa kuvvet sifirdir" yanilgisi
+(Aslinda dis kuvvet = manyetik kuvvet, net kuvvet sifir)
+"""
+}
 
 # ============================================================================
 # GEMINI API CLIENT
@@ -562,6 +966,14 @@ class GeminiAPI:
     def generate_question(self, params: QuestionParams) -> Dict[str, Any]:
         konu_data = AYT_FIZIK_KONULAR.get(params.konu, {})
         bloom_data = BLOOM_SEVIYELERI.get(params.bloom_seviyesi, {})
+        zorluk_data = ZORLUK_DAGILIMI.get(params.zorluk, {})
+        
+        # Kavram yanilgisi bilgisi
+        celdirici_kategori = konu_data.get("celdirici_kategorisi", "dinamik")
+        yanilgi_data = KAVRAM_YANILGILARI.get(celdirici_kategori, {})
+        
+        # Few-shot ornegi
+        few_shot = konu_data.get("few_shot_ornek", "")
         
         user_prompt = f"""
 ## SORU URETIM TALIMATI
@@ -570,30 +982,42 @@ class GeminiAPI:
 - **Ana Konu**: {konu_data.get('display_name', params.konu)}
 - **Alt Konu**: {params.alt_konu}
 - **Kazanim Kodu**: {params.kazanim_kodu}
+- **2025 Trendi**: {konu_data.get('trend_2025', 'Kavramsal derinlik')}
 
 ### Soru Parametreleri:
-- **Bloom Seviyesi**: {params.bloom_seviyesi}
-  - Aciklama: {bloom_data.get('aciklama', '')}
-- **Zorluk (1-5)**: {params.zorluk}
-- **Sinif Seviyesi**: {params.grade_level}. sinif (AYT)
+- **Zorluk Seviyesi**: {params.zorluk}/5 - {zorluk_data.get('aciklama', '')}
+- **Beklenen Adim Sayisi**: {zorluk_data.get('adim_sayisi', 2)}
+- **Bloom Seviyesi**: {params.bloom_seviyesi} - {bloom_data.get('aciklama', '')}
+- **Soru Tipi**: {params.soru_tipi}
 
-### Baglam Talimati:
-- **Onerilen baglam**: {params.baglam}
+### Baglam ve Senaryo:
+- **Onerilen Baglam**: {params.baglam}
+- **Gorsel Tipi**: {params.gorsel_tipi}
 
-### Gorsel Talimati:
-- **Gorsel tipi**: {params.gorsel_tipi}
+### Kavram Yanilgisi Hedefleri (CELDIRICI ICIN):
+Yaygin Yanilgilar:
+{chr(10).join(['- ' + y for y in yanilgi_data.get('yanilgilar', [])])}
 
-### Dikkat Edilecek Yaygin Ogrenci Hatalari:
-{chr(10).join(['- ' + h for h in konu_data.get('celdirici_hatalari', [])])}
+Celdirici Stratejileri:
+{chr(10).join(['- ' + s for s in yanilgi_data.get('celdirici_stratejileri', [])])}
 
 ### Ornek Soru Kokleri:
-{chr(10).join(['- ' + k for k in konu_data.get('soru_kaliplari', [])])}
+{chr(10).join(['- ' + k for k in konu_data.get('soru_kaliplari', ['Buna gore, ...'])])}
+
+### Formul Bilgisi:
+{konu_data.get('formul_bilgisi', 'Standart fizik formulleri gecerli.')}
+
+### REFERANS ORNEK (Few-Shot):
+{few_shot}
 
 ---
 
-Yukaridaki kriterlere uygun, ozgun ve yaratici bir AYT Fizik sorusu olustur.
-5 sikli (A, B, C, D, E) olmali.
-Tek bir dogru cevap olmali.
+ONEMLI:
+1. Yukaridaki OSYM felsefesine ve 2025 trendine uygun, OZGUN bir soru uret.
+2. Matematiksel olarak %100 DOGRU olmali.
+3. 5 sikli (A, B, C, D, E) olmali.
+4. Her celdirici SPESIFIK bir kavram yanilgisini hedeflemeli.
+5. Soru tipi "{params.soru_tipi}" formatinda olmali.
 """
         
         self._rate_limit()
@@ -639,6 +1063,7 @@ Tek bir dogru cevap olmali.
                     
                     text_content = result["candidates"][0]["content"]["parts"][0]["text"]
                 
+                # JSON parse
                 try:
                     question_data = json.loads(text_content)
                     logger.info("  Soru JSON basariyla parse edildi")
@@ -650,7 +1075,6 @@ Tek bir dogru cevap olmali.
                     if clean_text.endswith("```"):
                         clean_text = clean_text[:-3]
                     clean_text = clean_text.strip()
-                    
                     question_data = json.loads(clean_text)
                     return question_data
                     
@@ -668,9 +1092,17 @@ Tek bir dogru cevap olmali.
         
         tip = gorsel_betimleme.get("tip", "kuvvet_diyagrami")
         detay = gorsel_betimleme.get("detay", "")
-        gorunen_veriler = gorsel_betimleme.get("gorunen_veriler", "")
+        ogeler = gorsel_betimleme.get("ogeler", [])
+        renkler = gorsel_betimleme.get("renkler", {})
         
-        full_detay = f"{detay}\n\nGorselde gorunecek degerler: {gorunen_veriler}"
+        # Renk bilgisini prompt'a ekle
+        renk_talimati = ""
+        if renkler:
+            renk_talimati = "\n\nRENK TALIMATLARI:\n"
+            for oge, renk in renkler.items():
+                renk_talimati += f"- {oge}: {renk}\n"
+        
+        full_detay = f"{detay}\n\nGorselde gorunecek ogeler: {', '.join(ogeler) if ogeler else 'Belirtilmemis'}{renk_talimati}"
         prompt = IMAGE_PROMPT_TEMPLATE.format(tip=tip, detay=full_detay)
         
         self._rate_limit()
@@ -800,7 +1232,7 @@ class SupabaseClient:
             "is_active": question.is_active,
             "verified": question.verified,
             "is_past_exam": False,
-            "exam_type": "AYT_AI_BOT"
+            "exam_type": "AYT_AI_BOT_V2"
         }
         
         try:
@@ -821,7 +1253,7 @@ class SupabaseClient:
 
 
 # ============================================================================
-# QUALITY VALIDATOR
+# QUALITY VALIDATOR (GELISTIRILMIS)
 # ============================================================================
 
 class QualityValidator:
@@ -833,21 +1265,43 @@ class QualityValidator:
             self.client = None
         self.quality_threshold = 7
     
-    def validate_question(self, question_data: Dict) -> Dict:
+    def validate_question(self, question_data: Dict, params: QuestionParams) -> Dict:
         if not NEW_GENAI or not self.client:
             return {"pass": True, "overall_score": 7, "problems": [], "skipped": True}
         
+        # Kavram yanilgisi kontrolu
+        konu_data = AYT_FIZIK_KONULAR.get(params.konu, {})
+        celdirici_kategori = konu_data.get("celdirici_kategorisi", "dinamik")
+        yanilgi_data = KAVRAM_YANILGILARI.get(celdirici_kategori, {})
+        
         try:
             prompt = f"""Bu AYT Fizik sorusunu KALITE KONTROLU yap.
+
+## SORU BILGILERI
+Konu: {params.konu}
+Zorluk: {params.zorluk}/5
+Bloom: {params.bloom_seviyesi}
 
 SORU METNI: {question_data.get("soru_metni", "")}
 SORU KOKU: {question_data.get("soru_koku", "")}
 SIKLAR: {json.dumps(question_data.get("siklar", {}), ensure_ascii=False)}
 DOGRU CEVAP: {question_data.get("dogru_cevap", "")}
 COZUM: {question_data.get("cozum_adim_adim", "")}
+CELDIRICI ANALIZI: {json.dumps(question_data.get("celdirici_analizi", {}), ensure_ascii=False)}
+
+## KONTROL KRITERLERI
+
+1. FIZIKSEL DOGRULUK: Fizik kanunlari dogru uygulanmis mi?
+2. MATEMATIKSEL DOGRULUK: Hesaplamalar dogru mu?
+3. OSYM FORMATI: "Buna gore," ile basliyor mu? Dil uygun mu?
+4. CELDIRICI KALITESI: Her yanlIs sik bir kavram yanilgisini hedefliyor mu?
+5. ZORLUK UYUMU: Belirtilen zorluk seviyesiyle uyumlu mu?
+
+Hedeflenmesi gereken kavram yanilgilari:
+{chr(10).join(['- ' + y for y in yanilgi_data.get('yanilgilar', [])])}
 
 JSON formatinda dondur:
-{{"is_physically_correct": true, "is_mathematically_correct": true, "overall_score": 8, "pass": true, "problems": []}}"""
+{{"is_physically_correct": true/false, "is_mathematically_correct": true/false, "osym_format_ok": true/false, "distractors_quality": 1-10, "difficulty_match": true/false, "overall_score": 1-10, "pass": true/false, "problems": ["problem1", "problem2"]}}"""
             
             response = self.client.models.generate_content(
                 model=GEMINI_TEXT_MODEL,
@@ -863,12 +1317,15 @@ JSON formatinda dondur:
             logger.error(f"  Soru validasyon hatasi: {e}")
             return {"pass": True, "overall_score": 5, "problems": [str(e)], "error": True}
     
-    def validate_image(self, image_bytes: bytes, question_text: str = "") -> Dict:
+    def validate_image(self, image_bytes: bytes, gorsel_betimleme: Dict = None) -> Dict:
         if not NEW_GENAI or not self.client:
             return {"pass": True, "overall_score": 7, "problems": [], "skipped": True}
         
         try:
             image_b64 = base64.b64encode(image_bytes).decode('utf-8')
+            
+            expected_elements = gorsel_betimleme.get("ogeler", []) if gorsel_betimleme else []
+            expected_colors = gorsel_betimleme.get("renkler", {}) if gorsel_betimleme else {}
             
             response = self.client.models.generate_content(
                 model=GEMINI_TEXT_MODEL,
@@ -877,7 +1334,20 @@ JSON formatinda dondur:
                         "role": "user",
                         "parts": [
                             {"inline_data": {"mime_type": "image/png", "data": image_b64}},
-                            {"text": "Bu fizik gorseli icin kalite kontrolu yap. JSON formatinda dondur: {\"has_question_text\": false, \"has_options\": false, \"is_clean\": true, \"overall_score\": 8, \"pass\": true, \"problems\": []}"}
+                            {"text": f"""Bu fizik gorseli icin kalite kontrolu yap.
+
+Beklenen ogeler: {expected_elements}
+Beklenen renkler: {expected_colors}
+
+Kontrol et:
+1. Soru metni veya sik OLMAMALI
+2. Turkce etiketler dogru olmali
+3. Fiziksel temsil dogru olmali
+4. Renkler profesyonel ve tutarli olmali
+5. Temiz ve okunakilir olmali
+
+JSON formatinda dondur:
+{{"has_question_text": true/false, "has_options": true/false, "labels_correct": true/false, "colors_professional": true/false, "is_clean": true/false, "overall_score": 1-10, "pass": true/false, "problems": []}}"""}
                         ]
                     }
                 ],
@@ -885,6 +1355,14 @@ JSON formatinda dondur:
             )
             
             result = json.loads(response.text)
+            
+            problems = result.get("problems", [])
+            if result.get("has_question_text"):
+                problems.append("Gorselde soru metni var")
+            if result.get("has_options"):
+                problems.append("Gorselde siklar var")
+            
+            result["problems"] = problems
             result["pass"] = result.get("overall_score", 0) >= self.quality_threshold
             return result
             
@@ -894,7 +1372,7 @@ JSON formatinda dondur:
 
 
 # ============================================================================
-# MAIN GENERATOR CLASS
+# MAIN GENERATOR CLASS (GELISTIRILMIS)
 # ============================================================================
 
 class AYTFizikGenerator:
@@ -914,25 +1392,49 @@ class AYTFizikGenerator:
             "with_image": 0,
             "questions_rejected": 0,
             "images_rejected": 0,
-            "quality_retries": 0
+            "quality_retries": 0,
+            "by_difficulty": {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
         }
+    
+    def _select_difficulty(self) -> int:
+        """Psikometrik dagilima gore zorluk sec"""
+        r = random.random()
+        cumulative = 0
+        for level, data in ZORLUK_DAGILIMI.items():
+            cumulative += data["oran"]
+            if r <= cumulative:
+                return level
+        return 3  # Default orta
+    
+    def _select_question_type(self, konu_data: Dict, zorluk: int) -> str:
+        """Zorluk ve konuya gore soru tipi sec"""
+        available_types = konu_data.get("soru_tipleri", ["hikayeli"])
+        
+        if zorluk >= 4 and "onculu" in available_types:
+            return random.choice(["onculu", available_types[0]])
+        elif zorluk >= 3 and "grafik" in available_types:
+            return random.choice(["grafik", "hikayeli"])
+        else:
+            return random.choice(available_types)
     
     def generate_single_question(self, params: QuestionParams, kazanim_from_db: Dict = None) -> Optional[int]:
         self.stats["total_attempts"] += 1
-        konu_display = AYT_FIZIK_KONULAR.get(params.konu, {}).get("display_name", params.konu)
+        konu_data = AYT_FIZIK_KONULAR.get(params.konu, {})
+        konu_display = konu_data.get("display_name", params.konu)
         
         kazanim_id = None
         if kazanim_from_db:
             kazanim_id = kazanim_from_db.get("id")
         
         logger.info(f"\n{'='*70}")
-        logger.info(f"SORU URETIMI BASLIYOR")
+        logger.info(f"SORU URETIMI BASLIYOR (v2.0)")
         logger.info(f"   Konu: {konu_display}")
         logger.info(f"   Alt Konu: {params.alt_konu}")
+        logger.info(f"   Soru Tipi: {params.soru_tipi}")
         logger.info(f"   Bloom: {params.bloom_seviyesi} | Zorluk: {params.zorluk}/5")
+        logger.info(f"   2025 Trendi: {konu_data.get('trend_2025', 'N/A')}")
         logger.info(f"{'='*70}")
         
-        previous_question_problems = []
         max_question_retries = 3
         max_image_retries = 3
         
@@ -946,33 +1448,36 @@ class AYTFizikGenerator:
                 
                 question_data = self.gemini.generate_question(params)
                 
+                # Temel alan kontrolu
                 required_fields = ["soru_metni", "soru_koku", "siklar", "dogru_cevap"]
                 missing = [f for f in required_fields if f not in question_data]
                 if missing:
-                    previous_question_problems.append(f"Eksik alanlar: {missing}")
+                    logger.warning(f"  Eksik alanlar: {missing}")
                     self.stats["quality_retries"] += 1
                     continue
                 
+                # 5 sik kontrolu
                 siklar = question_data.get("siklar", {})
                 if len(siklar) < 5:
-                    previous_question_problems.append("5 sik olmali (A, B, C, D, E)")
+                    logger.warning("  5 sik olmali")
                     self.stats["quality_retries"] += 1
                     continue
                 
-                logger.info("  Soru kalite kontrolu yapiliyor...")
-                q_validation = self.validator.validate_question(question_data)
+                # Kalite kontrolu
+                logger.info("  Kalite kontrolu yapiliyor...")
+                q_validation = self.validator.validate_question(question_data, params)
                 question_quality_score = q_validation.get("overall_score", 5)
                 
-                logger.info(f"  Soru Kalite Puani: {question_quality_score}/10")
+                logger.info(f"  Kalite Puani: {question_quality_score}/10")
                 
                 if q_validation.get("pass", False):
                     logger.info("  Soru kalite kontrolunu gecti")
                     break
                 else:
                     problems = q_validation.get("problems", ["Kalite yetersiz"])
-                    previous_question_problems.extend(problems)
                     self.stats["quality_retries"] += 1
                     self.stats["questions_rejected"] += 1
+                    logger.warning(f"  Soru reddedildi: {problems}")
             
             if not question_data:
                 self.stats["failed"] += 1
@@ -982,38 +1487,35 @@ class AYTFizikGenerator:
             # ADIM 2: GORSEL URETIMI
             image_url = None
             image_bytes = None
-            image_quality_score = 0
             gorsel_betimleme = question_data.get("gorsel_betimleme", {})
             
             if question_data.get("gorsel_gerekli", False) and gorsel_betimleme:
-                logger.info("\n[2/5] Gorsel uretiliyor...")
+                logger.info("\n[2/5] Renkli gorsel uretiliyor...")
                 
                 for img_attempt in range(max_image_retries):
                     image_bytes = self.gemini.generate_image(gorsel_betimleme, params.konu)
                     
                     if image_bytes:
                         logger.info("  Gorsel kalite kontrolu yapiliyor...")
-                        img_validation = self.validator.validate_image(image_bytes)
-                        image_quality_score = img_validation.get("overall_score", 5)
-                        
-                        logger.info(f"  Gorsel Kalite Puani: {image_quality_score}/10")
+                        img_validation = self.validator.validate_image(image_bytes, gorsel_betimleme)
                         
                         if img_validation.get("pass", False):
                             logger.info("  Gorsel kalite kontrolunu gecti")
                             break
                         else:
                             self.stats["images_rejected"] += 1
+                            logger.warning(f"  Gorsel reddedildi: {img_validation.get('problems', [])}")
                             image_bytes = None
                 
                 if image_bytes:
-                    filename = f"ayt_fizik_{uuid.uuid4().hex[:12]}.png"
+                    filename = f"ayt_fizik_v2_{uuid.uuid4().hex[:12]}.png"
                     image_url = self.supabase.upload_image(image_bytes, filename)
                     if image_url:
                         self.stats["with_image"] += 1
             else:
                 logger.info("\n[2/5] Gorsel gerekli degil, atlaniyor...")
             
-            # ADIM 3: VERI YAPISI OLUSTUR
+            # ADIM 3: VERI YAPISI
             logger.info("\n[3/5] Veri yapisi hazirlaniyor...")
             
             soru_metni = question_data.get("soru_metni", "")
@@ -1039,20 +1541,19 @@ class AYTFizikGenerator:
                 distractor_explanations=question_data.get("celdirici_analizi", {}),
                 image_url=image_url
             )
-            logger.info("  Veri yapisi hazir")
             
-            # ADIM 4: KALITE OZET
+            # ADIM 4: OZET
             logger.info(f"\n[4/5] KALITE OZETI:")
             logger.info(f"   Soru Puani: {question_quality_score}/10")
-            if image_bytes:
-                logger.info(f"   Gorsel Puani: {image_quality_score}/10")
+            logger.info(f"   Kavram Yanilgisi Hedefi: {question_data.get('kavram_yanilgisi_hedefi', 'Belirtilmemis')}")
             
-            # ADIM 5: VERITABANINA KAYDET
+            # ADIM 5: KAYDET
             logger.info("\n[5/5] Veritabanina kaydediliyor...")
             question_id = self.supabase.insert_question(generated, kazanim_id=kazanim_id)
             
             if question_id:
                 self.stats["successful"] += 1
+                self.stats["by_difficulty"][params.zorluk] += 1
                 logger.info(f"\nBASARILI! Soru ID: {question_id}")
                 return question_id
             else:
@@ -1069,8 +1570,9 @@ class AYTFizikGenerator:
     
     def generate_batch(self, count_per_topic: int = 1) -> Dict[str, Any]:
         logger.info(f"\n{'#'*70}")
-        logger.info(f"TOPLU SORU URETIMI BASLIYOR")
-        logger.info(f"   Her konu icin {count_per_topic} soru uretilecek")
+        logger.info(f"TOPLU SORU URETIMI BASLIYOR (v2.0)")
+        logger.info(f"   Her konu icin {count_per_topic} soru")
+        logger.info(f"   Psikometrik zorluk dagilimi aktif")
         logger.info(f"{'#'*70}\n")
         
         curriculum = self.supabase.get_curriculum_for_grade(grade_level=12, lesson_name="Fizik")
@@ -1087,12 +1589,15 @@ class AYTFizikGenerator:
                     if matching:
                         kazanim_from_db = random.choice(matching)
                 
+                # Psikometrik zorluk secimi
+                zorluk = self._select_difficulty()
+                
                 alt_konu = random.choice(konu_data.get("alt_konular", ["genel"]))
                 kazanim_kodu = kazanim_from_db.get("learning_outcome_code") if kazanim_from_db else konu_data.get("kazanimlar", ["F.12.1.1.1"])[0]
                 bloom = random.choice(list(BLOOM_SEVIYELERI.keys()))
-                zorluk = random.randint(3, 5)
                 baglam = random.choice(konu_data.get("ornek_baglamlar", ["genel"]))
                 gorsel_tipi = random.choice(konu_data.get("gorsel_tipleri", ["kuvvet_diyagrami"]))
+                soru_tipi = self._select_question_type(konu_data, zorluk)
                 
                 params = QuestionParams(
                     konu=konu_key,
@@ -1101,7 +1606,8 @@ class AYTFizikGenerator:
                     bloom_seviyesi=bloom,
                     zorluk=zorluk,
                     baglam=baglam,
-                    gorsel_tipi=gorsel_tipi
+                    gorsel_tipi=gorsel_tipi,
+                    soru_tipi=soru_tipi
                 )
                 
                 question_id = self.generate_single_question(params, kazanim_from_db=kazanim_from_db)
@@ -1134,7 +1640,7 @@ class AYTFizikGenerator:
             "atom_fizigi": ["atom", "radyoaktif", "fisyon", "fuzyon"],
             "standart_model": ["standart", "parcacik", "kuark"],
             "tibbi_goruntuleme": ["mr", "tomografi", "ultrason"],
-            "superleitkenlik": ["superiletken", "kritik sicaklik"]
+            "superiletkenlik": ["superiletken", "kritik sicaklik"]
         }
         
         keywords = mapping.get(konu_key, [])
@@ -1160,12 +1666,13 @@ class AYTFizikGenerator:
                 if matching:
                     kazanim_from_db = random.choice(matching)
             
+            zorluk = self._select_difficulty()
             alt_konu = random.choice(konu_data.get("alt_konular", ["genel"]))
             kazanim_kodu = kazanim_from_db.get("learning_outcome_code") if kazanim_from_db else konu_data.get("kazanimlar", ["F.12.1.1.1"])[0]
             bloom = random.choice(list(BLOOM_SEVIYELERI.keys()))
-            zorluk = random.randint(3, 5)
             baglam = random.choice(konu_data.get("ornek_baglamlar", ["genel"]))
             gorsel_tipi = random.choice(konu_data.get("gorsel_tipleri", ["kuvvet_diyagrami"]))
+            soru_tipi = self._select_question_type(konu_data, zorluk)
             
             params = QuestionParams(
                 konu=konu,
@@ -1174,7 +1681,8 @@ class AYTFizikGenerator:
                 bloom_seviyesi=bloom,
                 zorluk=zorluk,
                 baglam=baglam,
-                gorsel_tipi=gorsel_tipi
+                gorsel_tipi=gorsel_tipi,
+                soru_tipi=soru_tipi
             )
             
             question_id = self.generate_single_question(params, kazanim_from_db=kazanim_from_db)
@@ -1187,7 +1695,7 @@ class AYTFizikGenerator:
     
     def print_stats(self):
         logger.info(f"\n{'='*70}")
-        logger.info("SONUC ISTATISTIKLERI")
+        logger.info("SONUC ISTATISTIKLERI (v2.0)")
         logger.info(f"{'='*70}")
         logger.info(f"   Toplam deneme      : {self.stats['total_attempts']}")
         logger.info(f"   Basarili           : {self.stats['successful']}")
@@ -1195,10 +1703,13 @@ class AYTFizikGenerator:
         logger.info(f"   Gorselli soru      : {self.stats['with_image']}")
         logger.info(f"   Reddedilen sorular : {self.stats['questions_rejected']}")
         logger.info(f"   Reddedilen gorseller: {self.stats['images_rejected']}")
+        logger.info(f"\n   Zorluk Dagilimi:")
+        for level, count in self.stats['by_difficulty'].items():
+            logger.info(f"     Seviye {level}: {count} soru")
         
         if self.stats['total_attempts'] > 0:
             success_rate = (self.stats['successful'] / self.stats['total_attempts']) * 100
-            logger.info(f"   Basari orani       : %{success_rate:.1f}")
+            logger.info(f"\n   Basari orani: %{success_rate:.1f}")
         logger.info(f"{'='*70}\n")
 
 
@@ -1208,19 +1719,29 @@ class AYTFizikGenerator:
 
 def main():
     parser = argparse.ArgumentParser(
-        description='AYT Fizik Soru Uretim Botu',
+        description='AYT Fizik Soru Uretim Botu v2.0',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
+Yenilikler v2.0:
+  - Kavram Yanilgisi Veri Tabani (Misconception Database)
+  - Psikometrik Zorluk Dagilimi (OSYM tarzi)
+  - Gelistirilmis Prompt Muhendisligi (Few-Shot)
+  - Renkli Gorsel Sablonlari
+  - 2025 Trend Bazli Soru Tipleri
+
 Ornekler:
   python ayt_fizik_bot.py --mode batch --count 1
   python ayt_fizik_bot.py --mode topic --topic elektrostatik --count 5
-  python ayt_fizik_bot.py --mode single --konu hareket_ve_kuvvet --bloom Analiz --zorluk 4
+  python ayt_fizik_bot.py --mode single --konu hareket_ve_kuvvet --bloom Analiz --zorluk 4 --tip hikayeli
 
 Gecerli Konular:
   hareket_ve_kuvvet, tork_ve_denge, dairesel_hareket, basit_harmonik_hareket,
   elektrostatik, manyetizma, alternatif_akim, dalgalar, elektromanyetik_dalgalar,
   ozel_gorelilik, kuantum_fizigi, atom_fizigi, standart_model,
-  tibbi_goruntuleme, superleitkenlik
+  tibbi_goruntuleme, superiletkenlik
+
+Soru Tipleri:
+  hikayeli, grafik, onculu, deney, eslestirme
         """
     )
     
@@ -1240,17 +1761,25 @@ Gecerli Konular:
     parser.add_argument('--bloom', type=str, default='Analiz',
                        choices=['Uygulama', 'Analiz', 'Degerlendirme', 'Yaratma'],
                        help='Bloom seviyesi')
-    parser.add_argument('--zorluk', type=int, default=4,
+    parser.add_argument('--zorluk', type=int, default=3,
                        choices=[1, 2, 3, 4, 5],
                        help='Zorluk seviyesi (1-5)')
+    parser.add_argument('--tip', type=str, default='hikayeli',
+                       choices=['hikayeli', 'grafik', 'onculu', 'deney', 'eslestirme'],
+                       help='Soru tipi')
     
     args = parser.parse_args()
     
     logger.info("""
 ========================================================================
-         AYT FIZIK SORU URETIM BOTU v1.0
-         Gemini 2.5 Flash + Imagen 3 + Supabase
-         OSYM Formatinda AYT Fizik Sorulari
+     AYT FIZIK SORU URETIM BOTU v2.0
+     Gemini 2.5 Flash + Imagen 3 + Supabase
+     
+     Yenilikler:
+     - Kavram Yanilgisi Veri Tabani
+     - Psikometrik Zorluk Dagilimi
+     - Renkli Gorsel Uretimi
+     - 2025 OSYM Trendi Uyumu
 ========================================================================
     """)
     
@@ -1262,6 +1791,7 @@ Gecerli Konular:
         
         if args.mode == 'batch':
             logger.info(f"Batch modu - Her konu icin {args.count} soru")
+            logger.info("Psikometrik zorluk dagilimi: %10 Kolay, %55 Orta, %25 Zor, %10 Secici")
             results = generator.generate_batch(count_per_topic=args.count)
             logger.info(f"\nUretilen soru sayisi: {len(results['generated_ids'])}")
             if results['failed_topics']:
@@ -1288,10 +1818,12 @@ Gecerli Konular:
                 bloom_seviyesi=args.bloom,
                 zorluk=args.zorluk,
                 baglam=baglam,
-                gorsel_tipi=gorsel_tipi
+                gorsel_tipi=gorsel_tipi,
+                soru_tipi=args.tip
             )
             
             logger.info(f"Single modu - {args.konu}")
+            logger.info(f"Soru Tipi: {args.tip}, Zorluk: {args.zorluk}/5")
             question_id = generator.generate_single_question(params)
             
             if question_id:
