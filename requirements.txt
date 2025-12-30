@@ -1,35 +1,15 @@
-# Core AI & Data
-google-genai
-google-generativeai
-instructor
-pydantic
+# AYT Fizik Soru Uretim Botu - Bagimliliklar
+# =============================================
 
-# Database
-supabase
+# Google Gemini API SDK (yeni versiyon)
+google-genai>=1.0.0
 
-# Data Processing
-pandas
-numpy
-scipy
+# HTTP istekleri icin
+requests>=2.31.0
 
-# API & Web
-requests
-feedparser
-beautifulsoup4
+# Standart kutuphane disinda gerekli olabilecekler
+# (cogu Python 3.11+ ile birlikte gelir)
 
-# Finance & Crypto
-yfinance
-ccxt
-
-# Sentiment Analysis (Opsiyonel - Reddit için)
-# praw  # Reddit API - API key gerektirir
-
-# Technical Analysis (TA-Lib alternatifi olarak pandas-ta önerilir)
-# pandas-ta  # Opsiyonel: Daha fazla gösterge için
-# ta-lib  # Opsiyonel: C-based, sistem bağımlılıkları gerektirir
-
-# JSON Processing
-jsonref
-
-# Utilities
-python-dateutil
+# Opsiyonel: Gelistirme ve test icin
+# pytest>=7.4.0
+# python-dotenv>=1.0.0
