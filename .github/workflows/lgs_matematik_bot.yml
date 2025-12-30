@@ -31,6 +31,7 @@ on:
         type: choice
         options:
           - uslu_ifadeler
+          - carpanlar_ve_katlar
           - karekoklu_ifadeler
           - cebirsel_ifadeler
           - denklemler
@@ -64,6 +65,12 @@ on:
         required: false
         default: '4'
         type: string
+      
+      single_topic_only:
+        description: 'Sadece seçilen konudan üret (batch modunda)'
+        required: false
+        default: false
+        type: boolean
 
 env:
   PYTHON_VERSION: '3.11'
@@ -122,12 +129,23 @@ jobs:
           echo "   Sayı: ${{ github.event.inputs.count }}"
           echo "   Bloom: ${{ github.event.inputs.bloom }}"
           echo "   Zorluk: ${{ github.event.inputs.zorluk }}"
+          echo "   Tek Konu: ${{ github.event.inputs.single_topic_only }}"
           echo ""
           
           MODE="${{ github.event.inputs.mode }}"
+          SINGLE_TOPIC="${{ github.event.inputs.single_topic_only }}"
           
           if [ "$MODE" = "batch" ]; then
-            python lgs_matematik_bot.py --mode batch --count ${{ github.event.inputs.count }}
+            if [ "$SINGLE_TOPIC" = "true" ]; then
+              # Tek konudan batch üretim (topic modu gibi çalışır)
+              echo "📚 Tek konudan (${{ github.event.inputs.topic }}) ${{ github.event.inputs.count }} soru üretiliyor..."
+              python lgs_matematik_bot.py --mode topic \
+                --topic ${{ github.event.inputs.topic }} \
+                --count ${{ github.event.inputs.count }}
+            else
+              # Normal batch - tüm konulardan
+              python lgs_matematik_bot.py --mode batch --count ${{ github.event.inputs.count }}
+            fi
           
           elif [ "$MODE" = "topic" ]; then
             python lgs_matematik_bot.py --mode topic \
@@ -158,6 +176,7 @@ jobs:
             echo "| Sayı | ${{ github.event.inputs.count }} |" >> $GITHUB_STEP_SUMMARY
             echo "| Bloom | ${{ github.event.inputs.bloom }} |" >> $GITHUB_STEP_SUMMARY
             echo "| Zorluk | ${{ github.event.inputs.zorluk }} |" >> $GITHUB_STEP_SUMMARY
+            echo "| Tek Konu Modu | ${{ github.event.inputs.single_topic_only }} |" >> $GITHUB_STEP_SUMMARY
           else
             echo "| Mod | batch (zamanlanmış) |" >> $GITHUB_STEP_SUMMARY
             echo "| Sayı | Her konudan 1 |" >> $GITHUB_STEP_SUMMARY
@@ -165,4 +184,4 @@ jobs:
           
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📚 Desteklenen Konular" >> $GITHUB_STEP_SUMMARY
-          echo "uslu_ifadeler, karekoklu_ifadeler, cebirsel_ifadeler, denklemler, esitsizlikler, ucgenler, benzerlik, donusum_geometrisi, egim, geometrik_cisimler, veri_analizi, olasilik" >> $GITHUB_STEP_SUMMARY
+          echo "uslu_ifadeler, carpanlar_ve_katlar, karekoklu_ifadeler, cebirsel_ifadeler, denklemler, esitsizlikler, ucgenler, benzerlik, donusum_geometrisi, egim, geometrik_cisimler, veri_analizi, olasilik" >> $GITHUB_STEP_SUMMARY
