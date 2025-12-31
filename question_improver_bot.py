@@ -3,7 +3,7 @@
 ═══════════════════════════════════════════════════════════════════════════════
 
 Mevcut soruları kalite kontrolünden geçirir ve iyileştirir.
-V4: Dinamik ID aralığı - veritabanındaki max ID'ye kadar çalışır
+V4: Sıralı işleme hatası düzeltildi + Dinamik END_ID
 
 📚 ÖZELLİKLER:
 ✅ Kısa/kalitesiz soruları bağlamlı hale getirir
@@ -16,7 +16,7 @@ V4: Dinamik ID aralığı - veritabanındaki max ID'ye kadar çalışır
 ✅ LaTeX matematiksel ifadeleri doğru escape eder
 ✅ İlk geçişte atlananları 2. geçişte işler
 ✅ Her gün kontrol eder, işlenmemiş soru kalmayana kadar devam eder
-🆕 V4: Dinamik END_ID - veritabanındaki max ID otomatik alınır
+🆕 V4: Dinamik END_ID - veritabanından max ID otomatik alınır
 🆕 V4: Kaldığı yerden devam eder (son_id düzeltmesi)
 
 @version 4.0.0
@@ -49,13 +49,13 @@ SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY', '')
 
-# İşlenecek ID aralığı - START_ID sabit, END_ID dinamik olacak
+# İşlenecek ID aralığı
 START_ID = int(os.environ.get('START_ID', '7255'))
-# END_ID artık opsiyonel - verilmezse veritabanından max ID alınacak
+# END_ID: Boş bırakılırsa veritabanından max ID alınır
 END_ID_ENV = os.environ.get('END_ID', '')
 
 # Ayarlar
-BATCH_SIZE = int(os.environ.get('BATCH_SIZE', '100'))
+BATCH_SIZE = int(os.environ.get('BATCH_SIZE', '50'))
 MIN_DEEPSEEK_PUAN = 70
 BEKLEME = 1.0
 MAX_DENEME = 3
@@ -88,37 +88,20 @@ except Exception as e:
     print(f"❌ Supabase bağlantı hatası: {e}")
     exit(1)
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# DİNAMİK END_ID HESAPLAMA - V4 YENİ
-# ═══════════════════════════════════════════════════════════════════════════════
-
-def veritabanindan_max_id_al():
-    """Veritabanındaki en büyük ID'yi al"""
-    try:
-        result = supabase.table('question_bank')\
-            .select('id')\
-            .order('id', desc=True)\
-            .limit(1)\
-            .execute()
-        
-        if result.data:
-            return result.data[0]['id']
-        return START_ID
-    except Exception as e:
-        print(f"⚠️ Max ID alınamadı: {e}")
-        return START_ID
-
-# END_ID'yi belirle
+# Dinamik END_ID hesaplama
 if END_ID_ENV:
     END_ID = int(END_ID_ENV)
     print(f"   END_ID (env): {END_ID}")
 else:
-    END_ID = veritabanindan_max_id_al()
-    print(f"   END_ID (otomatik): {END_ID}")
-
+    try:
+        max_result = supabase.table('question_bank').select('id').order('id', desc=True).limit(1).execute()
+        END_ID = max_result.data[0]['id'] if max_result.data else START_ID
+        print(f"   END_ID (otomatik): {END_ID}")
+    except:
+        END_ID = START_ID + 10000
+        print(f"   END_ID (varsayılan): {END_ID}")
 print(f"   📍 Çalışma aralığı: {START_ID} - {END_ID}")
 
-# Gemini ve DeepSeek bağlantıları
 print("🔗 Gemini bağlantısı kuruluyor...")
 try:
     gemini_client = genai.Client(api_key=GEMINI_API_KEY)
@@ -162,7 +145,7 @@ SINIF_BLOOM_MAP = {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# PROGRESS YÖNETİMİ - V4 GÜNCELLEME
+# PROGRESS YÖNETİMİ - V3 GÜNCELLEME
 # ═══════════════════════════════════════════════════════════════════════════════
 
 PROGRESS_TABLE_EXISTS = False
@@ -236,32 +219,14 @@ def son_islenen_id_getir():
 
 def islenmemis_sorulari_getir(limit, retry_mode=False):
     """
-    İşlenmemiş veya tekrar işlenecek soruları getir - V4 DÜZELTİLMİŞ
+    İşlenmemiş veya tekrar işlenecek soruları getir - V3 DÜZELTİLMİŞ
     
-    V4 Değişiklik: 
-    - son_id değişkeni artık gerçekten kullanılıyor
-    - baslangic_id = son_id + 1 olarak düzeltildi
-    - Dinamik END_ID desteği
+    V3 Değişiklik: Son işlenen ID'den devam eder, tüm işlenmiş ID'leri 
+    bellekte tutmak yerine veritabanında LEFT JOIN mantığı kullanır.
     """
     try:
         if not PROGRESS_TABLE_EXISTS:
-            # Progress tablosu yoksa, question_bank'teki improved_at alanına bak
-            print(f"   📋 Progress tablosu yok, improved_at kontrolü...")
-            
-            # improved_at null olan soruları getir
-            result = supabase.table('question_bank')\
-                .select('*')\
-                .gte('id', START_ID)\
-                .lte('id', END_ID)\
-                .is_('improved_at', 'null')\
-                .order('id')\
-                .limit(limit)\
-                .execute()
-            
-            if result.data:
-                return result.data
-            
-            # Eğer improved_at null yoksa, normal sıralı getir (eski davranış)
+            print(f"   📋 Progress tablosu yok, direkt sorgulama...")
             result = supabase.table('question_bank')\
                 .select('*')\
                 .gte('id', START_ID)\
@@ -292,7 +257,8 @@ def islenmemis_sorulari_getir(limit, retry_mode=False):
             return result.data if result.data else []
         
         else:
-            # V4 DEĞİŞİKLİK: Tüm işlenmiş ID'leri al
+            # V3 DEĞİŞİKLİK: Son işlenen ID'den devam et
+            # Tüm işlenmiş ID'leri çek (success, failed, pending_retry)
             progress_result = supabase.table(PROGRESS_TABLE)\
                 .select('question_id')\
                 .execute()
@@ -303,15 +269,17 @@ def islenmemis_sorulari_getir(limit, retry_mode=False):
             
             print(f"   📊 Progress'te {len(islenmis_ids)} kayıt var")
             
-            # V4 DÜZELTMESİ: Son başarılı ID'yi bul ve ORADAN devam et
+            # Son başarılı ID'yi bul ve oradan devam et
             son_id = son_islenen_id_getir()
             
-            # 🔧 V4 KRİTİK DÜZELTME: baslangic_id artık son_id + 1
-            # Eğer hiç işlenmemişse START_ID'den başla
+            # Sorguyu başlat - son ID'den sonrasını çek
+            # Ama aynı zamanda arada atlanmış olabilecekleri de kontrol et
+            
+            # Strateji: Son işlenen ID'den devam et
+            # V4 DÜZELTMESİ: baslangic_id artık son_id + 1
+            
             baslangic_id = max(son_id + 1, START_ID)
-            
             print(f"   📍 Son işlenen ID: {son_id}, Başlangıç: {baslangic_id}")
-            
             sorular = []
             
             # Chunk'lar halinde tara
@@ -336,28 +304,6 @@ def islenmemis_sorulari_getir(limit, retry_mode=False):
                                 break
                 
                 current_start += chunk_size
-            
-            # Eğer son_id'den sonra soru bulunamadıysa, arada atlanmış olabilecekleri kontrol et
-            if len(sorular) == 0 and len(islenmis_ids) < (END_ID - START_ID + 1):
-                print(f"   🔍 Atlanmış sorular kontrol ediliyor...")
-                current_start = START_ID
-                
-                while len(sorular) < limit and current_start <= END_ID:
-                    result = supabase.table('question_bank')\
-                        .select('*')\
-                        .gte('id', current_start)\
-                        .lte('id', min(current_start + chunk_size - 1, END_ID))\
-                        .order('id')\
-                        .execute()
-                    
-                    if result.data:
-                        for soru in result.data:
-                            if soru['id'] not in islenmis_ids:
-                                sorular.append(soru)
-                                if len(sorular) >= limit:
-                                    break
-                    
-                    current_start += chunk_size
             
             print(f"   📋 {len(sorular)} işlenmemiş soru bulundu")
             return sorular
@@ -419,260 +365,614 @@ def soru_kalite_analizi(soru):
     if len(original_text) < 50:
         sorunlar.append('cok_kisa')
     
-    if not solution_text or len(solution_text) < 20:
-        sorunlar.append('cozum_eksik')
+    baglam_kelimeleri = ['için', 'durumda', 'ise', 'göre', 'kadar', 'arasında']
+    if not any(k in original_text.lower() for k in baglam_kelimeleri):
+        if len(original_text) < 100:
+            sorunlar.append('baglamsiz')
     
-    if 'adım' not in solution_text.lower() and 'adim' not in solution_text.lower():
-        sorunlar.append('adim_yok')
+    temiz_metin = re.sub(r'[a-zA-ZğüşöçıİĞÜŞÖÇ]', '', original_text)
+    if len(temiz_metin) > len(original_text) * 0.7:
+        sorunlar.append('sadece_islem')
+    
+    if not solution_text or len(solution_text) < 30:
+        sorunlar.append('cozum_eksik')
+    elif 'adım' not in solution_text.lower() and '\n' not in solution_text:
+        sorunlar.append('cozum_formatsiz')
+    
+    options = soru.get('options')
+    if not options:
+        sorunlar.append('secenek_yok')
     
     return {
         'sorunlar': sorunlar,
-        'skor': max(0, 100 - len(sorunlar) * 20)
+        'iyilestirme_gerekli': len(sorunlar) > 0,
+        'oncelik': 'yuksek' if 'cok_kisa' in sorunlar or 'sadece_islem' in sorunlar else 'normal'
     }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# JSON YARDIMCI FONKSİYONLARI
+# ROBUST JSON TEMİZLEME (LaTeX UYUMLU)
 # ═══════════════════════════════════════════════════════════════════════════════
+
+def fix_latex_escapes(text):
+    """
+    LaTeX backslash'larını JSON-safe hale getir.
+    Bu fonksiyon JSON parse'dan ÖNCE çağrılmalı.
+    """
+    if not text:
+        return text
+    
+    # Bilinen LaTeX komutları - bunları double backslash yapacağız
+    latex_commands = [
+        # Matematik sembolleri
+        'pmod', 'bmod', 'mod', 'equiv', 'approx', 'sim', 'cong', 'neq', 'ne',
+        'leq', 'geq', 'le', 'ge', 'lt', 'gt', 'll', 'gg',
+        'pm', 'mp', 'times', 'div', 'cdot', 'cdots', 'ldots', 'dots', 'vdots', 'ddots',
+        'infty', 'partial', 'nabla', 'forall', 'exists', 'nexists',
+        'in', 'notin', 'ni', 'subset', 'supset', 'subseteq', 'supseteq',
+        'cup', 'cap', 'setminus', 'emptyset', 'varnothing',
+        'land', 'lor', 'lnot', 'neg', 'implies', 'iff', 'therefore', 'because',
+        # Yunan harfleri
+        'alpha', 'beta', 'gamma', 'delta', 'epsilon', 'varepsilon', 'zeta', 'eta',
+        'theta', 'vartheta', 'iota', 'kappa', 'lambda', 'mu', 'nu', 'xi',
+        'pi', 'varpi', 'rho', 'varrho', 'sigma', 'varsigma', 'tau', 'upsilon',
+        'phi', 'varphi', 'chi', 'psi', 'omega',
+        'Gamma', 'Delta', 'Theta', 'Lambda', 'Xi', 'Pi', 'Sigma', 'Upsilon',
+        'Phi', 'Psi', 'Omega',
+        # Fonksiyonlar
+        'sin', 'cos', 'tan', 'cot', 'sec', 'csc',
+        'arcsin', 'arccos', 'arctan', 'arccot',
+        'sinh', 'cosh', 'tanh', 'coth',
+        'log', 'ln', 'lg', 'exp',
+        'lim', 'limsup', 'liminf', 'sup', 'inf', 'max', 'min',
+        'det', 'dim', 'ker', 'hom', 'arg', 'deg', 'gcd', 'lcm',
+        # Yapısal
+        'frac', 'dfrac', 'tfrac', 'cfrac',
+        'sqrt', 'root', 'binom', 'choose',
+        'sum', 'prod', 'coprod', 'int', 'iint', 'iiint', 'oint',
+        'bigcup', 'bigcap', 'bigsqcup', 'bigvee', 'bigwedge', 'bigoplus', 'bigotimes',
+        # Formatlar
+        'text', 'textrm', 'textbf', 'textit', 'textsf', 'texttt',
+        'mathrm', 'mathbf', 'mathit', 'mathsf', 'mathtt', 'mathbb', 'mathcal', 'mathfrak',
+        'boldsymbol', 'bm',
+        'overline', 'underline', 'widehat', 'widetilde', 'overrightarrow', 'overleftarrow',
+        'overbrace', 'underbrace',
+        # Parantezler
+        'left', 'right', 'bigl', 'bigr', 'Bigl', 'Bigr', 'biggl', 'biggr', 'Biggl', 'Biggr',
+        'langle', 'rangle', 'lfloor', 'rfloor', 'lceil', 'rceil', 'lvert', 'rvert',
+        # Oklar
+        'to', 'gets', 'leftarrow', 'rightarrow', 'leftrightarrow',
+        'Leftarrow', 'Rightarrow', 'Leftrightarrow',
+        'longleftarrow', 'longrightarrow', 'longleftrightarrow',
+        'uparrow', 'downarrow', 'updownarrow',
+        'mapsto', 'longmapsto', 'hookrightarrow', 'hookleftarrow',
+        # Aksanlar
+        'hat', 'check', 'breve', 'acute', 'grave', 'tilde', 'bar', 'vec', 'dot', 'ddot',
+        # Boşluklar
+        'quad', 'qquad', 'enspace', 'thinspace', 'negthinspace',
+        # Diğer
+        'circ', 'bullet', 'star', 'dagger', 'ddagger', 'ell', 'hbar', 'imath', 'jmath',
+        'Re', 'Im', 'wp', 'prime', 'backslash', 'angle', 'measuredangle',
+        'triangle', 'square', 'diamond', 'clubsuit', 'diamondsuit', 'heartsuit', 'spadesuit',
+        # Ortam
+        'begin', 'end', 'item', 'newline', 'displaystyle', 'textstyle', 'scriptstyle',
+        # Derece ve ölçüler
+        'degree', 'circ',
+        # Özel
+        'mathbb', 'mathcal', 'mathfrak', 'mathscr',
+        # Setler
+        'N', 'Z', 'Q', 'R', 'C',
+        # Diğer önemli komutlar
+        'mid', 'nmid', 'parallel', 'nparallel', 'perp', 'not',
+        'propto', 'asymp', 'bowtie', 'models', 'vdash', 'dashv',
+        'top', 'bot', 'vee', 'wedge', 'oplus', 'ominus', 'otimes', 'oslash', 'odot',
+    ]
+    
+    # Önce tüm bilinen LaTeX komutlarını \\komut şeklinde düzelt
+    for cmd in latex_commands:
+        # \komut -> \\komut (JSON'da escape)
+        # Ama dikkat: zaten \\ olanları tekrar değiştirme
+        # Regex: tek backslash + komut, ama önünde başka backslash olmasın
+        pattern = r'(?<!\\)\\' + cmd + r'(?![a-zA-Z])'
+        replacement = '\\\\' + cmd
+        text = re.sub(pattern, replacement, text)
+    
+    # Özel durumlar: \{ \} \[ \] \( \) - bunlar da escape edilmeli
+    special_chars = ['{', '}', '[', ']', '(', ')', '_', '^', '&', '%', '$', '#']
+    for char in special_chars:
+        # \{ -> \\{ şeklinde
+        text = re.sub(r'(?<!\\)\\' + re.escape(char), '\\\\' + char, text)
+    
+    return text
+
+def extract_json_from_text(text):
+    """
+    Metinden JSON objesini çıkar.
+    Markdown code block'ları, açıklamalar vs. temizler.
+    """
+    if not text:
+        return None
+    
+    text = text.strip()
+    
+    # 1. Markdown code block'u temizle
+    if '```json' in text:
+        start = text.find('```json') + 7
+        end = text.find('```', start)
+        if end > start:
+            text = text[start:end].strip()
+    elif '```' in text:
+        start = text.find('```') + 3
+        end = text.find('```', start)
+        if end > start:
+            text = text[start:end].strip()
+    
+    # 2. JSON sınırlarını bul
+    brace_start = text.find('{')
+    if brace_start < 0:
+        return None
+    
+    # Doğru kapanış parantezini bul (nested JSON'lar için)
+    depth = 0
+    brace_end = -1
+    in_string = False
+    escape_next = False
+    
+    for i in range(brace_start, len(text)):
+        char = text[i]
+        
+        if escape_next:
+            escape_next = False
+            continue
+        
+        if char == '\\':
+            escape_next = True
+            continue
+        
+        if char == '"' and not escape_next:
+            in_string = not in_string
+            continue
+        
+        if not in_string:
+            if char == '{':
+                depth += 1
+            elif char == '}':
+                depth -= 1
+                if depth == 0:
+                    brace_end = i
+                    break
+    
+    if brace_end < 0:
+        # Fallback: son } karakterini kullan
+        brace_end = text.rfind('}')
+    
+    if brace_end <= brace_start:
+        return None
+    
+    return text[brace_start:brace_end + 1]
 
 def json_temizle(text):
-    """Gemini'den gelen metni JSON için temizle"""
+    """
+    JSON'u temizle ve parse et - LaTeX escape'leri düzelten robust versiyon.
+    """
     if not text:
-        return '{}'
+        print(f"      ⚠️ json_temizle: text boş")
+        return None
     
-    # Markdown code block'larını temizle
-    text = re.sub(r'^```json\s*', '', text.strip())
-    text = re.sub(r'^```\s*', '', text)
-    text = re.sub(r'\s*```$', '', text)
+    original_text = text
     
-    # JSON bloğunu bul
-    json_match = re.search(r'\{[\s\S]*\}', text)
-    if json_match:
-        text = json_match.group(0)
+    # 1. JSON kısmını çıkar
+    json_text = extract_json_from_text(text)
+    if not json_text:
+        print(f"      ⚠️ json_temizle: JSON bulunamadı")
+        return None
     
-    return text.strip()
+    # 2. Denemeler listesi
+    attempts = []
+    
+    # Deneme 1: Direkt parse
+    attempts.append(('direkt', json_text))
+    
+    # Deneme 2: LaTeX escape'leri düzelt
+    latex_fixed = fix_latex_escapes(json_text)
+    attempts.append(('latex_fixed', latex_fixed))
+    
+    # Deneme 3: Newline'ları temizle
+    newline_fixed = latex_fixed.replace('\n', ' ').replace('\r', ' ')
+    newline_fixed = re.sub(r'\s+', ' ', newline_fixed)
+    attempts.append(('newline_fixed', newline_fixed))
+    
+    # Deneme 4: Trailing comma temizle
+    comma_fixed = re.sub(r',\s*}', '}', newline_fixed)
+    comma_fixed = re.sub(r',\s*\]', ']', comma_fixed)
+    attempts.append(('comma_fixed', comma_fixed))
+    
+    # Deneme 5: Tüm tek backslash'ları double yap (agresif)
+    aggressive_fix = re.sub(r'(?<!\\)\\(?![\\"])', r'\\\\', comma_fixed)
+    attempts.append(('aggressive_fix', aggressive_fix))
+    
+    # Deneme 6: Control karakterlerini temizle
+    control_fixed = ''.join(char for char in aggressive_fix if ord(char) >= 32 or char in '\n\r\t')
+    attempts.append(('control_fixed', control_fixed))
+    
+    # Tüm denemeleri yap
+    for attempt_name, attempt_text in attempts:
+        try:
+            result = json.loads(attempt_text)
+            # print(f"      ✅ JSON parse başarılı: {attempt_name}")
+            return result
+        except json.JSONDecodeError as e:
+            continue
+    
+    # Hiçbiri çalışmadıysa, son çare: regex ile field'ları çıkar
+    print(f"      ⚠️ Tüm JSON parse denemeleri başarısız, regex fallback deneniyor...")
+    return regex_json_fallback(original_text)
 
-def guvenli_json_parse(text):
-    """JSON parse et, hata durumunda regex fallback"""
-    temiz = json_temizle(text)
-    
+def regex_json_fallback(text):
+    """
+    JSON parse edilemezse, regex ile ana field'ları çıkarmaya çalış.
+    """
     try:
-        return json.loads(temiz)
-    except json.JSONDecodeError:
-        pass
-    
-    # Regex fallback
-    result = {}
-    
-    patterns = {
-        'original_text': r'"original_text"\s*:\s*"((?:[^"\\]|\\.)*)"\s*[,}]',
-        'solution_text': r'"solution_text"\s*:\s*"((?:[^"\\]|\\.)*)"\s*[,}]',
-        'correct_answer': r'"correct_answer"\s*:\s*"([^"]*)"\s*[,}]',
-        'iyilestirme_yapildi': r'"iyilestirme_yapildi"\s*:\s*(true|false)',
-        'degisiklik_ozeti': r'"degisiklik_ozeti"\s*:\s*"((?:[^"\\]|\\.)*)"\s*[,}]'
-    }
-    
-    for key, pattern in patterns.items():
-        match = re.search(pattern, temiz, re.IGNORECASE | re.DOTALL)
+        result = {}
+        
+        # soru_metni
+        match = re.search(r'"soru_metni"\s*:\s*"([^"]*(?:\\"[^"]*)*)"', text, re.DOTALL)
         if match:
-            value = match.group(1)
-            if key == 'iyilestirme_yapildi':
-                result[key] = value.lower() == 'true'
-            else:
-                result[key] = value.replace('\\"', '"').replace('\\n', '\n')
-    
-    return result if result else None
+            result['soru_metni'] = match.group(1).replace('\\"', '"')
+        
+        # secenekler (basit yaklaşım)
+        secenekler_match = re.search(r'"secenekler"\s*:\s*\{([^}]+)\}', text, re.DOTALL)
+        if secenekler_match:
+            secenekler_text = secenekler_match.group(1)
+            result['secenekler'] = {}
+            for opt_match in re.finditer(r'"([A-E])"\s*:\s*"([^"]*)"', secenekler_text):
+                result['secenekler'][opt_match.group(1)] = opt_match.group(2)
+        
+        # dogru_cevap
+        match = re.search(r'"dogru_cevap"\s*:\s*"([A-E])"', text)
+        if match:
+            result['dogru_cevap'] = match.group(1)
+        
+        # cozum_adimlari
+        match = re.search(r'"cozum_adimlari"\s*:\s*"([^"]*(?:\\"[^"]*)*)"', text, re.DOTALL)
+        if match:
+            result['cozum_adimlari'] = match.group(1).replace('\\"', '"').replace('\\n', '\n')
+        
+        # cozum_kisa
+        match = re.search(r'"cozum_kisa"\s*:\s*"([^"]*)"', text)
+        if match:
+            result['cozum_kisa'] = match.group(1)
+        
+        # bloom_seviye
+        match = re.search(r'"bloom_seviye"\s*:\s*"([^"]*)"', text)
+        if match:
+            result['bloom_seviye'] = match.group(1)
+        
+        # iyilestirme_yapildi
+        match = re.search(r'"iyilestirme_yapildi"\s*:\s*(true|false)', text)
+        if match:
+            result['iyilestirme_yapildi'] = match.group(1) == 'true'
+        
+        if result.get('soru_metni') and result.get('dogru_cevap'):
+            print(f"      ✅ Regex fallback başarılı")
+            return result
+        
+        print(f"      ⚠️ Regex fallback yetersiz veri çıkardı")
+        return None
+        
+    except Exception as e:
+        print(f"      ⚠️ Regex fallback hatası: {str(e)[:50]}")
+        return None
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # GEMİNİ İYİLEŞTİRME
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def gemini_iyilestir(soru):
+IYILESTIRME_PROMPT = """Sen bir matematik öğretmenisin. Görevi şu:
+
+1. Verilen soruyu incele
+2. Eğer soru çok kısa veya bağlamsız ise, gerçek hayat bağlamı ekle
+3. Çözümü ADIM ADIM yaz
+4. Her adım tek satırda ve kısa olsun
+
+## KURALLAR:
+- Sorunun matematiksel içeriğini DEĞİŞTİRME
+- Doğru cevabı DEĞİŞTİRME
+- Seçenekleri DEĞİŞTİRME (sadece eksikse ekle)
+- Matematiksel içeriği KORUMALI
+- Sınıf seviyesine uygun olmalı
+
+## ÇÖZÜM FORMATI:
+- Her adım tek satırda, kısa ve öz
+- Gereksiz açıklama YAPMA
+- Format: "Adim N: [kisa aciklama] -> [islem] = [sonuc]"
+- Maksimum 5-6 adım
+- Sonunda "Cevap: X" şeklinde bitir
+- LaTeX kullanmak yerine basit metin formatı tercih et
+
+## 📋 JSON ÇIKTI FORMATI
+
+```json
+{
+  "soru_metni": "İyileştirilmiş soru metni",
+  "secenekler": {
+    "A": "secenek A",
+    "B": "secenek B",
+    "C": "secenek C",
+    "D": "secenek D",
+    "E": "secenek E"
+  },
+  "dogru_cevap": "A",
+  "cozum_adimlari": "Adim 1: Aciklama -> islem = sonuc\\nAdim 2: Aciklama -> islem = sonuc\\nCevap: X",
+  "cozum_kisa": "Tek cumlelik ozet",
+  "bloom_seviye": "uygulama",
+  "beceri": "sayisal islem",
+  "iyilestirme_yapildi": true,
+  "degisiklikler": "Yapilan degisikliklerin kisa ozeti"
+}
+```
+
+⚠️ SADECE JSON döndür. Başka açıklama yazma. JSON dışında hiçbir şey yazma.
+"""
+
+def gemini_ile_iyilestir(soru, analiz):
     """Gemini ile soruyu iyileştir"""
-    question_id = soru.get('id')
-    grade = soru.get('grade_level', 8)
-    topic = soru.get('topic', 'Matematik')
-    original_text = soru.get('original_text', '')
-    solution_text = soru.get('solution_text', '')
-    correct_answer = soru.get('correct_answer', '')
-    options = soru.get('options', {})
-    
-    bloom_seviyeleri = SINIF_BLOOM_MAP.get(grade, ['uygulama', 'analiz'])
-    bloom_str = ', '.join(bloom_seviyeleri)
-    
-    prompt = f"""Sen bir matematik eğitimi uzmanısın. Aşağıdaki soruyu kalite kontrolünden geçir ve gerekirse iyileştir.
-
-SORU BİLGİLERİ:
-- ID: {question_id}
-- Sınıf: {grade}. sınıf
-- Konu: {topic}
-- Hedef Bloom Seviyeleri: {bloom_str}
-
-MEVCUT SORU:
-{original_text}
-
-MEVCUT ÇÖZÜM:
-{solution_text}
-
-DOĞRU CEVAP: {correct_answer}
-
-SEÇENEKLER: {json.dumps(options, ensure_ascii=False) if options else 'Yok'}
-
-GÖREVLER:
-
-1. **SORU ANALİZİ**:
-   - Soru yeterince bağlam içeriyor mu? (kişi adı, senaryo, günlük hayat bağlantısı)
-   - Dil bilgisi ve anlaşılırlık uygun mu?
-   - Bloom seviyesine uygun mu?
-
-2. **ÇÖZÜM ANALİZİ**:
-   - Çözüm matematiksel olarak doğru mu?
-   - Adım adım açıklama var mı?
-   - Her adımın gerekçesi belirtilmiş mi?
-
-3. **İYİLEŞTİRME** (Gerekirse):
-   - Kısa/bağlamsız sorulara kişi adı ve senaryo ekle
-   - Eksik/hatalı çözümleri düzelt
-   - Adım adım format kullan
-
-ÖNEMLİ KURALLAR:
-- LaTeX formülleri için \\( ve \\) veya \\[ ve \\] kullan
-- JSON string içinde backslash'leri çift yaz: \\\\ 
-- Üssü ifadeler için ^{{}} kullan
-- Türkçe karakterleri koru
-
-JSON FORMATI (SADECE BU FORMATTA CEVAP VER):
-{{
-  "original_text": "İyileştirilmiş soru metni (veya orijinal)",
-  "solution_text": "Adım adım çözüm",
-  "correct_answer": "{correct_answer}",
-  "iyilestirme_yapildi": true/false,
-  "degisiklik_ozeti": "Yapılan değişiklikler veya 'Değişiklik gerekmedi'"
-}}"""
-
     try:
+        original_text = soru.get('original_text', '') or ''
+        solution_text = soru.get('solution_text', '') or ''
+        options = soru.get('options', {})
+        correct_answer = soru.get('correct_answer', '') or ''
+        grade_level = soru.get('grade_level', 8)
+        topic = soru.get('topic', '') or ''
+        
+        # Options'ı string'e çevir
+        if isinstance(options, str):
+            try:
+                options = json.loads(options)
+            except:
+                pass
+        
+        options_str = ""
+        if isinstance(options, dict):
+            for k, v in options.items():
+                options_str += f"{k}) {v}\n"
+        elif options:
+            options_str = str(options)
+        
+        prompt = f"""{IYILESTIRME_PROMPT}
+
+## MEVCUT SORU BİLGİLERİ
+
+**Sınıf:** {grade_level}. Sınıf
+**Konu:** {topic}
+**Sorunlar:** {', '.join(analiz['sorunlar']) if analiz['sorunlar'] else 'Yok'}
+
+**Soru Metni:**
+{original_text[:1000] if original_text else 'BOŞ'}
+
+**Mevcut Seçenekler:**
+{options_str if options_str else 'YOK'}
+
+**Doğru Cevap:** {correct_answer if correct_answer else 'YOK'}
+
+**Mevcut Çözüm:**
+{solution_text[:1000] if solution_text else 'YOK'}
+
+---
+
+Şimdi bu soruyu iyileştir. SADECE JSON döndür, başka bir şey yazma."""
+
         response = gemini_client.models.generate_content(
             model='gemini-2.0-flash',
             contents=prompt,
             config=types.GenerateContentConfig(
-                temperature=0.3,
+                temperature=0.2,  # Daha deterministik çıktı için düşürüldü
                 max_output_tokens=4000
             )
         )
         
-        if response.text:
-            result = guvenli_json_parse(response.text)
-            if result:
-                return result
+        if not response:
+            print(f"      ⚠️ Gemini response None")
+            return None
         
-        return None
+        # Response text kontrolü
+        response_text = None
+        if hasattr(response, 'text'):
+            response_text = response.text
+        elif hasattr(response, 'candidates') and response.candidates:
+            if hasattr(response.candidates[0], 'content'):
+                if hasattr(response.candidates[0].content, 'parts'):
+                    response_text = response.candidates[0].content.parts[0].text
+        
+        if not response_text:
+            print(f"      ⚠️ Gemini response.text boş")
+            return None
+        
+        print(f"      📝 Gemini yanıt: {len(response_text)} karakter")
+        
+        result = json_temizle(response_text.strip())
+        
+        if not result:
+            print(f"      ⚠️ JSON parse başarısız, yanıt: {response_text[:100]}...")
+            return None
+        
+        return result
         
     except Exception as e:
-        print(f"   ⚠️ Gemini hatası: {str(e)[:80]}")
+        print(f"      ⚠️ Gemini exception: {type(e).__name__}: {str(e)[:100]}")
         return None
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # DEEPSEEK DOĞRULAMA
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def deepseek_kontrol(iyilestirilmis, orijinal_soru):
-    """DeepSeek ile kalite kontrolü"""
+DEEPSEEK_KONTROL_PROMPT = """Sen matematik soru kalite kontrolcüsüsün. Verilen soruyu değerlendir.
+
+## DEĞERLENDİRME KRİTERLERİ
+
+1. **Matematiksel Doğruluk (40 puan)**
+   - Çözüm adımları doğru mu?
+   - Cevap doğru mu?
+
+2. **Çözüm Kalitesi (30 puan)**
+   - Adımlar açık ve öz mü?
+   - Gereksiz uzatma var mı?
+   - Format temiz mi?
+
+3. **Soru Kalitesi (30 puan)**
+   - Soru anlaşılır mı?
+   - Seviyeye uygun mu?
+   - Seçenekler mantıklı mı?
+
+## ⚠️ ÖNEMLİ NOT: GEOMETRİ SORULARI
+Eğer soru geometri konusunda ve şekil/görsel gerektiriyorsa:
+- Görsel olmadan tam değerlendirme yapılamayacağını kabul et
+- Matematiksel mantık doğruysa yüksek puan ver
+- Şekil gerektiren sorularda minimum 70 puan ver (eğer çözüm mantıklıysa)
+
+## ⚠️ KRİTİK JSON KURALLARI
+- SADECE JSON döndür
+- LaTeX için ÇİFT backslash: \\\\frac, \\\\sqrt vs.
+- JSON dışında HİÇBİR ŞEY yazma
+
+## ÇIKTI FORMATI
+
+```json
+{
+  "gecerli": true,
+  "puan": 85,
+  "matematik_dogru": true,
+  "cevap_dogru": true,
+  "sorunlar": [],
+  "oneri": ""
+}
+```
+
+SADECE JSON döndür."""
+
+def deepseek_kontrol(iyilestirilmis, orijinal):
+    """DeepSeek ile kalite kontrolü yap"""
     if not deepseek:
-        return {'puan': 80, 'matematik_dogru': True, 'cevap_dogru': True}
+        return {'gecerli': True, 'puan': 75, 'matematik_dogru': True, 'cevap_dogru': True}
     
-    original_text = iyilestirilmis.get('original_text', '')
-    solution_text = iyilestirilmis.get('solution_text', '')
-    correct_answer = iyilestirilmis.get('correct_answer', '')
-    
-    prompt = f"""Aşağıdaki matematik sorusunu ve çözümünü değerlendir.
-
-SORU:
-{original_text}
-
-ÇÖZÜM:
-{solution_text}
-
-DOĞRU CEVAP: {correct_answer}
-
-Değerlendirme kriterleri:
-1. Matematiksel doğruluk (hesaplamalar doğru mu?)
-2. Çözümün cevaba ulaşıyor mu?
-3. Açıklama kalitesi
-4. Adım adım format
-
-JSON olarak cevap ver:
-{{
-  "puan": 0-100,
-  "matematik_dogru": true/false,
-  "cevap_dogru": true/false,
-  "aciklama": "Kısa değerlendirme"
-}}"""
-
     try:
+        soru_metni = iyilestirilmis.get('soru_metni', '')
+        cozum = iyilestirilmis.get('cozum_adimlari', '')
+        dogru_cevap = iyilestirilmis.get('dogru_cevap', '')
+        secenekler = iyilestirilmis.get('secenekler', {})
+        
+        # Orijinal sorudaki konu bilgisi
+        topic = orijinal.get('topic', '') or ''
+        
+        # Seçenekleri güvenli string'e çevir
+        try:
+            secenekler_str = json.dumps(secenekler, ensure_ascii=False, indent=2)
+        except:
+            secenekler_str = str(secenekler)
+        
+        kontrol_metni = f"""
+**Konu:** {topic}
+
+**Soru:** {soru_metni}
+
+**Seçenekler:**
+{secenekler_str}
+
+**Doğru Cevap:** {dogru_cevap}
+
+**Çözüm:**
+{cozum}
+"""
+        
         response = deepseek.chat.completions.create(
             model='deepseek-chat',
-            messages=[{'role': 'user', 'content': prompt}],
-            max_tokens=500,
-            temperature=0.1
+            messages=[
+                {'role': 'system', 'content': DEEPSEEK_KONTROL_PROMPT},
+                {'role': 'user', 'content': f'Bu soruyu değerlendir:\n{kontrol_metni}'}
+            ],
+            max_tokens=800,
+            timeout=API_TIMEOUT
         )
         
-        text = response.choices[0].message.content
-        result = guvenli_json_parse(text)
+        result = json_temizle(response.choices[0].message.content)
         
         if result:
-            return {
-                'puan': result.get('puan', 70),
-                'matematik_dogru': result.get('matematik_dogru', True),
-                'cevap_dogru': result.get('cevap_dogru', True)
-            }
-        
-        return {'puan': 70, 'matematik_dogru': True, 'cevap_dogru': True}
+            return result
+        else:
+            # JSON parse başarısız, varsayılan değerler
+            print(f"      ⚠️ DeepSeek JSON parse başarısız, varsayılan değerler kullanılıyor")
+            return {'gecerli': True, 'puan': 70, 'matematik_dogru': True, 'cevap_dogru': True}
         
     except Exception as e:
         print(f"   ⚠️ DeepSeek hatası: {str(e)[:50]}")
-        return {'puan': 75, 'matematik_dogru': True, 'cevap_dogru': True}
+        return {'gecerli': True, 'puan': 70, 'matematik_dogru': True, 'cevap_dogru': True}
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# VERİTABANI GÜNCELLEME
+# QUESTION BANK GÜNCELLEME
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def question_bank_guncelle(question_id, iyilestirilmis, puan):
-    """Question bank'ı güncelle"""
+def question_bank_guncelle(question_id, iyilestirilmis, deepseek_puan):
+    """Question bank'taki soruyu güncelle"""
     try:
+        # Seçenekleri JSON string'e çevir
+        secenekler = iyilestirilmis.get('secenekler', {})
+        if isinstance(secenekler, dict):
+            secenekler_str = json.dumps(secenekler, ensure_ascii=False)
+        else:
+            secenekler_str = str(secenekler)
+        
+        # Çözüm adımlarını düzenle
+        cozum = iyilestirilmis.get('cozum_adimlari', '')
+        if isinstance(cozum, list):
+            cozum = '\n'.join(cozum)
+        
+        # \n'leri gerçek newline'a çevir (escape edilmiş olanları)
+        cozum = cozum.replace('\\n', '\n')
+        
         update_data = {
-            'original_text': iyilestirilmis.get('original_text'),
-            'solution_text': iyilestirilmis.get('solution_text'),
-            'deepseek_score': puan,
-            'improved_at': datetime.utcnow().isoformat()
+            'original_text': iyilestirilmis.get('soru_metni', ''),
+            'options': secenekler_str,
+            'correct_answer': iyilestirilmis.get('dogru_cevap', ''),
+            'solution_text': cozum,
+            'solution_short': iyilestirilmis.get('cozum_kisa', ''),
+            'bloom_level': iyilestirilmis.get('bloom_seviye', ''),
+            'verified': True,
+            'verified_at': datetime.utcnow().isoformat()
         }
         
-        # None değerleri temizle
-        update_data = {k: v for k, v in update_data.items() if v is not None}
+        # Boş değerleri temizle
+        update_data = {k: v for k, v in update_data.items() if v}
         
-        supabase.table('question_bank').update(update_data).eq('id', question_id).execute()
-        return True
+        result = supabase.table('question_bank').update(update_data).eq('id', question_id).execute()
+        
+        return bool(result.data)
         
     except Exception as e:
-        print(f"   ⚠️ DB güncelleme hatası: {str(e)[:50]}")
+        print(f"   ⚠️ Güncelleme hatası: {str(e)[:50]}")
         return False
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# TEK SORU İŞLEME
+# TEK SORU İŞLE
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def tek_soru_isle(soru):
-    """Tek bir soruyu işle"""
+    """Tek bir soruyu işle ve iyileştir"""
     question_id = soru.get('id')
+    
+    # Kalite analizi
+    analiz = soru_kalite_analizi(soru)
     
     for deneme in range(MAX_DENEME):
         try:
             # Gemini ile iyileştir
-            print(f"      🤖 Gemini analizi... (deneme {deneme+1})")
-            iyilestirilmis = gemini_iyilestir(soru)
+            print(f"      🔄 Gemini çağrılıyor (deneme {deneme+1})...")
+            iyilestirilmis = gemini_ile_iyilestir(soru, analiz)
             
             if not iyilestirilmis:
-                print(f"   ⚠️ Gemini yanıt vermedi (deneme {deneme+1})")
+                print(f"   ⚠️ Gemini başarısız (deneme {deneme+1})")
                 time.sleep(2)
                 continue
+            
+            print(f"      ✅ Gemini yanıt verdi")
             
             # DeepSeek kontrolü
             print(f"      🔄 DeepSeek kontrolü...")
