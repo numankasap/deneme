@@ -1,4 +1,4 @@
-name: Question Bank Iyilestirici Bot
+name: Question Bank Iyilestirici Bot V4
 
 on:
   schedule:
@@ -16,13 +16,13 @@ on:
         required: false
         default: '100'
       start_id:
-        description: 'Başlangıç ID'
+        description: 'Başlangıç ID (opsiyonel)'
         required: false
         default: '7255'
       end_id:
-        description: 'Bitiş ID'
+        description: 'Bitiş ID (boş bırakılırsa veritabanındaki max ID kullanılır)'
         required: false
-        default: '12122'
+        default: ''
 
 jobs:
   improve:
@@ -49,5 +49,5 @@ jobs:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           BATCH_SIZE: ${{ github.event.inputs.batch_size || '100' }}
           START_ID: ${{ github.event.inputs.start_id || '7255' }}
-          END_ID: ${{ github.event.inputs.end_id || '12122' }}
+          END_ID: ${{ github.event.inputs.end_id || '' }}
         run: python question_improver_bot.py
