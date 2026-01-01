@@ -1,4 +1,4 @@
-name: Curriculum Bot V5 - Bağlam Temelli Soru Üretici
+name: Curriculum Bot V6 - Görsel Destekli Soru Üretici
 
 on:
   schedule:
@@ -14,11 +14,19 @@ on:
         description: 'Kazanım başına soru sayısı'
         required: false
         default: '1'
+      gorsel_uretim:
+        description: 'Görsel üretimi aktif mi?'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
 
 jobs:
   generate-questions:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 180  # Görsel üretimi daha uzun sürebilir
 
     steps:
       - name: Checkout repository
@@ -35,7 +43,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r curriculum_requirements.txt
 
-      - name: Run Curriculum Bot V5
+      - name: Run Curriculum Bot V6 (Görsel Destekli)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
@@ -43,5 +51,6 @@ jobs:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           SORU_PER_KAZANIM: ${{ github.event.inputs.soru_per_kazanim || '5' }}
           MAX_ISLEM_PER_RUN: ${{ github.event.inputs.kazanim_sayisi || '10' }}
+          GORSEL_URETIM_AKTIF: ${{ github.event.inputs.gorsel_uretim || 'true' }}
         run: |
           python curriculum_pisa_bot.py
