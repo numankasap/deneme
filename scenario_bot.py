@@ -1,30 +1,32 @@
 """
-Senaryo Görsel Botu v3.2
-========================
-YENİ ÖZELLİKLER:
-- Gemini kalite puanlaması (soru + görsel)
-- Kazanım filtresi (geometri dışlanır)
-- Minimum puan kontrolü (7+)
-- Soru metnini DEĞİŞTİRMEZ
+Senaryo Görsel Botu v4.0 - Gemini Image Preview Edition
+========================================================
+Gemini 2.0 Flash Preview Image Generation modeli ile renkli, 3D görseller üretir.
 
-HEDEF KAZANIMLAR:
-✅ Sayılar ve İşlemler (EKOK, EBOB, üslü sayılar)
-✅ Cebir (denklemler, fonksiyonlar → grafik)
-✅ Veri İşleme (istatistik, olasılık → tablo, grafik)
-✅ Problemler (senaryo bazlı)
+ÖZELLİKLER:
+✅ Gemini Image Preview ile görsel üretimi
+✅ Sadece gerekli sorular için görsel üretir
+✅ Geometri kazanımlarına DOKUNMAZ
+✅ Sadece sorudaki VERİLERİ içerir (çözüm YOK!)
+✅ Kalite kontrolü ile gereksiz üretim engellenir
 
-❌ GEOMETRİ DIŞLANIYOR (ayrı bot ile işlenecek)
+HEDEF SORULAR:
+- Problem soruları (senaryo bazlı)
+- Tablo gerektiren sorular
+- Grafik gerektiren sorular (istatistik, fonksiyon)
+- Karşılaştırma soruları (tarifeler, planlar, fiyatlar)
+
+GitHub Actions ile çalışır.
 """
 
 import os
 import json
 import time
 import logging
-import math
 import re
+import base64
 from datetime import datetime
 from typing import Optional, Dict, List, Tuple
-from string import Template
 
 from supabase import create_client, Client
 
@@ -33,1264 +35,552 @@ try:
     from google.genai import types
     NEW_GENAI = True
 except ImportError:
-    import google.generativeai as genai
     NEW_GENAI = False
-
-from playwright.sync_api import sync_playwright
+    print("⚠️ google-genai paketi bulunamadı. pip install google-genai yapın.")
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 
+# ============== YAPILANDIRMA ==============
+
 class Config:
     SUPABASE_URL = os.environ.get('SUPABASE_URL')
     SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
     GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
-    GEMINI_MODEL = 'gemini-2.5-pro'
+    
+    # Modeller
+    ANALYSIS_MODEL = 'gemini-2.5-flash'
+    IMAGE_MODEL = 'gemini-3-pro-image-preview'
+    
     STORAGE_BUCKET = 'questions-images'
-    BATCH_SIZE = int(os.environ.get('BATCH_SIZE', '30'))
+    BATCH_SIZE = int(os.environ.get('BATCH_SIZE', '20'))
     TEST_MODE = os.environ.get('TEST_MODE', 'false').lower() == 'true'
-    TEST_BATCH_SIZE = 5
-    IMAGE_WIDTH = 900
+    TEST_BATCH_SIZE = 3
+    
+    MAX_RETRIES = 3
+    RETRY_DELAY = 5
+    RATE_LIMIT_DELAY = 3
     MIN_PNG_SIZE = 5000
-    MIN_QUALITY_SCORE = 7  # Minimum kalite puanı
+    MIN_QUALITY_SCORE = 7
 
 
-COLORS = {
-    'blue': {'primary': '#3b82f6', 'light': '#dbeafe', 'dark': '#1e40af'},
-    'pink': {'primary': '#ec4899', 'light': '#fce7f3', 'dark': '#9d174d'},
-    'green': {'primary': '#22c55e', 'light': '#dcfce7', 'dark': '#166534'},
-    'orange': {'primary': '#f59e0b', 'light': '#fef3c7', 'dark': '#92400e'},
-    'purple': {'primary': '#8b5cf6', 'light': '#f3e8ff', 'dark': '#6b21a8'},
-    'teal': {'primary': '#14b8a6', 'light': '#ccfbf1', 'dark': '#115e59'},
-    'red': {'primary': '#ef4444', 'light': '#fee2e2', 'dark': '#991b1b'},
-}
+# ============== GÖRSEL PROMPT ŞABLONU ==============
+
+IMAGE_PROMPT_TEMPLATE = """Matematik problemi için eğitim görseli oluştur.
+
+## GÖRSEL TİPİ: {tip}
+
+## DETAYLI BETİMLEME:
+{detay}
+
+## GÖRSELDE GÖRÜNECEK VERİLER (SADECE BUNLAR!):
+{veriler}
+
+## KRİTİK KURALLAR:
+
+### 🎯 İÇERİK KURALLARI (ÇOK ÖNEMLİ!):
+- Görselde SADECE yukarıdaki "veriler" kısmındaki bilgiler olmalı
+- ASLA hesaplama sonucu, toplam, fark, oran gösterme
+- ASLA cevabı veya çözümü ima eden bilgi koyma
+- Sadece ham veriler: fiyatlar, miktarlar, isimler, kategoriler
+
+### 🎨 STİL KURALLARI:
+**Renkler (CANLI VE PROFESYONEL):**
+- Arka plan: Beyaz veya çok açık krem (#FFFEF5)
+- Şekil dolguları için PASTEL TONLAR:
+  * Açık mavi: #E3F2FD
+  * Açık yeşil: #E8F5E9
+  * Açık turuncu: #FFF3E0
+  * Açık mor: #F3E5F5
+  * Açık pembe: #FCE4EC
+- Her farklı öğe için FARKLI renk kullan
+- Çizgiler: Koyu gri (#424242), 2-3px kalınlık
+- Yazılar: Siyah, kalın, okunaklı
+
+**3D ve Modern Görünüm:**
+- Hafif gölgeler ekle (drop shadow)
+- Yuvarlak köşeler kullan
+- Derinlik hissi için gradyan kullan
+- Profesyonel infografik tarzı
+
+**Boyutlandırma:**
+- Görsel alanının %70-80'ini kapla
+- Etiketler için yeterli boşluk bırak
+- Dengeli kompozisyon
+
+### 📊 GÖRSEL TİPLERİNE GÖRE TASARIM:
+
+**KARŞILAŞTIRMA (comparison):**
+- 2-4 renkli kart yan yana
+- Her kartta: Başlık + veriler (fiyat, özellik vb.)
+- Kartlar farklı renklerde
+- "VS" veya karşılaştırma simgesi ortada
+- Modern, temiz tasarım
+
+**TABLO (table):**
+- Başlık satırı renkli (açık mavi)
+- Satırlar alternatif renk (beyaz/açık gri)
+- Her hücrede net yazı
+- Çerçeveli, profesyonel
+
+**GRAFİK (chart):**
+- Çubuk/pasta/çizgi grafik
+- Her veri farklı pastel renk
+- Eksen etiketleri net
+- Lejant (açıklama) ekle
+
+**BİLGİ KARTLARI (info):**
+- Renkli kartlar grid düzeninde
+- Her kartta: icon + etiket + değer
+- Gölgeli, 3D efekt
+- Modern flat design
+
+**SENARYO (scene):**
+- Basit, temiz illüstrasyon
+- Konuyla ilgili objeler (market, okul vb.)
+- Fiyat etiketleri görünür
+- Karikatür/infografik tarzı
+
+### ⚠️ TÜRKÇE YAZIM:
+- "ı" harfini DOĞRU yaz (noktalı "i" DEĞİL)
+- "ğ", "ş", "ü", "ö", "ç" harflerini DOĞRU yaz
+- Kelimeleri TAM yaz, yarıda KESME
+- Kısa etiketler kullan (sayılar, birimler)
+
+### ❌ MUTLAK YASAKLAR:
+❌ Soru metni veya uzun cümleler
+❌ Hesaplama sonuçları (toplam, fark, oran)
+❌ A), B), C), D) şıkları
+❌ Çözüm adımları
+❌ Cevabı veren bilgi
+❌ Sıkıcı gri tonlar
+❌ Tek renk kullanımı
+❌ Bulanık veya karmaşık tasarım"""
 
 
 # ============== KAZANIM FİLTRESİ ==============
 
 class LearningOutcomeFilter:
-    """Kazanım filtresi - Geometri dışla, matematik/istatistik/problem al"""
+    """Geometri ve Fizik sorularını dışla"""
     
-    # GEOMETRİ KAZANIMLARI - DIŞLA
-    GEOMETRY_PATTERNS = [
-        r'M\.\d\.3\.',     # x.3. genelde geometri
-        r'M\.[5-8]\.3\.',  # 5-8. sınıf geometri
-        r'geometri',
-        r'üçgen', r'dörtgen', r'çokgen',
-        r'açı', r'kenar', r'köşegen',
-        r'çember', r'daire',  # Bunlar geometri
+    EXCLUDED_PATTERNS = [
+        # Geometri
+        r'M\.[5-8]\.3\.',
+        r'geometri', r'üçgen', r'dörtgen', r'çokgen',
+        r'açı(?!k)',
+        r'kenar', r'köşegen',
+        r'çember', r'daire',
         r'prizma', r'piramit', r'silindir', r'koni', r'küre',
-        r'alan', r'çevre',  # Geometrik alan/çevre
+        r'\balan\b', r'çevre',
         r'pythagoras', r'pisagor',
         r'benzerlik', r'eşlik',
-        r'dönüşüm', r'öteleme', r'yansıma',
-    ]
-    
-    # İZİN VERİLEN KONULAR
-    ALLOWED_PATTERNS = [
-        r'ekok', r'ebob', r'obeb', r'okek',
-        r'üslü', r'köklü', r'faktöriyel',
-        r'oran', r'orantı', r'yüzde',
-        r'kar', r'zarar', r'faiz',
-        r'fonksiyon', r'grafik',
-        r'denklem', r'eşitsizlik',
-        r'istatistik', r'veri', r'ortalama', r'medyan', r'mod',
-        r'olasılık', r'permütasyon', r'kombinasyon',
-        r'tablo', r'karşılaştır',
-        r'problem', r'senaryo',
-        r'hız', r'zaman', r'yol',
-        r'işçi', r'havuz', r'musluk',
-        r'yaş', r'para', r'fiyat',
+        r'öteleme', r'yansıma', r'dönüşüm',
+        # Fizik
+        r'sarkaç', r'salınım', r'periyot',
+        r'yerçekimi', r'ivme',
+        r'kuvvet', r'newton',
     ]
     
     @classmethod
     def should_process(cls, question: Dict) -> Tuple[bool, str]:
-        """Soru işlenmeli mi?"""
-        text = (question.get('original_text', '') + ' ' + 
-                question.get('scenario_text', '') + ' ' +
-                question.get('learning_outcome', '') + ' ' +
-                question.get('tags', '')).lower()
+        text = ' '.join([
+            question.get('original_text', ''),
+            question.get('scenario_text', ''),
+            question.get('learning_outcome', ''),
+            question.get('tags', '')
+        ]).lower()
         
-        # Geometri kontrolü
-        for pattern in cls.GEOMETRY_PATTERNS:
+        for pattern in cls.EXCLUDED_PATTERNS:
             if re.search(pattern, text, re.IGNORECASE):
-                return False, f"Geometri içeriği tespit edildi: {pattern}"
+                return False, f"Dışlanan içerik: {pattern}"
         
-        # İzin verilen konu kontrolü (opsiyonel - şimdilik her şeyi al)
-        has_allowed = False
-        for pattern in cls.ALLOWED_PATTERNS:
-            if re.search(pattern, text, re.IGNORECASE):
-                has_allowed = True
-                break
-        
-        # Senaryo varsa ve geometri değilse işle
-        if question.get('scenario_text'):
-            return True, "Senaryo sorusu"
-        
-        # İzin verilen konu varsa işle
-        if has_allowed:
-            return True, "İzin verilen konu"
-        
-        return True, "Genel soru"  # Varsayılan olarak işle, Gemini karar verir
+        return True, "OK"
 
 
-# ============== GEOMETRİ RENDERER ==============
+# ============== GEMİNİ API ==============
 
-class GeometryRenderer:
-    """SVG geometrik şekiller - sadece tablo/grafik için basit şekiller"""
-    
-    @staticmethod
-    def rectangle(label: str, dims: dict, color: dict, size: int = 180) -> str:
-        """Dikdörtgen (tablo hücresi gibi)"""
-        en = dims.get('en', dims.get('genislik', '?'))
-        boy = dims.get('boy', dims.get('yukseklik', '?'))
-        cx, cy = size // 2, size // 2
-        rw, rh = size * 2 // 5, size * 3 // 5
-        
-        return f'''
-        <div class="geo-card">
-            <svg width="{size}" height="{size}" viewBox="0 0 {size} {size}">
-                <rect x="{cx-rw//2}" y="{cy-rh//2}" width="{rw}" height="{rh}" 
-                      fill="{color['light']}" stroke="{color['primary']}" stroke-width="3" rx="4"/>
-                <text x="{cx}" y="{cy-rh//2-12}" fill="#334155" font-size="11" font-weight="700" text-anchor="middle">{en}</text>
-                <text x="{cx+rw//2+12}" y="{cy}" fill="#334155" font-size="11" font-weight="700">{boy}</text>
-            </svg>
-            <div class="geo-label" style="color:{color['dark']}">{label}</div>
-        </div>'''
-    
-    @staticmethod
-    def venn_diagram(label: str, sets: dict, color: dict, size: int = 220) -> str:
-        """Venn diyagramı (EKOK/EBOB için)"""
-        cx, cy = size // 2, size // 2
-        r = size // 4
-        
-        set_a = sets.get('A', sets.get('a', '?'))
-        set_b = sets.get('B', sets.get('b', '?'))
-        intersection = sets.get('kesisim', sets.get('ortak', '?'))
-        
-        return f'''
-        <div class="geo-card">
-            <svg width="{size}" height="{size}" viewBox="0 0 {size} {size}">
-                <!-- Sol daire (A) -->
-                <circle cx="{cx-r//2}" cy="{cy}" r="{r}" fill="{color['light']}" stroke="{color['primary']}" stroke-width="2" opacity="0.7"/>
-                <!-- Sağ daire (B) -->
-                <circle cx="{cx+r//2}" cy="{cy}" r="{r}" fill="#fce7f3" stroke="#ec4899" stroke-width="2" opacity="0.7"/>
-                
-                <!-- Etiketler -->
-                <text x="{cx-r}" y="{cy}" fill="{color['dark']}" font-size="14" font-weight="700" text-anchor="middle">{set_a}</text>
-                <text x="{cx+r}" y="{cy}" fill="#9d174d" font-size="14" font-weight="700" text-anchor="middle">{set_b}</text>
-                <text x="{cx}" y="{cy}" fill="#334155" font-size="12" font-weight="700" text-anchor="middle">{intersection}</text>
-                
-                <!-- Set isimleri -->
-                <text x="{cx-r}" y="{cy-r-10}" fill="{color['dark']}" font-size="12" font-weight="700" text-anchor="middle">A</text>
-                <text x="{cx+r}" y="{cy-r-10}" fill="#9d174d" font-size="12" font-weight="700" text-anchor="middle">B</text>
-            </svg>
-            <div class="geo-label" style="color:{color['dark']}">{label}</div>
-        </div>'''
-    
-    @staticmethod
-    def number_line(label: str, points: list, color: dict, size: int = 300) -> str:
-        """Sayı doğrusu"""
-        padding = 40
-        line_y = size // 3
-        
-        points_html = ""
-        if points:
-            min_val = min(p.get('value', 0) for p in points)
-            max_val = max(p.get('value', 0) for p in points)
-            range_val = max_val - min_val if max_val != min_val else 1
-            
-            for p in points:
-                val = p.get('value', 0)
-                x = padding + ((val - min_val) / range_val) * (size - 2 * padding)
-                points_html += f'''
-                    <circle cx="{x}" cy="{line_y}" r="6" fill="{color['primary']}"/>
-                    <text x="{x}" y="{line_y + 25}" fill="#334155" font-size="11" font-weight="700" text-anchor="middle">{p.get('label', val)}</text>
-                '''
-        
-        return f'''
-        <div class="geo-card" style="width: {size}px">
-            <svg width="{size}" height="{size//2}" viewBox="0 0 {size} {size//2}">
-                <line x1="{padding}" y1="{line_y}" x2="{size-padding}" y2="{line_y}" stroke="#64748b" stroke-width="2"/>
-                <polygon points="{size-padding},{line_y} {size-padding-10},{line_y-5} {size-padding-10},{line_y+5}" fill="#64748b"/>
-                {points_html}
-            </svg>
-            <div class="geo-label" style="color:{color['dark']}">{label}</div>
-        </div>'''
-
-
-# ============== GRAFİK RENDERER ==============
-
-class ChartRenderer:
-    """Grafik çizimleri"""
-    
-    @staticmethod
-    def bar_chart(data: list, width: int = 400, height: int = 250, title: str = "") -> str:
-        """Çubuk grafik"""
-        if not data:
-            return ""
-        
-        padding = 50
-        chart_w = width - padding * 2
-        chart_h = height - padding * 2
-        max_val = max(d.get('value', 0) for d in data) or 1
-        bar_w = chart_w // (len(data) * 2)
-        
-        bars = ""
-        color_keys = list(COLORS.keys())
-        
-        for i, d in enumerate(data):
-            val = d.get('value', 0)
-            c = COLORS.get(d.get('color', color_keys[i % len(color_keys)]))
-            bar_h = (val / max_val) * chart_h
-            x = padding + i * (bar_w * 2) + bar_w // 2
-            y = padding + chart_h - bar_h
-            
-            bars += f'''
-                <rect x="{x}" y="{y}" width="{bar_w}" height="{bar_h}" fill="{c['primary']}" rx="4"/>
-                <text x="{x + bar_w//2}" y="{y - 8}" fill="{c['dark']}" font-size="12" font-weight="700" text-anchor="middle">{val}</text>
-                <text x="{x + bar_w//2}" y="{padding + chart_h + 18}" fill="#334155" font-size="10" font-weight="600" text-anchor="middle">{d.get('label', '')}</text>
-            '''
-        
-        title_html = f'<text x="{width//2}" y="20" fill="#1e293b" font-size="14" font-weight="700" text-anchor="middle">{title}</text>' if title else ''
-        
-        return f'''
-        <div class="chart-box">
-            <svg width="{width}" height="{height}" viewBox="0 0 {width} {height}">
-                {title_html}
-                <line x1="{padding}" y1="{padding}" x2="{padding}" y2="{padding + chart_h}" stroke="#cbd5e1" stroke-width="2"/>
-                <line x1="{padding}" y1="{padding + chart_h}" x2="{padding + chart_w}" y2="{padding + chart_h}" stroke="#cbd5e1" stroke-width="2"/>
-                {bars}
-            </svg>
-        </div>'''
-    
-    @staticmethod
-    def line_chart(data: list, width: int = 400, height: int = 250, title: str = "") -> str:
-        """Çizgi grafik (fonksiyon için)"""
-        if not data or len(data) < 2:
-            return ""
-        
-        padding = 50
-        chart_w = width - padding * 2
-        chart_h = height - padding * 2
-        
-        values = [d.get('value', 0) for d in data]
-        max_val = max(values) if values else 1
-        min_val = min(values) if values else 0
-        val_range = max_val - min_val if max_val != min_val else 1
-        
-        points = []
-        for i, d in enumerate(data):
-            val = d.get('value', 0)
-            x = padding + (i / (len(data) - 1)) * chart_w
-            y = padding + chart_h - ((val - min_val) / val_range) * chart_h
-            points.append((x, y, d))
-        
-        path = f"M {points[0][0]} {points[0][1]}"
-        for x, y, _ in points[1:]:
-            path += f" L {x} {y}"
-        
-        c = COLORS['blue']
-        
-        points_html = ""
-        labels_html = ""
-        for x, y, d in points:
-            points_html += f'<circle cx="{x}" cy="{y}" r="5" fill="{c["primary"]}" stroke="white" stroke-width="2"/>'
-            labels_html += f'<text x="{x}" y="{padding + chart_h + 18}" fill="#334155" font-size="10" font-weight="600" text-anchor="middle">{d.get("label", "")}</text>'
-        
-        title_html = f'<text x="{width//2}" y="20" fill="#1e293b" font-size="14" font-weight="700" text-anchor="middle">{title}</text>' if title else ''
-        
-        return f'''
-        <div class="chart-box">
-            <svg width="{width}" height="{height}" viewBox="0 0 {width} {height}">
-                {title_html}
-                <line x1="{padding}" y1="{padding}" x2="{padding}" y2="{padding + chart_h}" stroke="#cbd5e1" stroke-width="2"/>
-                <line x1="{padding}" y1="{padding + chart_h}" x2="{padding + chart_w}" y2="{padding + chart_h}" stroke="#cbd5e1" stroke-width="2"/>
-                <path d="{path}" fill="none" stroke="{c['primary']}" stroke-width="3"/>
-                {points_html}
-                {labels_html}
-            </svg>
-        </div>'''
-    
-    @staticmethod
-    def pie_chart(data: list, width: int = 300, height: int = 300, title: str = "") -> str:
-        """Pasta grafik"""
-        if not data:
-            return ""
-        
-        cx, cy = width // 2, height // 2
-        r = min(width, height) // 2 - 40
-        total = sum(d.get('value', 0) for d in data) or 1
-        
-        slices = ""
-        legend = ""
-        start_angle = -90
-        color_keys = list(COLORS.keys())
-        
-        for i, d in enumerate(data):
-            val = d.get('value', 0)
-            pct = val / total
-            angle = pct * 360
-            c = COLORS.get(d.get('color', color_keys[i % len(color_keys)]))
-            
-            end_angle = start_angle + angle
-            large = 1 if angle > 180 else 0
-            
-            x1 = cx + r * math.cos(math.radians(start_angle))
-            y1 = cy + r * math.sin(math.radians(start_angle))
-            x2 = cx + r * math.cos(math.radians(end_angle))
-            y2 = cy + r * math.sin(math.radians(end_angle))
-            
-            slices += f'<path d="M {cx} {cy} L {x1} {y1} A {r} {r} 0 {large} 1 {x2} {y2} Z" fill="{c["primary"]}" stroke="white" stroke-width="2"/>'
-            
-            if pct > 0.05:
-                mid = math.radians(start_angle + angle / 2)
-                lx = cx + r * 0.6 * math.cos(mid)
-                ly = cy + r * 0.6 * math.sin(mid)
-                slices += f'<text x="{lx}" y="{ly}" fill="white" font-size="11" font-weight="700" text-anchor="middle">%{int(pct*100)}</text>'
-            
-            legend += f'<div class="legend-item"><span class="legend-dot" style="background:{c["primary"]}"></span><span>{d.get("label", "")} ({val})</span></div>'
-            
-            start_angle = end_angle
-        
-        title_html = f'<text x="{cx}" y="20" fill="#1e293b" font-size="14" font-weight="700" text-anchor="middle">{title}</text>' if title else ''
-        
-        return f'''
-        <div class="chart-box pie-box">
-            <svg width="{width}" height="{height}" viewBox="0 0 {width} {height}">
-                {title_html}
-                {slices}
-            </svg>
-            <div class="legend">{legend}</div>
-        </div>'''
-
-
-# ============== TABLO RENDERER ==============
-
-class TableRenderer:
-    """Tablo oluşturucu"""
-    
-    @staticmethod
-    def render(headers: list, rows: list, title: str = "", highlight_col: int = None) -> str:
-        if not headers or not rows:
-            return ""
-        
-        c = COLORS['blue']
-        h_html = "".join(f'<th class="{"hl" if i == highlight_col else ""}">{h}</th>' for i, h in enumerate(headers))
-        r_html = "".join(f'<tr>{"".join(f"<td class={chr(34)}hl{chr(34)} " if j == highlight_col else "<td" for j in range(len(row)))}{"</td>".join(f">{cell}" for cell in row)}</td></tr>' for row in rows)
-        
-        # Düzeltilmiş satır oluşturma
-        r_html = ""
-        for row in rows:
-            cells = ""
-            for j, cell in enumerate(row):
-                hl = ' class="hl"' if j == highlight_col else ''
-                cells += f'<td{hl}>{cell}</td>'
-            r_html += f'<tr>{cells}</tr>'
-        
-        t_html = f'<div class="table-title">{title}</div>' if title else ''
-        
-        return f'''
-        <div class="table-box">
-            {t_html}
-            <table style="--tc:{c['primary']};--td:{c['dark']};--tl:{c['light']}">
-                <thead><tr>{h_html}</tr></thead>
-                <tbody>{r_html}</tbody>
-            </table>
-        </div>'''
-
-
-# ============== KARŞILAŞTIRMA RENDERER ==============
-
-class ComparisonRenderer:
-    """Karşılaştırma kartları"""
-    
-    @staticmethod
-    def render(items: list) -> str:
-        if not items:
-            return ""
-        
-        cards = ""
-        color_keys = list(COLORS.keys())
-        
-        for i, item in enumerate(items):
-            c = COLORS.get(item.get('color', color_keys[i % len(color_keys)]))
-            
-            props = ""
-            for p in item.get('properties', []):
-                props += f'''
-                    <div class="prop-row">
-                        <span class="prop-label">{p.get('label', '')}</span>
-                        <span class="prop-value" style="color:{c['dark']}">{p.get('value', '')}</span>
-                    </div>'''
-            
-            if not item.get('properties'):
-                props = '<div class="prop-row"><span class="prop-label">Veri yok</span></div>'
-            
-            icon = item.get('icon', chr(65 + i))
-            
-            cards += f'''
-                <div class="cmp-card" style="background:{c['light']};border-color:{c['primary']}">
-                    <div class="card-head">
-                        <span class="card-icon" style="background:{c['primary']}">{icon}</span>
-                        <span class="card-title" style="color:{c['dark']}">{item.get('name', f'Seçenek {i+1}')}</span>
-                    </div>
-                    <div class="card-props">{props}</div>
-                </div>'''
-        
-        return f'<div class="cmp-grid">{cards}<div class="vs-badge">VS</div></div>'
-
-
-# ============== BİLGİ KARTLARI ==============
-
-class InfoCardRenderer:
-    """Bilgi kartları"""
-    
-    @staticmethod
-    def render(items: list, formula: str = None) -> str:
-        if not items:
-            return ""
-        
-        icons = ['📊', '📈', '🎯', '⏱️', '💰', '📏', '🔢', '📐', '🌡️', '⚡', '🏷️', '📦']
-        
-        cards = ""
-        for i, item in enumerate(items):
-            ic = item.get('icon', icons[i % len(icons)])
-            cards += f'''
-                <div class="info-card">
-                    <div class="info-icon">{ic}</div>
-                    <div class="info-label">{item.get('label', '')}</div>
-                    <div class="info-value">{item.get('value', '')}</div>
-                    <div class="info-unit">{item.get('unit', '')}</div>
-                </div>'''
-        
-        formula_html = ""
-        if formula:
-            formula_html = f'''
-                <div class="formula-box">
-                    <div class="formula-label">📐 Formül</div>
-                    <div class="formula-text">{formula}</div>
-                </div>'''
-        
-        return f'<div class="info-grid">{cards}</div>{formula_html}'
-
-
-# ============== HTML ŞABLONU ==============
-
-HTML_TEMPLATE = """<!DOCTYPE html>
-<html lang="tr">
-<head>
-<meta charset="UTF-8">
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Nunito',sans-serif;background:linear-gradient(135deg,#f8fafc,#e2e8f0);min-height:100vh;display:flex;justify-content:center;align-items:center;padding:20px}
-.container{width:${width}px;background:#fff;border-radius:24px;box-shadow:0 20px 60px rgba(0,0,0,0.1);padding:32px;position:relative}
-.header{text-align:center;margin-bottom:24px}
-.header h1{font-size:22px;font-weight:800;color:#1e293b;margin-bottom:6px}
-.header .subtitle{font-size:14px;color:#64748b}
-.content{min-height:180px}
-
-.geo-card{text-align:center;padding:15px;background:#f8fafc;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,0.05);display:inline-block;margin:10px}
-.geo-label{margin-top:8px;font-size:14px;font-weight:700}
-.geo-grid{display:flex;justify-content:center;flex-wrap:wrap;gap:20px;margin:20px 0}
-
-.table-box{margin:20px 0}
-.table-title{font-size:15px;font-weight:700;color:#334155;margin-bottom:12px;text-align:center}
-table{width:100%;border-collapse:collapse;border-radius:12px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.08)}
-th{background:linear-gradient(135deg,var(--tc),var(--td));color:#fff;padding:14px 16px;font-weight:700;font-size:13px}
-td{padding:12px 16px;text-align:center;font-size:13px;font-weight:600;color:#334155;border-bottom:1px solid #e2e8f0;background:#fff}
-tr:nth-child(even) td{background:#f8fafc}
-th.hl,td.hl{background:var(--tl) !important;color:var(--td)}
-
-.cmp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:20px;position:relative;margin:20px 0}
-.cmp-card{border:3px solid;border-radius:18px;padding:20px}
-.card-head{display:flex;align-items:center;gap:12px;margin-bottom:14px}
-.card-icon{width:38px;height:38px;border-radius:10px;display:flex;justify-content:center;align-items:center;color:#fff;font-weight:800;font-size:16px}
-.card-title{font-size:18px;font-weight:800}
-.prop-row{display:flex;justify-content:space-between;padding:10px 14px;background:rgba(255,255,255,0.7);border-radius:10px;margin-bottom:8px}
-.prop-label{font-size:12px;color:#475569;font-weight:600}
-.prop-value{font-size:14px;font-weight:700}
-.vs-badge{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:50px;height:50px;background:linear-gradient(135deg,#f1f5f9,#e2e8f0);border-radius:50%;display:flex;justify-content:center;align-items:center;font-size:14px;font-weight:800;color:#64748b;box-shadow:0 4px 12px rgba(0,0,0,0.1);border:3px solid #fff;z-index:10}
-
-.info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:14px;margin:20px 0}
-.info-card{background:linear-gradient(135deg,#f8fafc,#e2e8f0);border-radius:14px;padding:16px;text-align:center;border:2px solid #e2e8f0}
-.info-icon{font-size:28px;margin-bottom:8px}
-.info-label{font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px}
-.info-value{font-size:20px;font-weight:800;color:#334155;margin-top:4px}
-.info-unit{font-size:11px;color:#94a3b8}
-
-.formula-box{background:linear-gradient(135deg,#dbeafe,#bfdbfe);border:2px solid #3b82f6;border-radius:14px;padding:16px 24px;text-align:center;margin:20px 0}
-.formula-label{font-size:11px;color:#1e40af;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
-.formula-text{font-size:18px;font-weight:700;color:#1e3a8a;font-family:'Courier New',monospace}
-
-.chart-box{background:#fff;border-radius:14px;padding:16px;box-shadow:0 4px 12px rgba(0,0,0,0.05);margin:20px 0;text-align:center}
-.pie-box{display:flex;flex-direction:column;align-items:center}
-.legend{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;margin-top:12px}
-.legend-item{display:flex;align-items:center;gap:6px;font-size:12px;color:#475569}
-.legend-dot{width:12px;height:12px;border-radius:3px}
-</style>
-</head>
-<body>
-<div class="container">
-<div class="header"><h1>${title}</h1><div class="subtitle">${subtitle}</div></div>
-<div class="content">${content}</div>
-</div>
-</body>
-</html>"""
-
-
-# ============== ANA RENDERER ==============
-
-class VisualRenderer:
-    """Ana görsel oluşturucu"""
-    
-    def render(self, analysis: Dict) -> Tuple[Optional[str], str]:
-        vtype = analysis.get('visual_type', 'infographic')
-        
-        try:
-            if vtype == 'comparison':
-                content, desc = self._render_comparison(analysis)
-            elif vtype == 'table':
-                content, desc = self._render_table(analysis)
-            elif vtype == 'bar_chart':
-                content, desc = self._render_bar_chart(analysis)
-            elif vtype == 'line_chart':
-                content, desc = self._render_line_chart(analysis)
-            elif vtype == 'pie_chart':
-                content, desc = self._render_pie_chart(analysis)
-            elif vtype == 'venn':
-                content, desc = self._render_venn(analysis)
-            elif vtype == 'number_line':
-                content, desc = self._render_number_line(analysis)
-            else:
-                content, desc = self._render_infographic(analysis)
-            
-            if not content or len(content.strip()) < 50:
-                logger.error("İçerik çok kısa!")
-                return None, ""
-            
-            html = Template(HTML_TEMPLATE).safe_substitute(
-                width=Config.IMAGE_WIDTH,
-                title=analysis.get('title', 'Problem'),
-                subtitle=analysis.get('subtitle', ''),
-                content=content
-            )
-            return html, desc
-        except Exception as e:
-            logger.error(f"Render hatası: {e}")
-            return None, ""
-    
-    def _render_comparison(self, a: Dict) -> Tuple[str, str]:
-        items = a.get('items', [])
-        if not items:
-            return self._render_infographic(a)
-        content = ComparisonRenderer.render(items)
-        formula = a.get('formula', '')
-        if formula:
-            content += f'<div class="formula-box"><div class="formula-label">📐 Formül</div><div class="formula-text">{formula}</div></div>'
-        return content, f"Karşılaştırma: {len(items)} seçenek"
-    
-    def _render_table(self, a: Dict) -> Tuple[str, str]:
-        t = a.get('table', {})
-        headers = t.get('headers', [])
-        rows = t.get('rows', [])
-        
-        # BOŞ TABLO KONTROLÜ
-        if not headers or not rows:
-            logger.warning("Tablo başlık veya satır yok!")
-            return self._render_infographic(a)
-        
-        # Minimum 2 sütun olmalı (sadece etiket sütunu yetmez)
-        if len(headers) < 2:
-            logger.warning(f"Tablo çok az sütun: {len(headers)} (min 2)")
-            return self._render_infographic(a)
-        
-        # Satırlarda gerçek veri olmalı
-        has_real_data = False
-        for row in rows:
-            for cell in row[1:]:  # İlk sütun (etiket) hariç
-                if cell and str(cell).strip() and str(cell).strip() != '-':
-                    has_real_data = True
-                    break
-            if has_real_data:
-                break
-        
-        if not has_real_data:
-            logger.warning("Tablo satırlarında veri yok!")
-            return self._render_infographic(a)
-        
-        content = TableRenderer.render(headers, rows, t.get('title', ''), t.get('highlight_col'))
-        formula = a.get('formula', '')
-        if formula:
-            content += f'<div class="formula-box"><div class="formula-label">📐 Formül</div><div class="formula-text">{formula}</div></div>'
-        return content, f"Tablo: {len(rows)} satır"
-    
-    def _render_bar_chart(self, a: Dict) -> Tuple[str, str]:
-        data = a.get('chart_data', [])
-        if not data:
-            return self._render_infographic(a)
-        content = ChartRenderer.bar_chart(data, 700, 280, a.get('chart_title', ''))
-        return content, f"Çubuk grafik: {len(data)} veri"
-    
-    def _render_line_chart(self, a: Dict) -> Tuple[str, str]:
-        data = a.get('chart_data', [])
-        if not data:
-            return self._render_infographic(a)
-        content = ChartRenderer.line_chart(data, 700, 280, a.get('chart_title', ''))
-        return content, f"Çizgi grafik: {len(data)} veri"
-    
-    def _render_pie_chart(self, a: Dict) -> Tuple[str, str]:
-        data = a.get('chart_data', [])
-        if not data:
-            return self._render_infographic(a)
-        content = ChartRenderer.pie_chart(data, 320, 320, a.get('chart_title', ''))
-        return content, f"Pasta grafik: {len(data)} dilim"
-    
-    def _render_venn(self, a: Dict) -> Tuple[str, str]:
-        sets = a.get('venn_data', {})
-        c = COLORS['blue']
-        content = f'<div class="geo-grid">{GeometryRenderer.venn_diagram("EKOK/EBOB", sets, c)}</div>'
-        formula = a.get('formula', '')
-        if formula:
-            content += f'<div class="formula-box"><div class="formula-label">📐 Formül</div><div class="formula-text">{formula}</div></div>'
-        return content, "Venn diyagramı"
-    
-    def _render_number_line(self, a: Dict) -> Tuple[str, str]:
-        points = a.get('number_line_data', [])
-        c = COLORS['blue']
-        content = f'<div class="geo-grid">{GeometryRenderer.number_line("Sayı Doğrusu", points, c, 500)}</div>'
-        return content, f"Sayı doğrusu: {len(points)} nokta"
-    
-    def _render_infographic(self, a: Dict) -> Tuple[str, str]:
-        info = a.get('info_items', [])
-        if not info:
-            for item in a.get('items', []):
-                for p in item.get('properties', []):
-                    info.append({'icon': '📊', 'label': p.get('label', ''), 'value': p.get('value', ''), 'unit': ''})
-        if not info:
-            info = [{'icon': '📋', 'label': 'Bilgi', 'value': 'Veri yok', 'unit': ''}]
-        content = InfoCardRenderer.render(info, a.get('formula'))
-        return content, f"İnfografik: {len(info)} kart"
-
-
-# ============== GEMİNİ ANALİZÖR ==============
-
-class GeminiAnalyzer:
-    """Akıllı soru analizi + KALİTE PUANLAMASI"""
-    
-    PROMPT = """Sen matematik eğitimi görsel tasarım uzmanısın.
-
-⚠️ KRİTİK KURALLAR:
-1. "simplified_text" = null (soru metnini DEĞİŞTİRME!)
-2. Kalite puanı ver: question_quality (1-10), visual_quality (1-10)
-3. Sadece GÖRSEL GEREKTİREN sorular için görsel tasarla
-
-🚫🚫🚫 ALTIN KURAL: SADECE VERİLER! 🚫🚫🚫
-═══════════════════════════════════════════════════════════════
-
-Görsel SADECE soruda verilen ham verileri içermeli!
-Öğrencinin hesaplayıp bulacağı HİÇBİR ŞEY görselde olmamalı!
-
-✅ GÖRSELDE OLMASI GEREKENLER:
-- Soruda direkt verilen sayılar (3 egzersiz türü, 2 zorluk)
-- Kategori/seçenek isimleri (Koşu, Yüzme, Yoga)
-- Birimler (kg, TL, saat, metre)
-- Yüzdeler (eğer soruda verilmişse)
-- Tarih/zaman (eğer soruda verilmişse)
-
-❌ GÖRSELDE OLMAMASI GEREKENLER:
-- Toplam hesabı (3 × 2 = 6 YASAK!)
-- Çarpım sonuçları
-- Toplam, fark, oran hesapları
-- "Toplam olası durum" 
-- "İstenen durum"
-- Olasılık değeri
-- Yüzde hesabı sonucu
-- Kar/zarar miktarı (öğrenci bulacak)
-- Ortalama değeri (öğrenci hesaplayacak)
-- Herhangi bir işlem sonucu
-- Formül uygulaması sonucu
-- Cevap, sonuç, bulunan değer
-
-📝 ÖRNEK - OLASILIK SORUSU:
-
-Soru: "3 egzersiz türü ve 2 zorluk seviyesi var. Yüzme-Zor olasılığı?"
-
-❌ YANLIŞ GÖRSEL:
-- Egzersiz: 3 tür
-- Zorluk: 2 seviye  
-- Toplam: 3 × 2 = 6  ← YASAK! Öğrenci hesaplayacak
-- İstenen: 1         ← YASAK!
-- Olasılık: 1/6      ← YASAK!
-
-✅ DOĞRU GÖRSEL:
-- Egzersiz Türleri: Koşu, Yüzme, Yoga
-- Zorluk Seviyeleri: Kolay, Zor
-(Başka bir şey YOK! Öğrenci 3×2=6 ve 1/6'yı kendisi bulacak)
-
-📝 ÖRNEK - KAR/ZARAR SORUSU:
-
-Soru: "100 TL'ye alınan ürün 120 TL'ye satıldı. Kar yüzdesi?"
-
-❌ YANLIŞ GÖRSEL:
-- Alış: 100 TL
-- Satış: 120 TL
-- Kar: 20 TL        ← YASAK! Öğrenci hesaplayacak
-- Kar yüzdesi: %20  ← YASAK!
-
-✅ DOĞRU GÖRSEL:
-- Alış Fiyatı: 100 TL
-- Satış Fiyatı: 120 TL
-(Başka bir şey YOK!)
-
-📝 ÖRNEK - İSTATİSTİK SORUSU:
-
-Soru: "Notlar: 60, 70, 80, 90, 100. Ortalama?"
-
-❌ YANLIŞ GÖRSEL:
-- Notlar: 60, 70, 80, 90, 100
-- Toplam: 400        ← YASAK!
-- Ortalama: 80       ← YASAK!
-
-✅ DOĞRU GÖRSEL:
-- Not 1: 60
-- Not 2: 70
-- Not 3: 80
-- Not 4: 90
-- Not 5: 100
-(Toplam ve ortalama YOK!)
-
-📝 ÖRNEK - MEZUNİYET ORANI SORUSU:
-
-Soru: "Son 5 yılın mezuniyet oranları %64, %81, %100, %49, %36. Kareköklerin ortalaması?"
-
-❌ YANLIŞ GÖRSEL (boş tablo):
-headers: ["Yıl"]
-rows: [["1. Yıl"], ["2. Yıl"]]  ← VERİ YOK, SADECE ETİKET!
-
-❌ YANLIŞ GÖRSEL (hesaplama var):
-headers: ["Yıl", "Oran", "Karekök"]
-rows: [["1. Yıl", "%64", "8"]]  ← KAREKÖK YASAK! Öğrenci hesaplayacak
-
-✅ DOĞRU GÖRSEL:
-headers: ["Yıl", "Mezuniyet Oranı"]
-rows: [
-  ["1. Yıl", "%64"],
-  ["2. Yıl", "%81"],
-  ["3. Yıl", "%100"],
-  ["4. Yıl", "%49"],
-  ["5. Yıl", "%36"]
-]
-(Karekök ve ortalama YOK! Sadece ham veriler)
-
-📝 ÖRNEK - KARŞILAŞTIRMA SORUSU:
-
-Soru: "A firması: Aylık 50 TL + dakikası 0.5 TL. B firması: Aylık 30 TL + dakikası 1 TL. 100 dakika konuşan için hangisi avantajlı?"
-
-❌ YANLIŞ GÖRSEL:
-- A toplam: 50 + 100×0.5 = 100 TL  ← YASAK!
-- B toplam: 30 + 100×1 = 130 TL    ← YASAK!
-- Fark: 30 TL                       ← YASAK!
-
-✅ DOĞRU GÖRSEL:
-A Firması:
-- Aylık Ücret: 50 TL
-- Dakika Ücreti: 0,5 TL
-
-B Firması:
-- Aylık Ücret: 30 TL
-- Dakika Ücreti: 1 TL
-
-(Toplam maliyet hesabı YOK! Öğrenci yapacak)
-
-═══════════════════════════════════════════════════════════════
-🎯 GÖRSEL TİPLERİ (Geometri YOK!)
-═══════════════════════════════════════════════════════════════
-
-"comparison" → Karşılaştırma kartları (firmalar, tarifeler, planlar)
-"table" → Veri tablosu (EN AZ 2 SÜTUN + VERİ OLMALI!)
-"bar_chart" → Çubuk grafik (kategorik karşılaştırma)
-"line_chart" → Çizgi grafik (fonksiyon, zaman serisi)
-"pie_chart" → Pasta grafik (yüzde dağılımları)
-"venn" → Venn diyagramı (EKOK, EBOB, küme)
-"number_line" → Sayı doğrusu (eşitsizlik, aralık)
-"infographic" → Bilgi kartları (genel veriler)
-
-📋 TABLO KURALLARI:
-- Tablo en az 2 sütun içermeli (etiket + veri)
-- Her satırda gerçek veri olmalı (boş satır yasak!)
-- Sadece etiket sütunu olan tablo YASAK!
-
-Örnek - YANLIŞ TABLO:
-headers: ["Yıl"]
-rows: [["1. Yıl"], ["2. Yıl"]]  ← VERİ YOK!
-
-Örnek - DOĞRU TABLO:
-headers: ["Yıl", "Mezuniyet Oranı"]
-rows: [["1. Yıl", "%64"], ["2. Yıl", "%81"], ...]
-
-═══════════════════════════════════════════════════════════════
-✅ GÖRSEL GEREKLİ DURUMLAR
-═══════════════════════════════════════════════════════════════
-
-- Karşılaştırma (2+ seçenek, firma, plan)
-- Tablo verisi (satır-sütun yapısı)
-- İstatistik (ortalama, medyan, mod)
-- Fonksiyon grafiği
-- EKOK/EBOB (Venn diyagramı)
-- Yüzde dağılımı
-- Oran-orantı problemleri
-- Kar-zarar tabloları
-- Tarife karşılaştırması
-
-❌ GÖRSEL GEREKSİZ DURUMLAR
-═══════════════════════════════════════════════════════════════
-
-- Basit dört işlem
-- Tek adımlı hesaplamalar
-- Kısa denklem çözümü
-- Geometri soruları (alan, çevre, açı)
-
-═══════════════════════════════════════════════════════════════
-📋 JSON ÇIKTI FORMATI
-═══════════════════════════════════════════════════════════════
-
-{
-  "visual_required": true/false,
-  "visual_type": "comparison|table|bar_chart|line_chart|pie_chart|venn|number_line|infographic",
-  
-  "question_quality": 8,  // Soru kalitesi (1-10)
-  "visual_quality": 9,    // Görsel kalitesi (1-10)
-  "quality_reason": "Açıklama",
-  
-  "title": "Başlık",
-  "subtitle": "Alt başlık",
-  
-  "items": [
-    {
-      "name": "Ceren'in Planı", 
-      "color": "blue", 
-      "properties": [
-        {"label": "Egzersiz Türleri", "value": "Koşu, Yüzme, Yoga (3)"},
-        {"label": "Zorluk Seviyeleri", "value": "Kolay, Zor (2)"},
-        {"label": "Toplam Olası Durum", "value": "3 × 2 = 6"}
-      ]
-    }
-  ],
-  
-  "table": {"title": "", "headers": ["A", "B"], "rows": [["1", "2"]], "highlight_col": null},
-  
-  "chart_data": [{"label": "A", "value": 100, "color": "blue"}],
-  "chart_title": "",
-  
-  "venn_data": {"A": "12, 24", "B": "18, 36", "kesisim": "6"},
-  
-  "number_line_data": [{"value": 0, "label": "0"}, {"value": 5, "label": "5"}],
-  
-  "info_items": [{"icon": "🎯", "label": "Seçenek Sayısı", "value": "3", "unit": "tür"}],
-  
-  "formula": "Olasılık = İstenen Durum / Toplam Durum",
-  
-  "simplified_text": null
-}
-
-⚠️ DİKKAT: items içinde "İstenen Durum", "Olasılık", "Cevap" gibi alanlar OLMAMALI!
-
-═══════════════════════════════════════════════════════════════
-📝 PUANLAMA KRİTERLERİ
-═══════════════════════════════════════════════════════════════
-
-question_quality (Soru Kalitesi):
-- 9-10: Mükemmel senaryo, zengin veri, net soru
-- 7-8: İyi senaryo, yeterli veri
-- 5-6: Orta, bazı eksikler
-- 1-4: Zayıf, belirsiz, eksik
-
-visual_quality (Görsel Kalitesi):
-- 9-10: Tüm veriler çıkarıldı, zengin içerik
-- 7-8: Çoğu veri çıkarıldı
-- 5-6: Temel veriler var
-- 1-4: Eksik, boş alanlar
-
-⚠️ Kalite puanı 7'nin altındaysa görsel KAYDEDILMEYECEK!
-
-═══════════════════════════════════════════════════════════════
-
-Şimdi analiz et:
-"""
+class GeminiAPI:
+    """Gemini API - Analiz ve Görsel Üretimi"""
     
     def __init__(self):
-        if NEW_GENAI:
-            self.client = genai.Client(api_key=Config.GEMINI_API_KEY)
-        else:
-            genai.configure(api_key=Config.GEMINI_API_KEY)
-            self.model = genai.GenerativeModel(Config.GEMINI_MODEL)
-        logger.info(f"Gemini hazır: {Config.GEMINI_MODEL}")
+        if not NEW_GENAI:
+            raise ValueError("google-genai paketi gerekli!")
+        
+        self.client = genai.Client(api_key=Config.GEMINI_API_KEY)
+        self._last_request = 0
+        logger.info("✅ Gemini API başlatıldı")
     
-    # Yasak kelimeler - hesaplama sonucu içeren her şey
-    FORBIDDEN_LABELS = [
-        # Olasılık
-        'istenen durum', 'istenen', 'aranan durum', 'aranan',
-        'olasılık', 'olasilik', 'olası durum sayısı',
-        # Sonuçlar
-        'sonuç', 'sonuc', 'cevap', 'hesaplanan', 'bulunan', 'istenilen',
-        # Toplamlar
-        'toplam', 'genel toplam', 'toplam tutar', 'toplam maliyet',
-        'toplam durum', 'toplam sayı',
-        # Hesaplamalar
-        'kar', 'zarar', 'kar miktarı', 'zarar miktarı',
-        'kar yüzdesi', 'zarar yüzdesi', 'kar oranı',
-        'fark', 'artış', 'azalış', 'değişim',
-        'ortalama', 'aritmetik ortalama', 'medyan', 'mod',
-        'toplam puan', 'toplam not', 'genel ortalama',
-        # Maliyet hesapları
-        'toplam ücret', 'toplam fiyat', 'net tutar',
-        'ödenecek', 'ödenecek tutar', 'indirimli fiyat',
-        # Oran sonuçları
-        'oran', 'yüzde', 'kesir', 'pay/payda',
-        # Matematiksel işlemler
-        'karekök', 'karekok', 'küp kök', 'kup kok',
-        'faktöriyel', 'faktoriyel',
-        'üs', 'kuvvet',
-        'çarpım', 'carpim', 'bölüm', 'bolum',
-        'ekok', 'ebob', 'obeb', 'okek',  # Bunlar hesaplama sonucu olarak yasak
-    ]
+    def _rate_limit(self):
+        """Rate limiting"""
+        elapsed = time.time() - self._last_request
+        if elapsed < Config.RATE_LIMIT_DELAY:
+            time.sleep(Config.RATE_LIMIT_DELAY - elapsed)
+        self._last_request = time.time()
     
-    # Yasak pattern'ler - matematiksel işlem sonuçları
-    FORBIDDEN_PATTERNS = [
-        r'\d+\s*[×x\*]\s*\d+\s*=\s*\d+',  # 3 × 2 = 6
-        r'\d+\s*[+]\s*\d+\s*=\s*\d+',      # 50 + 50 = 100
-        r'\d+\s*[-]\s*\d+\s*=\s*\d+',      # 120 - 100 = 20
-        r'\d+\s*[/÷]\s*\d+\s*=\s*\d+',     # 20 / 100 = 0.2
-        r'%\s*\d+',                         # %20
-        r'\d+/\d+',                          # 1/6 (kesir)
-    ]
-    
-    def _remove_answers(self, result: Dict) -> Dict:
-        """Cevap ve hesaplama sonucu içeren alanları temizle"""
-        import re
+    def analyze_question(self, question_text: str, scenario_text: str = None) -> Optional[Dict]:
+        """Soruyu analiz et ve görsel bilgilerini çıkar"""
         
-        def contains_forbidden(text: str) -> bool:
-            """Metin yasak içerik içeriyor mu?"""
-            text_lower = text.lower()
-            # Yasak kelime kontrolü
-            for f in self.FORBIDDEN_LABELS:
-                if f in text_lower:
-                    return True
-            # Yasak pattern kontrolü
-            for p in self.FORBIDDEN_PATTERNS:
-                if re.search(p, text):
-                    return True
-            return False
+        full_text = question_text
+        if scenario_text:
+            full_text = f"SENARYO:\n{scenario_text}\n\nSORU:\n{question_text}"
         
-        # items içindeki properties'leri kontrol et
-        if 'items' in result:
-            for item in result['items']:
-                if 'properties' in item:
-                    filtered_props = []
-                    for prop in item['properties']:
-                        label = prop.get('label', '')
-                        value = prop.get('value', '')
-                        combined = f"{label} {value}"
-                        
-                        if not contains_forbidden(combined):
-                            filtered_props.append(prop)
-                        else:
-                            logger.info(f"🚫 Hesaplama içeren alan silindi: {label}: {value}")
-                    item['properties'] = filtered_props
+        prompt = f"""Sen bir matematik eğitimi görsel tasarım uzmanısın.
+
+Verilen soruyu analiz et ve bu soru için GÖRSEL GEREKLİ Mİ karar ver.
+
+⚠️ KRİTİK KURALLAR:
+
+1. GÖRSEL GEREKLİ DURUMLAR:
+   - Karşılaştırma içeren problemler (firmalar, tarifeler, planlar)
+   - Tablo/liste içeren veriler (fiyatlar, miktarlar)
+   - İstatistik soruları (ortalama, yüzde, dağılım)
+   - Senaryo bazlı problemler (market, okul, fabrika)
+   - Oran/yüzde karşılaştırmaları
+
+2. GÖRSEL GEREKSİZ DURUMLAR:
+   - Basit dört işlem
+   - Tek adımlı hesaplamalar
+   - Soyut cebirsel işlemler
+   - Geometri soruları (bunları ATLA!)
+
+3. VERİLER - SADECE HAM VERİLER:
+   ✅ Fiyatlar (100 TL, 50 TL)
+   ✅ Miktarlar (3 adet, 5 kg)
+   ✅ İsimler (A Firması, B Planı)
+   ✅ Kategoriler (Koşu, Yüzme, Yoga)
+   
+   ❌ ASLA hesaplama sonucu (toplam, fark, oran)
+   ❌ ASLA "X × Y = Z" gibi işlemler
+   ❌ ASLA ortalama, yüzde hesabı sonucu
+
+JSON ÇIKTI:
+{{
+  "visual_needed": true/false,
+  "quality_score": 8,
+  "reason": "Neden görsel gerekli/gereksiz",
+  
+  "visual_type": "comparison|table|chart|info|scene",
+  "title": "Görsel başlığı (Türkçe, kısa)",
+  
+  "gorsel_betimleme": {{
+    "tip": "Görsel tipi",
+    "detay": "Detaylı açıklama - ne çizilecek",
+    "gorunen_veriler": "Görselde görünecek ham veriler listesi"
+  }},
+  
+  "data_items": [
+    {{"label": "A Firması", "values": ["Aylık: 50 TL", "Dakika: 0.5 TL"]}},
+    {{"label": "B Firması", "values": ["Aylık: 30 TL", "Dakika: 1 TL"]}}
+  ]
+}}
+
+SORU:
+{full_text}"""
         
-        # info_items içindeki hesaplamaları kontrol et
-        if 'info_items' in result:
-            filtered_info = []
-            for info in result['info_items']:
-                label = info.get('label', '')
-                value = str(info.get('value', ''))
-                combined = f"{label} {value}"
-                
-                if not contains_forbidden(combined):
-                    filtered_info.append(info)
-                else:
-                    logger.info(f"🚫 Hesaplama içeren info silindi: {label}: {value}")
-            result['info_items'] = filtered_info
+        self._rate_limit()
         
-        # table içindeki hesaplama sütunlarını kontrol et
-        if 'table' in result and result['table'].get('headers'):
-            headers = result['table']['headers']
-            rows = result['table'].get('rows', [])
-            
-            cols_to_remove = []
-            for i, h in enumerate(headers):
-                if contains_forbidden(h):
-                    cols_to_remove.append(i)
-                    logger.info(f"🚫 Hesaplama sütunu silindi: {h}")
-            
-            for i in sorted(cols_to_remove, reverse=True):
-                headers.pop(i)
-                for row in rows:
-                    if i < len(row):
-                        row.pop(i)
-        
-        return result
-    
-    def analyze(self, text: str, scenario: str = None) -> Optional[Dict]:
         try:
-            full = f"SENARYO:\n{scenario}\n\nSORU:\n{text}" if scenario else text
-            prompt = self.PROMPT + full
-            
-            if NEW_GENAI:
-                resp = self.client.models.generate_content(
-                    model=Config.GEMINI_MODEL,
-                    contents=prompt,
-                    config=types.GenerateContentConfig(temperature=0.2, response_mime_type="application/json")
+            response = self.client.models.generate_content(
+                model=Config.ANALYSIS_MODEL,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    temperature=0.3,
+                    response_mime_type="application/json"
                 )
-                txt = resp.text
-            else:
-                resp = self.model.generate_content(prompt, generation_config={'temperature': 0.2, 'response_mime_type': 'application/json'})
-                txt = resp.text
+            )
             
-            result = json.loads(txt)
+            result = json.loads(response.text)
             
-            # Görsel gerekli mi?
-            if not result.get('visual_required', False):
-                logger.info("Görsel gerekmez")
+            if not result.get('visual_needed', False):
+                logger.info(f"ℹ️ Görsel gerekmez: {result.get('reason', 'N/A')}")
                 return None
             
-            # Kalite kontrolü
-            q_quality = result.get('question_quality', 0)
-            v_quality = result.get('visual_quality', 0)
-            
-            logger.info(f"Kalite: Soru={q_quality}/10, Görsel={v_quality}/10")
-            
-            if q_quality < Config.MIN_QUALITY_SCORE or v_quality < Config.MIN_QUALITY_SCORE:
-                reason = result.get('quality_reason', 'Düşük kalite')
-                logger.warning(f"Kalite yetersiz: {reason}")
+            quality = result.get('quality_score', 0)
+            if quality < Config.MIN_QUALITY_SCORE:
+                logger.info(f"ℹ️ Kalite düşük ({quality}/10)")
                 return None
             
-            # İçerik kontrolü
-            has_content = (result.get('items') or result.get('table', {}).get('headers') or 
-                          result.get('chart_data') or result.get('info_items') or
-                          result.get('venn_data') or result.get('number_line_data'))
-            
-            if not has_content:
-                logger.warning("İçerik boş!")
+            if not result.get('gorsel_betimleme'):
+                logger.warning("⚠️ Görsel betimleme boş!")
                 return None
             
-            # CEVAP KONTROLÜ - yasak kelimeleri temizle
-            result = self._remove_answers(result)
-            
-            result['simplified_text'] = None
             return result
             
         except json.JSONDecodeError as e:
-            logger.error(f"JSON hatası: {e}")
+            logger.error(f"JSON parse hatası: {e}")
             return None
         except Exception as e:
             logger.error(f"Analiz hatası: {e}")
             return None
+    
+    def generate_image(self, gorsel_betimleme: Dict, title: str = "") -> Optional[bytes]:
+        """Gemini Image Preview ile görsel üret"""
+        
+        tip = gorsel_betimleme.get("tip", "info")
+        detay = gorsel_betimleme.get("detay", "")
+        veriler = gorsel_betimleme.get("gorunen_veriler", "")
+        
+        # Renk talimatı ekle
+        renk_talimat = """
+
+🎨 RENK TALİMATI (ÇOK ÖNEMLİ!):
+- GRİ TONLARI KULLANMA! Sıkıcı görünüyor.
+- Her farklı öğe için FARKLI PASTEL renk kullan
+- Örnek renkler: Açık mavi #E3F2FD, Açık yeşil #E8F5E9, Açık turuncu #FFF3E0, Açık mor #F3E5F5
+- Çizgiler koyu renk olsun (koyu mavi #1565C0, koyu yeşil #2E7D32)
+- 3D efekt ve gölge ekle
+- Modern, profesyonel infografik tarzı"""
+        
+        full_detay = f"{detay}{renk_talimat}"
+        prompt = IMAGE_PROMPT_TEMPLATE.format(tip=tip, detay=full_detay, veriler=veriler)
+        
+        self._rate_limit()
+        
+        for attempt in range(Config.MAX_RETRIES):
+            try:
+                logger.info(f"  🎨 Görsel üretiliyor (deneme {attempt + 1}/{Config.MAX_RETRIES})...")
+                
+                response = self.client.models.generate_content(
+                    model=Config.IMAGE_MODEL,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        response_modalities=["IMAGE", "TEXT"],
+                    )
+                )
+                
+                # Response'dan görsel çıkar
+                if response.candidates:
+                    for part in response.candidates[0].content.parts:
+                        if hasattr(part, 'inline_data') and part.inline_data:
+                            inline = part.inline_data
+                            if hasattr(inline, 'data') and inline.data:
+                                image_data = inline.data
+                                if isinstance(image_data, str):
+                                    image_bytes = base64.b64decode(image_data)
+                                else:
+                                    image_bytes = bytes(image_data) if not isinstance(image_data, bytes) else image_data
+                                
+                                if len(image_bytes) < Config.MIN_PNG_SIZE:
+                                    logger.warning(f"  ⚠️ Görsel çok küçük: {len(image_bytes)} bytes")
+                                    continue
+                                
+                                logger.info(f"  ✅ Görsel üretildi ({len(image_bytes) / 1024:.1f} KB)")
+                                return image_bytes
+                
+                logger.warning("  ⚠️ Görsel response'da bulunamadı")
+                
+            except Exception as e:
+                logger.error(f"  ❌ Görsel üretim hatası (deneme {attempt + 1}): {e}")
+                if attempt < Config.MAX_RETRIES - 1:
+                    time.sleep(Config.RETRY_DELAY)
+        
+        return None
 
 
 # ============== VERİTABANI ==============
 
 class DatabaseManager:
+    """Supabase işlemleri"""
+    
     def __init__(self):
         self.client = create_client(Config.SUPABASE_URL, Config.SUPABASE_KEY)
-        logger.info("Supabase bağlantısı kuruldu")
+        logger.info("✅ Supabase bağlantısı kuruldu")
     
-    def get_scenario_questions(self, limit: int = 30) -> List[Dict]:
+    def get_questions(self, limit: int = 20) -> List[Dict]:
+        """Görsel bekleyen senaryo sorularını getir"""
         try:
-            resp = self.client.table('question_bank').select('*').is_('image_url', 'null').eq('is_active', True).not_.is_('scenario_text', 'null').limit(limit).execute()
-            return resp.data or []
+            response = self.client.table('question_bank') \
+                .select('*') \
+                .is_('image_url', 'null') \
+                .eq('is_active', True) \
+                .not_.is_('scenario_text', 'null') \
+                .limit(limit) \
+                .execute()
+            
+            questions = response.data or []
+            logger.info(f"📋 {len(questions)} soru bulundu")
+            return questions
         except Exception as e:
             logger.error(f"Soru çekme hatası: {e}")
             return []
     
-    def upload_image(self, data: bytes, filename: str) -> Optional[str]:
+    def upload_image(self, image_bytes: bytes, filename: str) -> Optional[str]:
+        """Görseli storage'a yükle"""
         try:
-            self.client.storage.from_(Config.STORAGE_BUCKET).upload(filename, data, {'content-type': 'image/png', 'upsert': 'true'})
-            return self.client.storage.from_(Config.STORAGE_BUCKET).get_public_url(filename)
+            self.client.storage.from_(Config.STORAGE_BUCKET).upload(
+                filename,
+                image_bytes,
+                {'content-type': 'image/png', 'upsert': 'true'}
+            )
+            url = self.client.storage.from_(Config.STORAGE_BUCKET).get_public_url(filename)
+            return url
         except Exception as e:
             logger.error(f"Upload hatası: {e}")
             return None
     
-    def update_image_only(self, qid: int, url: str) -> bool:
-        """SADECE image_url güncelle - soru metnine DOKUNMA!"""
+    def update_image_url(self, question_id: int, image_url: str) -> bool:
+        """Sadece image_url güncelle - METİNE DOKUNMA!"""
         try:
-            self.client.table('question_bank').update({'image_url': url}).eq('id', qid).execute()
+            self.client.table('question_bank') \
+                .update({'image_url': image_url}) \
+                .eq('id', question_id) \
+                .execute()
             return True
         except Exception as e:
             logger.error(f"Güncelleme hatası: {e}")
             return False
 
 
-# ============== PNG DÖNÜŞTÜRÜCÜ ==============
-
-class ImageConverter:
-    def __init__(self):
-        self.pw = None
-        self.br = None
-    
-    def start(self):
-        self.pw = sync_playwright().start()
-        self.br = self.pw.chromium.launch()
-        logger.info("Playwright başlatıldı")
-    
-    def stop(self):
-        if self.br: self.br.close()
-        if self.pw: self.pw.stop()
-        logger.info("Playwright kapatıldı")
-    
-    def to_png(self, html: str) -> Optional[bytes]:
-        try:
-            page = self.br.new_page(viewport={'width': Config.IMAGE_WIDTH + 100, 'height': 800})
-            page.set_content(html)
-            page.wait_for_load_state('networkidle')
-            cont = page.query_selector('.container')
-            if not cont:
-                page.close()
-                return None
-            png = cont.screenshot(type='png')
-            page.close()
-            return png
-        except Exception as e:
-            logger.error(f"PNG hatası: {e}")
-            return None
-
-
 # ============== ANA BOT ==============
 
-class ScenarioBot:
+class ScenarioImageBot:
+    """Senaryo soruları için görsel üreten bot"""
+    
     def __init__(self):
         self.db = DatabaseManager()
-        self.analyzer = GeminiAnalyzer()
-        self.renderer = VisualRenderer()
-        self.converter = ImageConverter()
-        self.stats = {'total': 0, 'success': 0, 'skipped': 0, 'failed': 0, 'filtered': 0}
+        self.gemini = GeminiAPI()
+        self.stats = {
+            'total': 0,
+            'success': 0,
+            'filtered': 0,
+            'no_visual': 0,
+            'failed': 0
+        }
     
     def run(self):
+        """Botu çalıştır"""
+        logger.info("""
+╔══════════════════════════════════════════════════════════════════════╗
+║         🎨 SENARYO GÖRSEL BOTU v4.0                                  ║
+║         Gemini Image Preview + Supabase                              ║
+╚══════════════════════════════════════════════════════════════════════╝
+        """)
+        logger.info(f"📅 Tarih: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        logger.info("✅ Renkli, 3D, profesyonel görseller")
+        logger.info("✅ Sadece VERİLER (çözüm YOK)")
+        logger.info("✅ Geometri soruları atlanıyor")
         logger.info("=" * 60)
-        logger.info("SENARYO GÖRSEL BOTU v3.2")
-        logger.info("=" * 60)
-        logger.info("✅ Kalite kontrolü aktif (min: 7/10)")
-        logger.info("✅ Geometri soruları dışlanıyor")
-        logger.info("✅ Soru metinleri DEĞİŞTİRİLMEYECEK")
-        logger.info("=" * 60)
-        
-        self.converter.start()
         
         try:
-            batch = Config.TEST_BATCH_SIZE if Config.TEST_MODE else Config.BATCH_SIZE
-            logger.info(f"Mod: {'TEST' if Config.TEST_MODE else 'PRODUCTION'}, Batch: {batch}")
+            batch_size = Config.TEST_BATCH_SIZE if Config.TEST_MODE else Config.BATCH_SIZE
+            logger.info(f"⚙️ Mod: {'TEST' if Config.TEST_MODE else 'PRODUCTION'}")
+            logger.info(f"📦 Batch: {batch_size}")
             
-            questions = self.db.get_scenario_questions(batch)
+            questions = self.db.get_questions(batch_size)
             if not questions:
-                logger.warning("Soru bulunamadı!")
+                logger.warning("⚠️ İşlenecek soru yok!")
                 return
             
-            logger.info(f"{len(questions)} soru bulundu")
             self.stats['total'] = len(questions)
             
             for i, q in enumerate(questions):
-                logger.info(f"\n{'─'*50}")
-                logger.info(f"Soru {i+1}/{len(questions)} (ID: {q['id']})")
-                logger.info(f"{'─'*50}")
-                self._process(q)
-                time.sleep(1)
+                logger.info(f"\n{'─' * 60}")
+                logger.info(f"📝 Soru {i+1}/{len(questions)} (ID: {q['id']})")
+                logger.info(f"{'─' * 60}")
+                
+                self._process_question(q)
+                
+                time.sleep(Config.RATE_LIMIT_DELAY)
             
-            self._report()
-        finally:
-            self.converter.stop()
+            self._print_report()
+            
+        except Exception as e:
+            logger.error(f"Bot hatası: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
     
-    def _process(self, q: Dict):
-        qid = q['id']
-        text = q.get('original_text', '')
-        scenario = q.get('scenario_text', '')
+    def _process_question(self, question: Dict):
+        """Tek soruyu işle"""
+        qid = question['id']
+        text = question.get('original_text', '')
+        scenario = question.get('scenario_text', '')
         
         if not text:
-            self.stats['skipped'] += 1
+            logger.warning("⚠️ Soru metni boş!")
+            self.stats['filtered'] += 1
             return
         
-        # Kazanım filtresi
-        should_process, reason = LearningOutcomeFilter.should_process(q)
+        # 1. Kazanım filtresi
+        should_process, reason = LearningOutcomeFilter.should_process(question)
         if not should_process:
             logger.info(f"⏭️ Filtrelendi: {reason}")
             self.stats['filtered'] += 1
             return
         
-        # Analiz
-        logger.info("🔍 Analiz...")
-        analysis = self.analyzer.analyze(text, scenario)
+        # 2. Analiz
+        logger.info("🔍 Analiz ediliyor...")
+        analysis = self.gemini.analyze_question(text, scenario)
         
         if not analysis:
-            self.stats['skipped'] += 1
+            self.stats['no_visual'] += 1
             return
         
-        vtype = analysis.get('visual_type', 'unknown')
-        logger.info(f"📊 Tip: {vtype}")
+        visual_type = analysis.get('visual_type', 'unknown')
+        quality = analysis.get('quality_score', 0)
+        title = analysis.get('title', 'Problem')
+        logger.info(f"📊 Tip: {visual_type}, Kalite: {quality}/10")
         
-        # Render
-        logger.info("🎨 Render...")
-        html, desc = self.renderer.render(analysis)
+        # 3. Görsel üret
+        gorsel_betimleme = analysis.get('gorsel_betimleme', {})
+        image_bytes = self.gemini.generate_image(gorsel_betimleme, title)
         
-        if not html:
-            logger.error("Render başarısız!")
+        if not image_bytes:
+            logger.error("❌ Görsel üretilemedi!")
             self.stats['failed'] += 1
             return
         
-        # PNG
-        logger.info("📸 PNG...")
-        png = self.converter.to_png(html)
+        # 4. Upload
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"scenario/q_{qid}_{timestamp}.png"
         
-        if not png:
+        logger.info("☁️ Yükleniyor...")
+        image_url = self.db.upload_image(image_bytes, filename)
+        
+        if not image_url:
+            logger.error("❌ Upload başarısız!")
             self.stats['failed'] += 1
             return
         
-        if len(png) < Config.MIN_PNG_SIZE:
-            logger.error(f"PNG çok küçük ({len(png)} bytes)!")
-            self.stats['failed'] += 1
-            return
-        
-        logger.info(f"📦 {len(png)/1024:.1f} KB")
-        
-        # Upload
-        ts = datetime.now().strftime('%Y%m%d_%H%M%S')
-        fn = f"scenario/q_{qid}_{ts}.png"
-        
-        logger.info("☁️ Upload...")
-        url = self.db.upload_image(png, fn)
-        
-        if not url:
-            self.stats['failed'] += 1
-            return
-        
-        # Kaydet
-        if self.db.update_image_only(qid, url):
-            q_score = analysis.get('question_quality', '?')
-            v_score = analysis.get('visual_quality', '?')
-            logger.info(f"✅ #{qid}: BAŞARILI ({vtype}) [Q:{q_score} V:{v_score}]")
+        # 5. Veritabanı güncelle
+        if self.db.update_image_url(qid, image_url):
+            logger.info(f"✅ #{qid}: BAŞARILI ({visual_type})")
             self.stats['success'] += 1
         else:
+            logger.error("❌ DB güncelleme başarısız!")
             self.stats['failed'] += 1
     
-    def _report(self):
-        logger.info("\n" + "=" * 60)
+    def _print_report(self):
+        """Sonuç raporu"""
+        logger.info(f"\n{'=' * 60}")
         logger.info("📊 SONUÇ RAPORU")
-        logger.info("=" * 60)
-        logger.info(f"📝 Toplam: {self.stats['total']}")
-        logger.info(f"✅ Başarılı: {self.stats['success']}")
-        logger.info(f"🔄 Filtrelenen: {self.stats['filtered']}")
-        logger.info(f"⏭️ Atlanan: {self.stats['skipped']}")
-        logger.info(f"❌ Başarısız: {self.stats['failed']}")
+        logger.info(f"{'=' * 60}")
+        logger.info(f"   Toplam soru      : {self.stats['total']}")
+        logger.info(f"   Başarılı         : {self.stats['success']}")
+        logger.info(f"   Filtrelenen      : {self.stats['filtered']}")
+        logger.info(f"   Görsel gerekmez  : {self.stats['no_visual']}")
+        logger.info(f"   Başarısız        : {self.stats['failed']}")
+        
         if self.stats['total'] > 0:
             rate = (self.stats['success'] / self.stats['total']) * 100
-            logger.info(f"📈 Oran: %{rate:.1f}")
-        logger.info("=" * 60)
+            logger.info(f"   ─────────────────────────────")
+            logger.info(f"   Başarı oranı     : %{rate:.1f}")
+        
+        logger.info(f"{'=' * 60}\n")
 
+
+# ============== ÇALIŞTIR ==============
 
 if __name__ == "__main__":
     try:
-        ScenarioBot().run()
+        bot = ScenarioImageBot()
+        bot.run()
+    except ValueError as ve:
+        logger.error(f"Konfigürasyon hatası: {ve}")
+        exit(1)
     except Exception as e:
-        logger.error(f"Bot hatası: {e}")
-        raise
+        logger.error(f"Kritik hata: {e}")
+        import traceback
+        traceback.print_exc()
+        exit(1)
