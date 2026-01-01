@@ -1188,8 +1188,12 @@ SADELEŞTİRİLMİŞ METİN:
   "baslik": "Görselin başlığı",
   "icon": "📊|📈|⚖️|🚗|🏊|👨‍👩‍👧|📋",
   
+  "verilenler": [
+    {"etiket": "Açıklayıcı etiket", "deger": "Sayısal değer", "renk": "blue|pink|green|orange"}
+  ],
+  
   "ozel_pisiniler": {
-    // Görsel tipine göre detaylar
+    // Görsel tipine göre detaylar - ASLA BOŞ OLMAMALI!
   },
   
   "sadellestirilmis_metin": "Görsele aktarılan veriler çıkarıldıktan sonraki yeni soru metni",
@@ -1239,6 +1243,44 @@ SADELEŞTİRİLMİŞ METİN:
     "formul": "Bakteri = Başlangıç × 2^(periyot sayısı)"
   }
 }
+
+═══════════════════════════════════════════════════════════════
+⚖️ KARŞILAŞTIRMA TİPİ DETAYLARI (ÇOK ÖNEMLİ!)
+═══════════════════════════════════════════════════════════════
+
+⚠️ KRİTİK: "secenekler" array'i MUTLAKA doldurulmalı ve her seçeneğin
+"ozellikler" listesi ASLA boş olmamalı! Tüm sayısal veriler buraya eklenmeli!
+
+"ozel_pisiniler": {
+  "karsilastirma": {
+    "secenekler": [
+      {
+        "isim": "A Modeli",
+        "renk": "blue",
+        "icon": "A",
+        "ozellikler": [
+          {"etiket": "Doğruluk Oranı", "deger": "%80"},
+          {"etiket": "Hata Payı", "deger": "±%15"},
+          {"etiket": "Fazla Tahmin", "deger": "%5"}
+        ]
+      },
+      {
+        "isim": "B Modeli", 
+        "renk": "pink",
+        "icon": "B",
+        "ozellikler": [
+          {"etiket": "Doğruluk Oranı", "deger": "%70"},
+          {"etiket": "Tahmin Aralığı", "deger": "±1/5"},
+          {"etiket": "Temel Yağış", "deger": "150 mm"}
+        ]
+      }
+    ]
+  }
+}
+
+ÖRNEK SORU: "A ve B modellerini karşılaştırıyorlar. A modeli %80 doğruluk, %15 hata, %5 fazla tahmin. B modeli 1/5 aralık. Temel yağış 150mm."
+
+Bu soruda "secenekler" ASLA boş olamaz! Tüm veriler kartlara dağıtılmalı!
 
 ═══════════════════════════════════════════════════════════════
 
@@ -1475,6 +1517,17 @@ class HTMLRenderer:
         satirlar = ozel.get('satirlar', [])
         colors = HTMLTemplates.COLORS['blue']
         
+        # Boş veri kontrolü
+        if not basliklar or not satirlar:
+            logger.warning("Tablo verileri boş! Verilenlerden oluşturuluyor...")
+            verilenler = analysis.get('verilenler', [])
+            if verilenler:
+                basliklar = ['Özellik', 'Değer']
+                satirlar = [[v.get('etiket', ''), v.get('deger', '')] for v in verilenler]
+            else:
+                logger.error("Tablo için veri bulunamadı!")
+                return None
+        
         # Tablo HTML
         table_parts = ['<thead><tr>']
         for b in basliklar:
@@ -1515,6 +1568,24 @@ class HTMLRenderer:
         ozel = analysis.get('ozel_pisiniler', {}).get('veri_kartlari', {})
         kartlar = ozel.get('kartlar', [])
         colors = HTMLTemplates.COLORS['indigo']
+        
+        # Boş veri kontrolü
+        if not kartlar:
+            logger.warning("Veri kartları boş! Verilenlerden oluşturuluyor...")
+            verilenler = analysis.get('verilenler', [])
+            if verilenler:
+                icons = ['📊', '📈', '🎯', '⏱️', '💰', '📏']
+                kartlar = []
+                for i, v in enumerate(verilenler):
+                    kartlar.append({
+                        'etiket': v.get('etiket', ''),
+                        'deger': v.get('deger', ''),
+                        'birim': '',
+                        'icon': icons[i % len(icons)]
+                    })
+            else:
+                logger.error("Veri kartları için veri bulunamadı!")
+                return None
         
         # Kartlar HTML
         cards_html_parts = []
@@ -1560,6 +1631,40 @@ class HTMLRenderer:
         """Karşılaştırma görseli"""
         ozel = analysis.get('ozel_pisiniler', {}).get('karsilastirma', {})
         secenekler = ozel.get('secenekler', [])
+        
+        # Boş seçenek kontrolü - eğer yoksa verilenlerden oluştur
+        if not secenekler or len(secenekler) < 2:
+            logger.warning("Karşılaştırma seçenekleri boş, verilenlerden oluşturuluyor...")
+            verilenler = analysis.get('verilenler', [])
+            karakterler = analysis.get('karakterler', [])
+            
+            # Verilenlerden iki grup oluştur
+            secenekler = []
+            if karakterler and len(karakterler) >= 2:
+                for i, k in enumerate(karakterler[:2]):
+                    secenekler.append({
+                        'isim': k.get('isim', f'Model {chr(65+i)}'),
+                        'renk': ['blue', 'pink'][i],
+                        'ozellikler': []
+                    })
+            else:
+                secenekler = [
+                    {'isim': 'A Modeli', 'renk': 'blue', 'ozellikler': []},
+                    {'isim': 'B Modeli', 'renk': 'pink', 'ozellikler': []}
+                ]
+            
+            # Verilenleri dağıt
+            for j, v in enumerate(verilenler):
+                idx = j % 2
+                secenekler[idx]['ozellikler'].append({
+                    'etiket': v.get('etiket', ''),
+                    'deger': v.get('deger', '')
+                })
+        
+        # Hala boşsa, görseli oluşturma
+        if not secenekler or all(not s.get('ozellikler') for s in secenekler):
+            logger.error("Karşılaştırma verileri tamamen boş!")
+            return None
         
         cards_html_parts = []
         color_order = ['blue', 'pink', 'green', 'orange']
