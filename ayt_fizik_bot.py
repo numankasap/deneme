@@ -398,20 +398,63 @@ AYT_FIZIK_KONULAR: Dict[str, Dict[str, Any]] = {
             "uzanim_hiz_ivme_iliskisi",
             "farkli_ortamlarda_periyot",
             "yay_sarkac_karsilastirma",
-            "farkli_duzlemlerde_bhh"
+            "farkli_duzlemlerde_bhh",
+            "rezonans_ve_zorlamali_titresim",
+            "sonumlu_titresim",
+            "enerji_grafikleri",
+            "faz_iliskisi"
         ],
         "kazanimlar": ["F.12.1.5.1", "F.12.1.5.2", "F.12.1.5.3", "F.12.1.5.4"],
         "ornek_baglamlar": [
+            # KLASIK BAGLAMLAR (azaltildi)
             "Metronom ve tempo ayari",
-            "Saat sarkaci periyodu",
-            "Arac suspansiyon sistemi",
-            "Deprem sismografi",
-            "Tavana asili yay-kutle sistemi",
-            "Yatay duzlemde yay-kutle",
-            "Egik duzlemde yay-kutle",
-            "Basit sarkac salınımı (A-O-B arasi)",
-            "Dunya vs Ay'da periyot karsilastirmasi",
-            "Seri ve paralel yay sistemleri"
+            "Saat sarkaci ve sicaklik etkisi",
+            
+            # TEKNOLOJI VE MUHENDISLIK
+            "Akilli telefon ivmeolcer sensoru - telefon sallandiginda ekran donusu",
+            "Gokdelen sismik damperi - Taipei 101'deki dev salinimli kutle",
+            "Koltuk basinda titresim izolasyonu - ucak veya arac",
+            "Kamera stabilizasyonu - gimbal sisteminin titresim sonumleme prensibi",
+            "Akustik gitar teli - parmak basinca periyot degisimi",
+            "Kulakliktaki hoparlor membrani - ses dalgasi uretimi",
+            "MR cihazindaki proton spinleri - Larmor frekansi (kavramsallik icin)",
+            
+            # UZAY VE ASTRONOMI
+            "Uzay istasyonunda sarkac deneyi - mikroyercekimde ne olur?",
+            "Mars'ta Perseverance roverinin sismografi",
+            "Asteroit uzerinde ziplayan astronot - farkli g'de BHH",
+            "Uydu gunes paneli acilma mekanizmasi - torsiyonel salinim",
+            
+            # DOGA VE BIYOLOJI
+            "Orumcek aginda avini bekleyen orumcek - ag titresimi",
+            "Sinekkapan bitkisinin kapanma mekanizmasi - elastik enerji",
+            "Kalp atisi ve kalp kapakcigi salnimi - biyomekanik",
+            "Kulak zari titresimi - isitme fizyolojisi",
+            "Kus kanat cirpisi frekansi - kutle ve kanat boyu iliskisi",
+            
+            # GUNLUK HAYAT - BEKLENMEDIK
+            "Salincakta salinan cocuk - bacak hareketinin etkisi",
+            "Bungee jumping - elastik ip ve serbest dusus kombinasyonu",
+            "Trampolin uzerinde ziplama - farkli kutlelerin etkisi",
+            "Kopru uzerinden gecen asker birligi - rezonans tehlikesi",
+            "Bardaktaki su yuzeyinin titresimi - deprem oncesi isaret",
+            "Buzdolabi kompresoru titresimi - ev icin gurultu kaynaği",
+            
+            # FIZIK TARIHI VE DENEY
+            "Galileo'nun kilise avizeleri gozlemi - izokronizm keşfi",
+            "Cavendish deneyi - burulma sarkaci ile G olcumu",
+            "Foucault sarkaci - Dunya donusunun kaniti",
+            
+            # MUHENDISLIK PROBLEMLERI
+            "Asansor kablosunun titresimi - guvenlik analizi",
+            "Ruzgar turbini kanadinin dogal frekansi",
+            "Yaya koprusunun rezonans frekansi - Millennium Bridge olayi",
+            "Deprem izolatorlu bina tasarimi",
+            
+            # EKSTREM KOSULLAR
+            "Derin deniz dalisi - yuksek basinçta yay sabiti degisimi",
+            "Kutup bolgesi - dusuk sicaklikta yay davranisi",
+            "Yuksek irtifa - hava direncinin azalmasi"
         ],
         "gorsel_tipleri": [
             "konum_zaman_grafigi", 
@@ -420,66 +463,197 @@ AYT_FIZIK_KONULAR: Dict[str, Dict[str, Any]] = {
             "enerji_grafigi",
             "kuvvet_yon_diyagrami",
             "farkli_duzlem_karsilastirma",
-            "periyot_karsilastirma_tablo"
+            "periyot_karsilastirma_tablo",
+            "faz_diyagrami",
+            "rezonans_egrisi",
+            "sonumlu_titresim_grafigi"
         ],
         "celdirici_kategorisi": "bhh",
-        "trend_2025": "Uzanim-hiz-ivme iliskisi, farkli ortam/duzlemlerde periyot karsilastirmasi",
-        "soru_tipleri": ["grafik", "hikayeli", "onculu", "karsilastirma", "hesaplama"],
+        "trend_2025": "Gercek hayat muhendislik uygulamalari, beklenmedik baglamlar, enerji donusumleri",
+        "soru_tipleri": ["grafik", "hikayeli", "onculu", "karsilastirma", "hesaplama", "yorum"],
         "soru_kaliplari": [
-            "Buna gore basit harmonik hareket yapan cismin uzaniminin buyuklugu arttigi biliniyorsa, ... niceliklerinden hangilerinin buyuklugu azalir?",
-            "Buna gore, X, Y ve Z cisimlerinin titresim frekanslari arasindaki iliski nedir?",
-            "Buna gore, yayin esneklik sabiti kac N/m olmalidir?",
-            "Buna gore; F_net, a ve v'nin yonu asagidakilerden hangisi gibi olabilir?",
-            "Bu sistemlerin fiziksel ozelliklerini degistirmeden ayni deneyleri Ay yuzeyinde gerceklestirseydi T_B ve T_Y periyotlarinin degerleri ilk duruma gore nasil degisirdi?"
+            # KLASIK KALIPLAR
+            "Buna gore, cismin uzanimi arttikca hangi nicelikler azalir?",
+            "Buna gore, periyotlar arasindaki iliski nedir?",
+            
+            # ORIJINAL KALIPLAR
+            "Bu durumda sistemin titresim frekansini artirmak icin ne yapilmalidir?",
+            "Hangi degisiklik periyodu ETKILEMEZ?",
+            "Sistemin toplam mekanik enerjisi nasil degisir?",
+            "Grafikte verilen anda cismin konumu ve hareketi hakkinda ne soylenebilir?",
+            "Bu iki sistem ayni anda salınıma baslarsa, ilk kez ayni fazda ne zaman bulusurlar?",
+            "Rezonans olusması icin hangi kosul saglanmalidir?",
+            "Enerji kaybi olmadan sistemin genligini artirmak icin ne yapilabilir?",
+            "Bu gozlem hangi fiziksel ilkeyle aciklanabilir?"
         ],
         "formul_bilgisi": """
         Basit Sarkac: T = 2π√(L/g) - Kutleden BAGIMSIZ, g'ye BAGIMLI
         Yay-Kutle: T = 2π√(m/k) - g'den BAGIMSIZ, kutleye BAGIMLI
-        Uzanim-Hiz-Ivme: x = A.sin(ωt), v = Aω.cos(ωt), a = -Aω².sin(ωt)
-        Denge noktasinda: x=0, v=max, a=0, F_net=0
-        Genlik noktasinda: x=±A, v=0, a=max, F_net=max
-        Uzanim arttikca: |a| artar, |F| artar, |v| azalir
-        Egik duzlemde yay-kutle: T = 2π√(m/k) - egim acisi ETKILEMEZ
-        """,
-        "few_shot_ornek": """
-        ORNEK SORU 1 (Uzanim-Ivme-Hiz):
-        Basit harmonik hareket yapan bir cismin uzaniminin buyuklugu arttigi biliniyorsa,
-        I. cismin ivmesi,
-        II. cismin hizi,
-        III. cisme etki eden net kuvvet
-        niceliklerinden hangilerinin buyuklugu azalir?
+        Torsiyonel Sarkac: T = 2π√(I/κ) - Eylemsizlik momenti ve burulma sabiti
         
-        COZUM: 
-        - a = -ω²x → Uzanim artinca ivme buyuklugu ARTAR
-        - F = ma = -mω²x → Uzanim artinca kuvvet buyuklugu ARTAR
-        - v² = ω²(A² - x²) → Uzanim artinca hiz AZALIR
+        Uzanim-Hiz-Ivme Faz Iliskisi:
+        x = A.sin(ωt) → konum
+        v = Aω.cos(ωt) = Aω.sin(ωt + π/2) → hiz, konumdan 90° ileri fazda
+        a = -Aω².sin(ωt) = Aω².sin(ωt + π) → ivme, konumdan 180° ileri fazda
+        
+        Onemli Noktalar:
+        - Denge noktasi (x=0): v=max, a=0, F_net=0, KE=max, PE=0
+        - Genlik noktasi (x=±A): v=0, a=max, F_net=max, KE=0, PE=max
+        - Uzanim arttikca: |a| ARTAR, |F| ARTAR, |v| AZALIR
+        
+        Enerji:
+        E_toplam = ½kA² = ½mω²A² (sabit, genlige bagimli)
+        KE + PE = sabit (enerji korunumu)
+        
+        Ozel Durumlar:
+        - Egik duzlemde yay-kutle: T = 2π√(m/k) - acidan BAGIMSIZ
+        - Sivi icinde sarkac: T artar (efektif g azalir)
+        - Asansorde sarkac: yukari ivmelenme → efektif g artar → T azalir
+        - Mikroyercekimde sarkac: T → ∞ (salinim olmaz), yay-kutle NORMAL calisir
+        """,
+        "orijinal_soru_fikirleri": [
+            # UZAY TEMALARI
+            """
+            UZAY ISTASYONU SENARYOSU:
+            ISS'de gorev yapan astronot, yay-kutle ve basit sarkac sistemlerini test ediyor.
+            Dunya'da her ikisinin periyodu 2s idi.
+            Soru: Mikro-yercekimde hangi sistem calisir? Periyotlari ne olur?
+            Cevap: Yay-kutle normal calisir (T=2s), sarkac salinim yapmaz.
+            """,
+            
+            # REZONANS SENARYOSU  
+            """
+            KOPRU REZONANSI:
+            Bir yaya koprusu 0.5 Hz dogal frekansa sahip. Asker birligi adim frekansi?
+            Soru: Hangi adim frekansi kopruyu tehlikeye sokar?
+            Cevap: 0.5 Hz veya katlari (1 Hz, 1.5 Hz...) - rezonans
+            """,
+            
+            # TEKNOLOJI SENARYOSU
+            """
+            AKILLI TELEFON IVMEOLCER:
+            Telefondaki MEMS ivmeolcer, kucuk bir yay-kutle sistemidir.
+            Soru: Telefonun sarsılması ivmeolcerde ne olușturur?
+            Cevap: Kutle salınır, yer degistirme elektrik sinyaline donusur.
+            """,
+            
+            # BIYOLOJI SENARYOSU
+            """
+            KUS KANAT CIRPISI:
+            Kucuk kuslar hizli, buyuk kuslar yavas cirpar.
+            Soru: Bu gozlem hangi fiziksel ilkeyle uyumludur?
+            Cevap: T ∝ √m → Kutle artinca periyot (cirpma suresi) artar, frekans azalir.
+            """,
+            
+            # ENERJI SENARYOSU
+            """
+            SALINCAK VE COCUK:
+            Cocuk salincakta otururken salinimi artirmak istiyor.
+            Soru: Ne zaman ve nasil hareket etmeli?
+            Cevap: En alt noktada ayaga kalk (kutle merkezi yukari → L azalir → T azalir)
+                   veya genlik noktasinda egilebilir (enerji pompalar).
+            """,
+            
+            # DENEY SENARYOSU
+            """
+            FOUCAULT SARKACI:
+            Paris'teki Pantheon'da asili dev sarkac, salinim duzlemi donuyor gibi gorunur.
+            Soru: Aslinda ne donuyor?
+            Cevap: Sarkac duzlemi sabit, Dunya donuyor. Kutuplarda 24 saatte tam tur.
+            """,
+            
+            # MUHENDISLIK SENARYOSU
+            """
+            GOKDELEN DAMPERI (Taipei 101):
+            660 tonluk kutle, ruzgar ve deprem titresimlerini sonumler.
+            Soru: Bu sistem nasil calisir?
+            Cevap: Bina titresirse kutle ters fazda salınarak titresimi azaltir (anti-rezonans).
+            """,
+            
+            # KARSILASTIRMA SENARYOSU
+            """
+            UC FARKLI GEZEGEN:
+            Ayni sarkac Dunya (g=10), Mars (g=3.7), Jupiter (g=25) de test ediliyor.
+            Soru: Periyotlari siralayin.
+            Cevap: T_Jupiter < T_Dunya < T_Mars (T ∝ 1/√g)
+            """
+        ],
+        "few_shot_ornek": """
+        ORNEK SORU 1 (UZAY - Orijinal):
+        Bir astronot, Uluslararasi Uzay Istasyonu'nda (mikro-yercekimi ortami) iki deney yapmak istiyor:
+        Deney 1: Basit sarkac (ip + kutle)
+        Deney 2: Yay-kutle sistemi (yatay duzlemde)
+        
+        Dunya'da her iki sistemin periyodu T₀ = 2 saniye idi.
+        
+        Buna gore, uzay istasyonundaki deneylerle ilgili asagidaki ifadelerden hangileri dogrudur?
+        
+        I. Basit sarkac sistemi normal sekilde salinim yapar ve periyodu T₀'dan buyuktur.
+        II. Yay-kutle sistemi normal calisir ve periyodu T₀ ile aynidir.
+        III. Her iki sistem de mikro-yercekiminde calisamaz.
+        
+        COZUM:
+        - Basit sarkac: T = 2π√(L/g) → g ≈ 0 oldugunda T → ∞, yani salinim OLMAZ
+        - Yay-kutle: T = 2π√(m/k) → g'den BAGIMSIZ, normal calisir, T = T₀ = 2s
+        - I YANLIS (salinim olmaz), II DOGRU, III YANLIS (yay-kutle calisir)
         CEVAP: Yalniz II
         
-        ORNEK SORU 2 (Dunya vs Ay):
-        Ogretmen basit sarkac (T_B) ve yay-kutle (T_Y) periyotlarini olcmustur.
-        Ayni deneyleri Ay yuzeyinde (g_Ay < g_Dunya) yaparsa ne olur?
+        ---
+        
+        ORNEK SORU 2 (REZONANS - Muhendislik):
+        2000 yilinda acilan Londra Millennium Koprusu, yayalar gecerken asiri sallanmaya basladi 
+        ve kapatilmak zorunda kalindi. Koprunun dogal titresim frekansi yaklasik 1 Hz idi.
+        
+        Buna gore, bu olayla ilgili asagidaki ifadelerden hangileri dogrudur?
+        
+        I. Yayalarin adim frekansi koprunun dogal frekansina yakin oldugunda rezonans olustu.
+        II. Daha fazla yaya kopruye ciktiginda, koprunun dogal frekansi artti.
+        III. Sorunu cozmek icin kopruye eklenen damperler, titresim enerjisini sogurmaktadir.
         
         COZUM:
-        - Basit sarkac: T = 2π√(L/g) → g azalinca T ARTAR
-        - Yay-kutle: T = 2π√(m/k) → g'den BAGIMSIZ, DEGISMEZ
-        CEVAP: T_B artar, T_Y degismez
+        - I DOGRU: Adim frekansi ≈ 1 Hz, kopru frekansi ≈ 1 Hz → rezonans
+        - II YANLIS: Kutle artinca frekans AZALIR (f ∝ 1/√m), artmaz
+        - III DOGRU: Damperler enerji sogurarak genlik artisini onler
+        CEVAP: I ve III
         
-        ORNEK SORU 3 (Farkli Duzlemler):
-        Ozdes yaylar ve esit kutleli cisimler: X dusey, Y yatay, Z egik duzlemde.
-        Titresim frekanslari f_X, f_Y, f_Z arasindaki iliski?
+        ---
         
-        COZUM: f = (1/2π)√(k/m) - YONDEN BAGIMSIZ
-        Hepsi ayni: f_X = f_Y = f_Z
+        ORNEK SORU 3 (BIYOLOJI - Orijinal):
+        Ornitologlar, farkli kus turlerinin kanat cirpma frekanslarini olcmuslerdir:
+        - Sinek kus (3 g): ~80 Hz
+        - Serçe (30 g): ~15 Hz  
+        - Kartal (4000 g): ~2 Hz
         
-        ORNEK SORU 4 (O Noktasinda Yon):
-        Basit sarkac A-B arasi salinim yapiyor. O (en alt nokta) noktasindan 
-        gecerken F_net, a ve v yonleri nasil?
+        Bu verilere dayanarak, kanat cirpma frekansi (f) ile kus kutlesi (m) arasindaki 
+        iliski asagidakilerden hangisidir?
+        
+        A) f ∝ m          B) f ∝ √m         C) f ∝ 1/m
+        D) f ∝ 1/√m       E) f ile m arasinda iliski yoktur
         
         COZUM:
-        - O'da hiz TEGET (yatay), v → hareket yonunde
-        - O'da ivme = merkezcil ivme (yukari, merkeze dogru), a ↑
-        - F_net = m.a → yukari, F_net ↑
-        - NOT: Tanjant ivme sifir (sabit suratli an), sadece merkezcil ivme var
+        - Kanat cirpisi bir tur periyodik harekettir
+        - T ∝ √m → f = 1/T ∝ 1/√m
+        - Kutle 10 kat artinca (3g → 30g), frekans ~√10 ≈ 3 kat azaliyor (80 → 15 Hz) ✓
+        CEVAP: D
+        
+        ---
+        
+        ORNEK SORU 4 (ASANSOR - Klasik ama Orijinal Baglam):
+        Bir gokdelen asansorunde, tavana asili basit sarkac ile deney yapiliyor.
+        Asansor asagidaki durumlarda hareket ederken sarkacin periyodu olculuyor:
+        
+        Durum 1: Asansor yukari dogru sabit hizla cikiyor
+        Durum 2: Asansor yukari dogru ivmelenerek cikiyor  
+        Durum 3: Asansor asagi dogru ivmelenerek iniyor
+        
+        Sarkacin periyotlari T₁, T₂, T₃ icin dogru siralama hangisidir?
+        
+        COZUM:
+        - Sabit hiz: g_eff = g → T₁ = T₀
+        - Yukari ivmelenme: g_eff = g + a → T₂ < T₀
+        - Asagi ivmelenme: g_eff = g - a → T₃ > T₀
+        - Siralama: T₂ < T₁ < T₃
+        CEVAP: T₂ < T₁ < T₃
         """
     },
     
@@ -723,6 +897,47 @@ SYSTEM_PROMPT_QUESTION = """Sen, OSYM'de 20 yillik deneyime sahip, AYT Fizik sor
 
 ## TEMEL GOREV
 Verilen konu, kazanim ve zorluk seviyesine uygun, ozgun, bilimsel olarak hatasiz ve pedagojik degeri yuksek coktan secmeli fizik sorulari uretmek.
+
+## !!! ORIJINALLIK VE YARATICILIK - EN ONEMLI !!!
+
+Soru uretirken ASLA klasik ders kitabi veya YKS arsiv sorularini KOPYALAMA. 
+Her soru BENZERSIZ bir bakis acisi sunmali.
+
+### YASAK KALIPLAR (Bunlari KULLANMA):
+- "Bir cisim yatay zeminde..."
+- "Sekildeki yay-kutle sistemi..."
+- "Basit sarkac saliniyor..."
+- "Ozdes yaylar ve ozdes kutleler..."
+- "Dunya'da ve Ay'da periyot..."
+
+### ORIJINAL YAKLASIMLAR (Bunlari KULLAN):
+1. BEKLENMEDIK BAGLAMLAR:
+   - Uzay istasyonunda deney
+   - Gokdelen muhendisligi (Taipei 101 damperi)
+   - Hayvan davranislari (kus kanat cirpisi, orumcek agi)
+   - Tarihi olaylar (Millennium Bridge rezonansi, Tacoma koprusu)
+   - Teknoloji (akilli telefon sensoru, gimbal stabilizasyonu)
+   
+2. SORGULATICI SORULAR:
+   - "Neden boyle?" sorusunu sordur
+   - "Ne olurdu?" dusunce deneyleri
+   - Karsi-olgusal senaryolar (eger g 2 kat olsaydi?)
+   
+3. DISIPLINLERARASI BAGLANTILAR:
+   - Fizik + Biyoloji (kalp atisi, kulak zari)
+   - Fizik + Muhendislik (deprem izolatoru, arac suspansiyonu)
+   - Fizik + Muzik (gitar teli, davul zari)
+   - Fizik + Astronomi (Mars'ta deney, uydu titresimi)
+
+4. GERCEK DUNYA PROBLEMLERI:
+   - Neden asker birlikleri kopruyu adim atarak gecmez?
+   - Neden gokdelenlere dev sarkaçlar konur?
+   - Telefon neden sarsıldığını anlıyor?
+
+### HER SORU ICIN KONTROL:
+✓ Bu soruyu daha once gormus olabilir miyim? → Evet ise DEGISTIR
+✓ Senaryo ilginc ve akilda kalici mi? → Hayir ise GELISTIR
+✓ Ogrenci "vay be, bunu hic dusunmemistim" der mi? → Hayir ise YENIDEN YAZ
 
 ## OSYM SORU FELSEFESI (2025 TRENDI)
 
@@ -1111,8 +1326,27 @@ class GeminiAPI:
         # Few-shot ornegi
         few_shot = konu_data.get("few_shot_ornek", "")
         
+        # Orijinal soru fikirleri (varsa)
+        orijinal_fikirler = konu_data.get("orijinal_soru_fikirleri", [])
+        rastgele_fikir = ""
+        if orijinal_fikirler:
+            rastgele_fikir = random.choice(orijinal_fikirler)
+        
+        # Baglam secimi - rastgele ve cesitli
+        baglamlar = konu_data.get("ornek_baglamlar", [])
+        secilen_baglam = params.baglam
+        if baglamlar and len(baglamlar) > 3:
+            # Rastgele 3 baglam sec ve one sun
+            secilen_baglamlar = random.sample(baglamlar, min(5, len(baglamlar)))
+            secilen_baglam = secilen_baglamlar[0]  # Birincisini ana baglam yap
+        
         user_prompt = f"""
 ## SORU URETIM TALIMATI
+
+### !!! ORIJINALLIK UYARISI !!!
+Bu soru DAHA ONCE GORULMEMIS, BENZERSIZ olmali.
+Klasik ders kitabi sorularini KOPYALAMA.
+Asagidaki baglamlardan birini kullan veya kendi orijinal baglamini olustur.
 
 ### Konu Bilgileri:
 - **Ana Konu**: {konu_data.get('display_name', params.konu)}
@@ -1126,9 +1360,12 @@ class GeminiAPI:
 - **Bloom Seviyesi**: {params.bloom_seviyesi} - {bloom_data.get('aciklama', '')}
 - **Soru Tipi**: {params.soru_tipi}
 
-### Baglam ve Senaryo:
-- **Onerilen Baglam**: {params.baglam}
-- **Gorsel Tipi**: {params.gorsel_tipi}
+### Baglam Onerileri (ORIJINAL OLANI SEC):
+- **Ana Baglam**: {secilen_baglam}
+- **Alternatif Baglamlar**: {', '.join(random.sample(baglamlar, min(4, len(baglamlar)))) if baglamlar else 'Yok'}
+
+### Orijinal Soru Fikri (ILHAM AL):
+{rastgele_fikir if rastgele_fikir else 'Kendi orijinal fikrını olustur!'}
 
 ### Kavram Yanilgisi Hedefleri (CELDIRICI ICIN):
 Yaygin Yanilgilar:
@@ -1676,29 +1913,62 @@ class AYTFizikGenerator:
                     self.stats["quality_retries"] += 1
                     continue
                 
-                # ONCULU SORU KONTROLU
+                # ONCULU SORU KONTROLU - GUCLENDIRILMIS
                 if params.soru_tipi == "onculu":
                     soru_metni_check = question_data.get("soru_metni", "")
                     oncul_ifadeler = question_data.get("oncul_ifadeler", {})
                     
                     # Oncullerin varligini kontrol et
-                    has_oncul_in_text = "I." in soru_metni_check or "I)" in soru_metni_check
+                    has_oncul_in_text = ("I." in soru_metni_check or "I)" in soru_metni_check or 
+                                         "I. " in soru_metni_check)
                     has_oncul_field = oncul_ifadeler and len(oncul_ifadeler) >= 2
                     
+                    # Eger onculler hem metinde hem field'da yoksa
                     if not has_oncul_in_text and not has_oncul_field:
                         logger.warning("  ONCULU soru tipinde I, II, III ifadeleri eksik!")
-                        self.stats["quality_retries"] += 1
-                        continue
+                        logger.warning("  Soru tipi 'hikayeli' olarak degistiriliyor...")
+                        
+                        # Soru tipini degistir ve siklari normal formata cevir
+                        params.soru_tipi = "hikayeli"
+                        
+                        # Siklari normal formata cevir (eger onculu formatindaysa)
+                        sik_values = list(siklar.values())
+                        if any("Yalniz" in str(s) or "ve II" in str(s) for s in sik_values):
+                            logger.warning("  Siklar onculu formatinda ama onculler yok - soru reddediliyor")
+                            self.stats["quality_retries"] += 1
+                            continue
+                    
+                    # Onculler field'da var ama metinde yoksa, metne ekle
+                    elif has_oncul_field and not has_oncul_in_text:
+                        logger.info("  Onculler field'da var, metne ekleniyor...")
+                        oncul_text = "\n\n"
+                        if oncul_ifadeler.get("I"):
+                            oncul_text += f"I. {oncul_ifadeler['I']}\n"
+                        if oncul_ifadeler.get("II"):
+                            oncul_text += f"II. {oncul_ifadeler['II']}\n"
+                        if oncul_ifadeler.get("III"):
+                            oncul_text += f"III. {oncul_ifadeler['III']}\n"
+                        
+                        # Soru metnine ekle
+                        question_data["soru_metni"] = soru_metni_check + oncul_text
+                        logger.info("  Onculler soru metnine eklendi")
                     
                     # Siklarin onculu formatinda olup olmadigini kontrol et
                     sik_values = list(siklar.values())
-                    onculu_sik_keywords = ["Yalniz", "yalniz", "ve II", "ve III", "I, II", "II ve"]
+                    onculu_sik_keywords = ["Yalniz", "yalniz", "ve II", "ve III", "I, II", "II ve", "I ve"]
                     has_onculu_siklar = any(any(kw in str(sik) for kw in onculu_sik_keywords) for sik in sik_values)
                     
-                    if not has_onculu_siklar:
-                        logger.warning("  ONCULU soru tipinde siklar yanlis formatta!")
-                        self.stats["quality_retries"] += 1
-                        continue
+                    # Onculler var ama siklar yanlis formatsa duzelt
+                    if (has_oncul_in_text or has_oncul_field) and not has_onculu_siklar:
+                        logger.info("  Onculler var ama siklar yanlis formatta, duzeltiliyor...")
+                        question_data["siklar"] = {
+                            "A": "Yalniz I",
+                            "B": "Yalniz II",
+                            "C": "I ve II",
+                            "D": "II ve III",
+                            "E": "I, II ve III"
+                        }
+                        siklar = question_data["siklar"]
                     
                     logger.info("  Onculu soru formati kontrol edildi - OK")
                 
