@@ -1,5 +1,5 @@
-# Scenario Bot Requirements
-# PISA/Senaryo görsel oluşturma botu için gerekli kütüphaneler
+# Scenario Bot v2.0 Requirements
+# Senaryo görsel oluşturma + metin sadeleştirme + kalite kontrolü
 
 # Supabase
 supabase>=2.0.0
@@ -12,3 +12,7 @@ playwright>=1.40.0
 
 # Resim işleme
 Pillow>=10.0.0
+
+# JSON işleme (standart kütüphane, ekstra gerek yok)
+# Logging (standart kütüphane)
+# String Template (standart kütüphane)
