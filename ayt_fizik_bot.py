@@ -211,6 +211,26 @@ KAVRAM_YANILGILARI = {
             "Duzgun cembersel harekette ivmenin sifir oldugunu soyleyen sik",
             "Merkezkac kuvvetini gercek kuvvet olarak hesaplayan sik"
         ]
+    },
+    "bhh": {
+        "yanilgilar": [
+            "Yay-kutle sisteminin periyodu yer cekiminden etkilenir",
+            "Egik duzlemde yay-kutle periyodu farklidir",
+            "Basit sarkacin periyodu kutleye baglidir",
+            "Denge noktasinda ivme maksimumdur",
+            "Genlik noktasinda hiz maksimumdur",
+            "Uzanim arttikca hiz da artar",
+            "Periyot genlige baglidir",
+            "Ay'da yay-kutle periyodu degisir"
+        ],
+        "celdirici_stratejileri": [
+            "Yay-kutle periyodunun g'ye bagimli oldugunu soyleyen sik",
+            "Egik duzlemde farkli periyot gosteren sik",
+            "Basit sarkac periyodunun kutleye bagimli oldugunu soyleyen sik",
+            "Denge noktasinda ivmenin maksimum oldugunu soyleyen sik",
+            "Uzanim arttikca hizin arttigini gosteren sik",
+            "Ay'da yay-kutle periyodunun degistigini soyleyen sik"
+        ]
     }
 }
 
@@ -370,25 +390,96 @@ AYT_FIZIK_KONULAR: Dict[str, Dict[str, Any]] = {
     
     "basit_harmonik_hareket": {
         "display_name": "Basit Harmonik Hareket",
-        "alt_konular": ["yayli_sarkac", "basit_sarkac", "periyod_ve_frekans", "enerji_donusumleri"],
-        "kazanimlar": ["F.12.1.5.1", "F.12.1.5.2", "F.12.1.5.3"],
+        "alt_konular": [
+            "yayli_sarkac", 
+            "basit_sarkac", 
+            "periyod_ve_frekans", 
+            "enerji_donusumleri",
+            "uzanim_hiz_ivme_iliskisi",
+            "farkli_ortamlarda_periyot",
+            "yay_sarkac_karsilastirma",
+            "farkli_duzlemlerde_bhh"
+        ],
+        "kazanimlar": ["F.12.1.5.1", "F.12.1.5.2", "F.12.1.5.3", "F.12.1.5.4"],
         "ornek_baglamlar": [
             "Metronom ve tempo ayari",
             "Saat sarkaci periyodu",
             "Arac suspansiyon sistemi",
-            "Deprem sismografi"
+            "Deprem sismografi",
+            "Tavana asili yay-kutle sistemi",
+            "Yatay duzlemde yay-kutle",
+            "Egik duzlemde yay-kutle",
+            "Basit sarkac salınımı (A-O-B arasi)",
+            "Dunya vs Ay'da periyot karsilastirmasi",
+            "Seri ve paralel yay sistemleri"
         ],
-        "gorsel_tipleri": ["konum_zaman_grafigi", "sarkac_diyagrami", "yayli_sistem", "enerji_grafigi"],
-        "celdirici_kategorisi": "enerji",
-        "trend_2025": "Kutle merkezi ve periyod iliskisi (Metronom sorusu)",
-        "soru_tipleri": ["grafik", "hikayeli"],
+        "gorsel_tipleri": [
+            "konum_zaman_grafigi", 
+            "sarkac_diyagrami", 
+            "yayli_sistem", 
+            "enerji_grafigi",
+            "kuvvet_yon_diyagrami",
+            "farkli_duzlem_karsilastirma",
+            "periyot_karsilastirma_tablo"
+        ],
+        "celdirici_kategorisi": "bhh",
+        "trend_2025": "Uzanim-hiz-ivme iliskisi, farkli ortam/duzlemlerde periyot karsilastirmasi",
+        "soru_tipleri": ["grafik", "hikayeli", "onculu", "karsilastirma", "hesaplama"],
+        "soru_kaliplari": [
+            "Buna gore basit harmonik hareket yapan cismin uzaniminin buyuklugu arttigi biliniyorsa, ... niceliklerinden hangilerinin buyuklugu azalir?",
+            "Buna gore, X, Y ve Z cisimlerinin titresim frekanslari arasindaki iliski nedir?",
+            "Buna gore, yayin esneklik sabiti kac N/m olmalidir?",
+            "Buna gore; F_net, a ve v'nin yonu asagidakilerden hangisi gibi olabilir?",
+            "Bu sistemlerin fiziksel ozelliklerini degistirmeden ayni deneyleri Ay yuzeyinde gerceklestirseydi T_B ve T_Y periyotlarinin degerleri ilk duruma gore nasil degisirdi?"
+        ],
+        "formul_bilgisi": """
+        Basit Sarkac: T = 2π√(L/g) - Kutleden BAGIMSIZ, g'ye BAGIMLI
+        Yay-Kutle: T = 2π√(m/k) - g'den BAGIMSIZ, kutleye BAGIMLI
+        Uzanim-Hiz-Ivme: x = A.sin(ωt), v = Aω.cos(ωt), a = -Aω².sin(ωt)
+        Denge noktasinda: x=0, v=max, a=0, F_net=0
+        Genlik noktasinda: x=±A, v=0, a=max, F_net=max
+        Uzanim arttikca: |a| artar, |F| artar, |v| azalir
+        Egik duzlemde yay-kutle: T = 2π√(m/k) - egim acisi ETKILEMEZ
+        """,
         "few_shot_ornek": """
-        ORNEK SORU (2024 - Metronom):
-        Bir metronomun sarkac kolunun kutle merkezi yukari kaydiriliyor.
-        Buna gore metronomun periyodu nasil degisir?
+        ORNEK SORU 1 (Uzanim-Ivme-Hiz):
+        Basit harmonik hareket yapan bir cismin uzaniminin buyuklugu arttigi biliniyorsa,
+        I. cismin ivmesi,
+        II. cismin hizi,
+        III. cisme etki eden net kuvvet
+        niceliklerinden hangilerinin buyuklugu azalir?
         
-        COZUM: T = 2π√(L/g) formulunde L, kutle merkezinin 
-        donme noktasina uzakligidir. L artinca T artar.
+        COZUM: 
+        - a = -ω²x → Uzanim artinca ivme buyuklugu ARTAR
+        - F = ma = -mω²x → Uzanim artinca kuvvet buyuklugu ARTAR
+        - v² = ω²(A² - x²) → Uzanim artinca hiz AZALIR
+        CEVAP: Yalniz II
+        
+        ORNEK SORU 2 (Dunya vs Ay):
+        Ogretmen basit sarkac (T_B) ve yay-kutle (T_Y) periyotlarini olcmustur.
+        Ayni deneyleri Ay yuzeyinde (g_Ay < g_Dunya) yaparsa ne olur?
+        
+        COZUM:
+        - Basit sarkac: T = 2π√(L/g) → g azalinca T ARTAR
+        - Yay-kutle: T = 2π√(m/k) → g'den BAGIMSIZ, DEGISMEZ
+        CEVAP: T_B artar, T_Y degismez
+        
+        ORNEK SORU 3 (Farkli Duzlemler):
+        Ozdes yaylar ve esit kutleli cisimler: X dusey, Y yatay, Z egik duzlemde.
+        Titresim frekanslari f_X, f_Y, f_Z arasindaki iliski?
+        
+        COZUM: f = (1/2π)√(k/m) - YONDEN BAGIMSIZ
+        Hepsi ayni: f_X = f_Y = f_Z
+        
+        ORNEK SORU 4 (O Noktasinda Yon):
+        Basit sarkac A-B arasi salinim yapiyor. O (en alt nokta) noktasindan 
+        gecerken F_net, a ve v yonleri nasil?
+        
+        COZUM:
+        - O'da hiz TEGET (yatay), v → hareket yonunde
+        - O'da ivme = merkezcil ivme (yukari, merkeze dogru), a ↑
+        - F_net = m.a → yukari, F_net ↑
+        - NOT: Tanjant ivme sifir (sabit suratli an), sadece merkezcil ivme var
         """
     },
     
@@ -701,13 +792,18 @@ Verilen konu, kazanim ve zorluk seviyesine uygun, ozgun, bilimsel olarak hatasiz
 - Her oncul ayri fiziksel analiz gerektirir
 - En kucuk kavram yanilgisi yanlisa goturur
 
+## !!! 5 SIK ZORUNLU - AYT FORMATI !!!
+
+AYT'de TUM sorular 5 siklidir (A, B, C, D, E). 
+4 sik KABUL EDILMEZ. Her soruda MUTLAKA 5 farkli sik olmali.
+
 ## ONCULU SORU FORMATI - KRITIK KURALLAR
 
 ONCULU (I, II, III) tipinde soru uretildiginde MUTLAKA asagidaki formata uy:
 
 1. Soru metninde ONCE senaryo/baglam anlat
-2. SONRA "Buna gore, ... ile ilgili asagidaki ifadelerden hangileri dogrudur?" yaz
-3. ARDINDAN I, II, III onculleri AYRI SATIRLARDA ve ACIK SEKILDE yaz:
+2. SONRA "Buna gore, ... ile ilgili asagidaki ifadelerden hangileri dogrudur?" yaz (BU CUMLE SADECE 1 KEZ OLMALI!)
+3. ARDINDAN I, II, III onculleri AYRI SATIRLARDA ve ACIK SEKILDE yaz
 
 ORNEK FORMAT:
 "[Senaryo metni burada yer alir.]
@@ -718,32 +814,40 @@ I. [Birinci ifade - tam ve anlasilir cumle]
 II. [Ikinci ifade - tam ve anlasilir cumle]  
 III. [Ucuncu ifade - tam ve anlasilir cumle]"
 
-SIKLAR FORMATI (Onculu sorular icin):
+SIKLAR FORMATI (Onculu sorular icin - 5 SIK ZORUNLU):
 - A) Yalniz I
 - B) Yalniz II
 - C) I ve II
 - D) II ve III
 - E) I, II ve III
 
-YASAK: Onculleri (I, II, III) soru metnine YAZMADAN "Yalniz I", "I ve II" gibi siklar olusturmak!
+ALTERNATIF SIK KOMBINASYONLARI:
+- A) Yalniz I, B) Yalniz II, C) Yalniz III, D) I ve II, E) I ve III
+- A) Yalniz I, B) Yalniz III, C) I ve II, D) I ve III, E) II ve III
+
+YASAK: 
+- Onculleri (I, II, III) soru metnine YAZMADAN siklar olusturmak
+- 4 sik ile soru olusturmak (5 SIK ZORUNLU!)
+- Soru kokunu ("Buna gore...hangileri dogrudur?") 2 KEZ yazmak
+
 Her oncul EN AZ 15-20 kelimelik, fiziksel bir YARGI CUMLESI olmali.
 
 ## CIKTI FORMATI (JSON)
 
 {
-  "soru_metni": "Hikayeli senaryo + ONCULU SORULARDA I, II, III IFADELERI BURADA OLMALI",
-  "soru_koku": "Buna gore, [konu] ile ilgili asagidaki ifadelerden hangileri dogrudur?",
+  "soru_metni": "Hikayeli senaryo + ONCULU SORULARDA I, II, III IFADELERI + SORU KOKU (SADECE 1 KEZ)",
+  "soru_koku": "",
   "oncul_ifadeler": {
     "I": "Birinci yargi cumlesi (tam ve anlasilir)",
     "II": "Ikinci yargi cumlesi (tam ve anlasilir)",
     "III": "Ucuncu yargi cumlesi (tam ve anlasilir)"
   },
   "siklar": {
-    "A": "Yalniz I / veya normal sik",
-    "B": "Yalniz II / veya normal sik",
-    "C": "I ve II / veya normal sik",
-    "D": "II ve III / veya normal sik",
-    "E": "I, II ve III / veya normal sik"
+    "A": "Yalniz I",
+    "B": "Yalniz II",
+    "C": "I ve II",
+    "D": "II ve III",
+    "E": "I, II ve III"
   },
   "dogru_cevap": "A/B/C/D/E",
   "cozum_adim_adim": "Adim 1: [aciklama]\\nAdim 2: [aciklama]\\nSonuc: [cevap]",
@@ -1522,10 +1626,53 @@ class AYTFizikGenerator:
                     self.stats["quality_retries"] += 1
                     continue
                 
-                # 5 sik kontrolu
+                # 5 sik kontrolu - AYT'de 5 sik ZORUNLU
                 siklar = question_data.get("siklar", {})
-                if len(siklar) < 5:
-                    logger.warning("  5 sik olmali")
+                sik_count = len(siklar)
+                
+                if sik_count < 4:
+                    logger.warning(f"  Cok az sik var: {sik_count}")
+                    self.stats["quality_retries"] += 1
+                    continue
+                
+                # 4 sik varsa, 5. sikki otomatik ekle
+                if sik_count == 4:
+                    logger.info("  4 sik tespit edildi, 5. sik ekleniyor...")
+                    existing_keys = list(siklar.keys())
+                    
+                    if params.soru_tipi == "onculu":
+                        # Onculu sorular icin eksik sikki ekle
+                        onculu_sik_options = {
+                            "A": "Yalniz I",
+                            "B": "Yalniz II", 
+                            "C": "Yalniz III",
+                            "D": "I ve II",
+                            "E": "I, II ve III"
+                        }
+                        # Hangi sik eksik?
+                        for key in ["A", "B", "C", "D", "E"]:
+                            if key not in existing_keys:
+                                siklar[key] = onculu_sik_options.get(key, "I ve III")
+                                logger.info(f"  Eksik {key} sikki eklendi: {siklar[key]}")
+                                break
+                    else:
+                        # Normal sorular icin E sikkini ekle
+                        if "E" not in existing_keys:
+                            siklar["E"] = "Hicbiri"
+                            logger.info("  E sikki eklendi: Hicbiri")
+                    
+                    question_data["siklar"] = siklar
+                
+                # Tekrar kontrol
+                if len(question_data.get("siklar", {})) < 5:
+                    logger.warning("  5 sik saglanamadi")
+                    self.stats["quality_retries"] += 1
+                    continue
+                
+                # Dogru cevap kontrolu - E sikki yokken E cevabi verilmis mi?
+                dogru_cevap = question_data.get("dogru_cevap", "A")
+                if dogru_cevap not in question_data.get("siklar", {}):
+                    logger.warning(f"  Dogru cevap ({dogru_cevap}) siklarda yok!")
                     self.stats["quality_retries"] += 1
                     continue
                 
@@ -1630,7 +1777,28 @@ class AYTFizikGenerator:
                     soru_metni = soru_metni + oncul_text
                     logger.info("  Oncul ifadeler soru metnine eklendi")
             
-            full_text = f"{soru_metni}\n\n{soru_koku}"
+            # ONCULU SORULARDA SORU KOKU TEKRARINI ONLE
+            # Eger soru_metni zaten soru kokunu iceriyorsa, tekrar ekleme
+            if params.soru_tipi == "onculu":
+                # Soru koku zaten metinde varsa ekleme
+                soru_koku_patterns = [
+                    "hangileri dogrudur",
+                    "hangileri doğrudur", 
+                    "hangisi dogrudur",
+                    "hangisi doğrudur",
+                    "hangilerinin buyuklugu",
+                    "hangilerinin büyüklüğü"
+                ]
+                soru_koku_already_in_text = any(pattern in soru_metni.lower() for pattern in soru_koku_patterns)
+                
+                if soru_koku_already_in_text:
+                    # Soru koku zaten metinde, tekrar ekleme
+                    full_text = soru_metni
+                    logger.info("  Soru koku zaten metinde, tekrar eklenmedi")
+                else:
+                    full_text = f"{soru_metni}\n\n{soru_koku}"
+            else:
+                full_text = f"{soru_metni}\n\n{soru_koku}"
             
             generated = GeneratedQuestion(
                 title=soru_metni[:100] + "..." if len(soru_metni) > 100 else soru_metni,
