@@ -74,7 +74,7 @@ jobs:
           echo "   ⚖️ Karşılaştırma kartları"
           echo "   ❓ Dinamik soru metni"
           echo ""
-          python scenario_bot_v3.py
+          python scenario_bot.py
       
       - name: 📊 Summary
         if: always()
