@@ -957,6 +957,24 @@ Her soru BENZERSIZ bir bakis acisi sunmali.
 - Metinde verilmeyen kritik bilgiler GORSLDEN okunmali
 - Ornek: Fotoelektrik grafiginden esik enerjisi, es potansiyel cizgilerinden potansiyel farki
 
+### !!! GORSEL URETIMI - ONEMLI !!!
+Asagidaki durumlarda "gorsel_gerekli": true OLMALI:
+- Grafik tipi sorular (x-t, v-t, E-x grafikleri)
+- Devre semalari gerektiren sorular
+- Kuvvet, hiz, ivme yonlerini gosteren diyagramlar
+- Dalga, titresim, sarkac gorselleri
+- Konum-zaman grafikleri
+- Enerji donusum grafikleri
+
+"gorsel_betimleme" alanini DETAYLI doldur:
+{
+  "tip": "konum_zaman_grafigi / devre_semasi / kuvvet_diyagrami / sarkac_sistemi / enerji_grafigi",
+  "detay": "Cizilecek gorselin DETAYLI aciklamasi",
+  "ogeler": ["eksenler", "egri", "noktalar", "etiketler"],
+  "etiketler": ["x(cm)", "t(s)", "A noktasi", "denge"],
+  "renkler": {"egri": "mavi", "noktalar": "kirmizi", "arka_plan": "beyaz"}
+}
+
 ### 4. CELDIRICI MUHENDISLIGI
 - Yanlis secenekler RASTGELE SAYILAR DEGIL
 - Ogrencilerin YAYGIN KAVRAM YANILGILARINI hedefleyen tuzaklar
@@ -1049,13 +1067,24 @@ Her oncul EN AZ 15-20 kelimelik, fiziksel bir YARGI CUMLESI olmali.
 
 ## CIKTI FORMATI (JSON)
 
+### NORMAL SORULAR ICIN:
 {
-  "soru_metni": "Hikayeli senaryo + ONCULU SORULARDA I, II, III IFADELERI + SORU KOKU (SADECE 1 KEZ)",
+  "soru_metni": "Hikayeli senaryo anlatimi",
+  "soru_koku": "Buna gore, [soru cumlesi]",
+  "siklar": {"A": "...", "B": "...", "C": "...", "D": "...", "E": "..."},
+  "dogru_cevap": "A/B/C/D/E",
+  "cozum_adim_adim": "Adim 1: ...\\nAdim 2: ...\\nSonuc: ...",
+  ...
+}
+
+### ONCULU SORULAR ICIN (KRITIK - I, II, III MUTLAKA SORU_METNI ICINDE OLMALI):
+{
+  "soru_metni": "[Senaryo metni]\\n\\nBuna gore, [konu] ile ilgili asagidaki ifadelerden hangileri dogrudur?\\n\\nI. [Birinci ifade - EN AZ 15 kelime]\\nII. [Ikinci ifade - EN AZ 15 kelime]\\nIII. [Ucuncu ifade - EN AZ 15 kelime]",
   "soru_koku": "",
   "oncul_ifadeler": {
-    "I": "Birinci yargi cumlesi (tam ve anlasilir)",
-    "II": "Ikinci yargi cumlesi (tam ve anlasilir)",
-    "III": "Ucuncu yargi cumlesi (tam ve anlasilir)"
+    "I": "Birinci yargi cumlesi (soru_metni icindeki ile AYNI)",
+    "II": "Ikinci yargi cumlesi (soru_metni icindeki ile AYNI)",
+    "III": "Ucuncu yargi cumlesi (soru_metni icindeki ile AYNI)"
   },
   "siklar": {
     "A": "Yalniz I",
@@ -1065,7 +1094,7 @@ Her oncul EN AZ 15-20 kelimelik, fiziksel bir YARGI CUMLESI olmali.
     "E": "I, II ve III"
   },
   "dogru_cevap": "A/B/C/D/E",
-  "cozum_adim_adim": "Adim 1: [aciklama]\\nAdim 2: [aciklama]\\nSonuc: [cevap]",
+  "cozum_adim_adim": "I. ifade analizi: [dogru/yanlis] cunku...\\nII. ifade analizi: [dogru/yanlis] cunku...\\nIII. ifade analizi: [dogru/yanlis] cunku...\\nSonuc: [cevap]",
   "celdirici_analizi": {
     "A": "Bu sikki secen ogrencinin yaptigi SPESIFIK hata",
     "B": "Bu sikki secen ogrencinin yaptigi SPESIFIK hata",
@@ -1084,7 +1113,10 @@ Her oncul EN AZ 15-20 kelimelik, fiziksel bir YARGI CUMLESI olmali.
   "pisa_seviyesi": 3/4/5/6,
   "pisa_baglam": "Kisisel / Mesleki / Toplumsal / Bilimsel",
   "kavram_yanilgisi_hedefi": "Bu sorunun hedefledigi spesifik kavram yanilgisi"
-}"""
+}
+
+!!! UYARI: ONCULU SORULARDA I, II, III IFADELERI "soru_metni" ICINDE MUTLAKA YER ALMALI !!!
+Aksi takdirde soru REDDEDILIR ve yeniden uretilir."""
 
 # ============================================================================
 # RENKLI GORSEL PROMPT SABLONU
@@ -1405,24 +1437,27 @@ Bu soru ONCULU (I, II, III) tipinde olmali. ASAGIDAKI FORMATI KESINLIKLE UYGULA:
 2. Sonra "Buna gore, ... ile ilgili asagidaki ifadelerden hangileri dogrudur?" yaz
 3. ARDINDAN I, II, III onculleri SORU METNININ ICINDE, AYRI SATIRLARDA yaz:
 
-ORNEK:
-"Bir fizik laboratuvarinda yapilan deneyde... [senaryo devam eder]
+!!! ORNEK JSON CIKTISI (BUNU AYNEN TAKIP ET) !!!
+{{
+  "soru_metni": "Ev tipi bir buzdolabının kompresöründen kaynaklanan titreşimlerin gürültüye neden olduğunu fark eden mühendisler, bu titreşimleri azaltmak için bir çalışma başlatmıştır.\\n\\nBuna göre, kompresörün hareketi ile ilgili aşağıdaki ifadelerden hangileri doğrudur?\\n\\nI. Kompresörün titreşim frekansını artırmak için yayın sertlik sabiti artırılmalıdır.\\nII. Kompresör denge konumundan geçerken ivmesinin büyüklüğü sıfırdır.\\nIII. Kompresörün titreşim genliği artırılırsa periyodu da artar.",
+  "soru_koku": "",
+  "oncul_ifadeler": {{
+    "I": "Kompresörün titreşim frekansını artırmak için yayın sertlik sabiti artırılmalıdır.",
+    "II": "Kompresör denge konumundan geçerken ivmesinin büyüklüğü sıfırdır.",
+    "III": "Kompresörün titreşim genliği artırılırsa periyodu da artar."
+  }},
+  "siklar": {{
+    "A": "Yalniz I",
+    "B": "Yalniz II",
+    "C": "I ve II",
+    "D": "II ve III",
+    "E": "I, II ve III"
+  }},
+  "dogru_cevap": "C"
+}}
 
-Buna gore, bu sistemle ilgili asagidaki ifadelerden hangileri dogrudur?
-
-I. [Birinci fiziksel yargi - EN AZ 15 kelime, tam cumle]
-II. [Ikinci fiziksel yargi - EN AZ 15 kelime, tam cumle]
-III. [Ucuncu fiziksel yargi - EN AZ 15 kelime, tam cumle]"
-
-SIKLAR MUTLAKA SU FORMATTA OLMALI:
-A) Yalniz I
-B) Yalniz II  
-C) I ve II
-D) II ve III
-E) I, II ve III
-
-KRITIK: I, II, III ifadeleri "soru_metni" alaninda MUTLAKA yer almali!
-JSON'da ayrica "oncul_ifadeler" alaninda da ayri ayri yaz.
+DIKKAT: soru_metni icinde "I. ...", "II. ...", "III. ..." MUTLAKA olmali!
+Yoksa soru REDDEDILIR.
 
 YASAK: Onculleri yazmadan "Yalniz I" gibi siklar olusturmak KESINLIKLE YASAKTIR!
 """
@@ -1913,64 +1948,79 @@ class AYTFizikGenerator:
                     self.stats["quality_retries"] += 1
                     continue
                 
-                # ONCULU SORU KONTROLU - GUCLENDIRILMIS
-                if params.soru_tipi == "onculu":
-                    soru_metni_check = question_data.get("soru_metni", "")
-                    oncul_ifadeler = question_data.get("oncul_ifadeler", {})
+                # ONCULU SORU KONTROLU - CATI SIKI
+                # Siklarda "Yalniz I", "I ve II" gibi ifadeler varsa MUTLAKA onculler olmali
+                sik_values = list(siklar.values())
+                siklar_onculu_formatinda = any(
+                    "Yalniz" in str(s) or "Yalnız" in str(s) or 
+                    "ve II" in str(s) or "ve III" in str(s) or
+                    "I, II" in str(s) or "II ve" in str(s)
+                    for s in sik_values
+                )
+                
+                soru_metni_check = question_data.get("soru_metni", "")
+                oncul_ifadeler = question_data.get("oncul_ifadeler", {})
+                
+                # Oncullerin metinde var mi kontrol et
+                has_oncul_in_text = (
+                    ("I." in soru_metni_check and "II." in soru_metni_check) or
+                    ("I)" in soru_metni_check and "II)" in soru_metni_check) or
+                    ("I. " in soru_metni_check and "II. " in soru_metni_check)
+                )
+                
+                # Oncul_ifadeler field'inda en az 2 oncul var mi?
+                has_oncul_field = (
+                    oncul_ifadeler and 
+                    len(oncul_ifadeler) >= 2 and
+                    oncul_ifadeler.get("I") and 
+                    oncul_ifadeler.get("II")
+                )
+                
+                # KRITIK KONTROL: Siklar onculu formatinda ama onculler yoksa REDDET
+                if siklar_onculu_formatinda and not has_oncul_in_text and not has_oncul_field:
+                    logger.warning("  ❌ KRITIK: Siklar onculu formatinda ama I, II, III ifadeleri YOK!")
+                    logger.warning("  Soru REDDEDILIYOR ve yeniden uretilecek...")
+                    self.stats["quality_retries"] += 1
+                    self.stats["questions_rejected"] += 1
+                    continue
+                
+                # Onculler field'da var ama metinde yoksa, metne MUTLAKA ekle
+                if siklar_onculu_formatinda and has_oncul_field and not has_oncul_in_text:
+                    logger.info("  Onculler field'da var, metne ekleniyor...")
+                    oncul_text = "\n\n"
+                    if oncul_ifadeler.get("I"):
+                        oncul_text += f"I. {oncul_ifadeler['I']}\n"
+                    if oncul_ifadeler.get("II"):
+                        oncul_text += f"II. {oncul_ifadeler['II']}\n"
+                    if oncul_ifadeler.get("III"):
+                        oncul_text += f"III. {oncul_ifadeler['III']}\n"
                     
-                    # Oncullerin varligini kontrol et
-                    has_oncul_in_text = ("I." in soru_metni_check or "I)" in soru_metni_check or 
-                                         "I. " in soru_metni_check)
-                    has_oncul_field = oncul_ifadeler and len(oncul_ifadeler) >= 2
+                    # Soru metnine ekle
+                    question_data["soru_metni"] = soru_metni_check + oncul_text
+                    logger.info("  ✓ Onculler soru metnine eklendi")
                     
-                    # Eger onculler hem metinde hem field'da yoksa
-                    if not has_oncul_in_text and not has_oncul_field:
-                        logger.warning("  ONCULU soru tipinde I, II, III ifadeleri eksik!")
-                        logger.warning("  Soru tipi 'hikayeli' olarak degistiriliyor...")
-                        
-                        # Soru tipini degistir ve siklari normal formata cevir
-                        params.soru_tipi = "hikayeli"
-                        
-                        # Siklari normal formata cevir (eger onculu formatindaysa)
-                        sik_values = list(siklar.values())
-                        if any("Yalniz" in str(s) or "ve II" in str(s) for s in sik_values):
-                            logger.warning("  Siklar onculu formatinda ama onculler yok - soru reddediliyor")
-                            self.stats["quality_retries"] += 1
-                            continue
+                    # Tekrar kontrol
+                    soru_metni_check = question_data["soru_metni"]
+                    has_oncul_in_text = "I." in soru_metni_check and "II." in soru_metni_check
                     
-                    # Onculler field'da var ama metinde yoksa, metne ekle
-                    elif has_oncul_field and not has_oncul_in_text:
-                        logger.info("  Onculler field'da var, metne ekleniyor...")
-                        oncul_text = "\n\n"
-                        if oncul_ifadeler.get("I"):
-                            oncul_text += f"I. {oncul_ifadeler['I']}\n"
-                        if oncul_ifadeler.get("II"):
-                            oncul_text += f"II. {oncul_ifadeler['II']}\n"
-                        if oncul_ifadeler.get("III"):
-                            oncul_text += f"III. {oncul_ifadeler['III']}\n"
-                        
-                        # Soru metnine ekle
-                        question_data["soru_metni"] = soru_metni_check + oncul_text
-                        logger.info("  Onculler soru metnine eklendi")
-                    
-                    # Siklarin onculu formatinda olup olmadigini kontrol et
-                    sik_values = list(siklar.values())
-                    onculu_sik_keywords = ["Yalniz", "yalniz", "ve II", "ve III", "I, II", "II ve", "I ve"]
-                    has_onculu_siklar = any(any(kw in str(sik) for kw in onculu_sik_keywords) for sik in sik_values)
-                    
-                    # Onculler var ama siklar yanlis formatsa duzelt
-                    if (has_oncul_in_text or has_oncul_field) and not has_onculu_siklar:
-                        logger.info("  Onculler var ama siklar yanlis formatta, duzeltiliyor...")
-                        question_data["siklar"] = {
-                            "A": "Yalniz I",
-                            "B": "Yalniz II",
-                            "C": "I ve II",
-                            "D": "II ve III",
-                            "E": "I, II ve III"
-                        }
-                        siklar = question_data["siklar"]
-                    
-                    logger.info("  Onculu soru formati kontrol edildi - OK")
+                    if not has_oncul_in_text:
+                        logger.warning("  ❌ Onculler eklenemedi, soru reddediliyor")
+                        self.stats["quality_retries"] += 1
+                        continue
+                
+                # Eger hala onculler yoksa ve siklar onculu formatindaysa, son kontrol
+                if siklar_onculu_formatinda:
+                    final_check = question_data.get("soru_metni", "")
+                    if not ("I." in final_check and "II." in final_check):
+                        logger.warning("  ❌ SON KONTROL: Onculler hala yok, REDDEDILIYOR")
+                        self.stats["quality_retries"] += 1
+                        continue
+                    else:
+                        logger.info("  ✓ Onculu soru formati dogru")
+                
+                # params.soru_tipi == "onculu" ise ek kontrol
+                if params.soru_tipi == "onculu" and not siklar_onculu_formatinda:
+                    logger.info("  Onculu tip istendi ama siklar normal formatta - kabul edildi")
                 
                 # Kalite kontrolu
                 logger.info("  Kalite kontrolu yapiliyor...")
@@ -1993,13 +2043,63 @@ class AYTFizikGenerator:
                 logger.error("  Tum soru denemeleri basarisiz")
                 return None
             
-            # ADIM 2: GORSEL URETIMI
+            # ADIM 2: GORSEL URETIMI - GUCLENDIRILMIS
             image_url = None
             image_bytes = None
             gorsel_betimleme = question_data.get("gorsel_betimleme", {})
             
-            if question_data.get("gorsel_gerekli", False) and gorsel_betimleme:
-                logger.info("\n[2/5] Renkli gorsel uretiliyor...")
+            # Gorsel uretme karari - DAHA AGRESIF
+            gorsel_uret = False
+            gorsel_neden = ""
+            
+            # 1. Gemini gorsel_gerekli: true dediyse
+            if question_data.get("gorsel_gerekli", False):
+                gorsel_uret = True
+                gorsel_neden = "Gemini gorsel istedi"
+            
+            # 2. Soru tipi grafik ise ZORUNLU
+            if params.soru_tipi == "grafik":
+                gorsel_uret = True
+                gorsel_neden = "Grafik tipi soru"
+            
+            # 3. Görsel tipi belirtilmişse
+            if gorsel_betimleme and gorsel_betimleme.get("tip"):
+                gorsel_uret = True
+                gorsel_neden = f"Gorsel tipi: {gorsel_betimleme.get('tip')}"
+            
+            # 4. Belirli konularda YUKSEK gorsel orani (%70)
+            gorsel_oncelikli_konular = [
+                "basit_harmonik_hareket",
+                "dairesel_hareket", 
+                "elektrostatik",
+                "manyetizma",
+                "dalgalar",
+                "kuantum_fizigi",
+                "atom_fizigi"
+            ]
+            if params.konu in gorsel_oncelikli_konular and not gorsel_uret:
+                if random.random() < 0.7:  # %70 ihtimalle gorsel uret
+                    gorsel_uret = True
+                    gorsel_neden = f"Konu bazli gorsel ({params.konu})"
+                    # Varsayilan gorsel betimleme olustur
+                    if not gorsel_betimleme:
+                        konu_data = AYT_FIZIK_KONULAR.get(params.konu, {})
+                        gorsel_tipleri = konu_data.get("gorsel_tipleri", ["diyagram"])
+                        gorsel_betimleme = {
+                            "tip": random.choice(gorsel_tipleri),
+                            "detay": f"{konu_data.get('display_name', params.konu)} ile ilgili aciklayici diyagram",
+                            "ogeler": ["sistem", "etiketler", "oklar"],
+                            "renkler": {"ana": "mavi", "vurgu": "kirmizi", "arka_plan": "beyaz"}
+                        }
+            
+            # 5. Zorluk 4-5 ise gorsel sansi artir (%50)
+            if params.zorluk >= 4 and not gorsel_uret:
+                if random.random() < 0.5:  # %50 ihtimalle
+                    gorsel_uret = True
+                    gorsel_neden = "Zor soru - gorsel yardimci"
+            
+            if gorsel_uret and gorsel_betimleme:
+                logger.info(f"\n[2/5] Renkli gorsel uretiliyor... ({gorsel_neden})")
                 
                 for img_attempt in range(max_image_retries):
                     image_bytes = self.gemini.generate_image(gorsel_betimleme, params.konu)
@@ -2022,7 +2122,10 @@ class AYTFizikGenerator:
                     if image_url:
                         self.stats["with_image"] += 1
             else:
-                logger.info("\n[2/5] Gorsel gerekli degil, atlaniyor...")
+                if gorsel_uret and not gorsel_betimleme:
+                    logger.info("\n[2/5] Gorsel istendi ama betimleme yok, atlaniyor...")
+                else:
+                    logger.info("\n[2/5] Gorsel gerekli degil, atlaniyor...")
             
             # ADIM 3: VERI YAPISI
             logger.info("\n[3/5] Veri yapisi hazirlaniyor...")
