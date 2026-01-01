@@ -1,17 +1,16 @@
-# Scenario Bot v2.0 Workflow
-# PISA ve senaryo tabanlı sorular için:
-# - Tablo/veri içeren sorularda infografik görsel üretir
-# - Soru metnini sadeleştirir (tablo/veri kısmını çıkarır)
-# - Gemini ile kalite kontrolü yapar
-# - Onay gelirse veritabanını günceller
+# Scenario Bot v3.0 Workflow
+# ESNEK VE ZENGİN GÖRSEL DESTEĞİ:
+# - Geometrik şekiller (silindir, küp, prizma, koni, küre)
+# - Grafikler (çubuk, çizgi, pasta)
+# - Dinamik tablolar
+# - Karşılaştırma kartları
+# - İnfografikler
 #
-# Günde 3 kez çalışır (09:00, 15:00, 21:00 UTC+3)
-# Her seansta 30 soru işler, test modunda 10 soru
+# Dinamik soru metni - statik değil gerçek soru!
 
-name: Scenario Bot v2
+name: Scenario Bot v3
 
 on:
-  # Manuel tetikleme
   workflow_dispatch:
     inputs:
       test_mode:
@@ -27,27 +26,18 @@ on:
         required: false
         default: '30'
         type: string
-      quality_threshold:
-        description: 'Kalite eşiği (1-10)'
-        required: false
-        default: '7'
-        type: string
   
-  # Zamanlanmış çalışma (Geometri botundan 1 saat sonra)
   schedule:
-    # 06:00 UTC = 09:00 TR
-    - cron: '0 6 * * *'
-    # 12:00 UTC = 15:00 TR
-    - cron: '0 12 * * *'
-    # 18:00 UTC = 21:00 TR
-    - cron: '0 18 * * *'
+    - cron: '0 6 * * *'   # 09:00 TR
+    - cron: '0 12 * * *'  # 15:00 TR
+    - cron: '0 18 * * *'  # 21:00 TR
 
 jobs:
-  generate-scenario-visuals:
+  generate-visuals:
     runs-on: ubuntu-latest
     
     steps:
-      - name: 📥 Checkout repository
+      - name: 📥 Checkout
         uses: actions/checkout@v4
       
       - name: 🐍 Setup Python
@@ -58,53 +48,47 @@ jobs:
       
       - name: 📦 Install dependencies
         run: |
-          python -m pip install --upgrade pip
+          pip install --upgrade pip
           pip install -r scenario_requirements.txt
       
-      - name: 🎭 Install Playwright browsers
+      - name: 🎭 Install Playwright
         run: |
           playwright install chromium
           playwright install-deps chromium
       
-      - name: 🖼️ Run Scenario Bot v2
+      - name: 🖼️ Run Scenario Bot v3
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TEST_MODE: ${{ github.event.inputs.test_mode || 'false' }}
           BATCH_SIZE: ${{ github.event.inputs.batch_size || '30' }}
-          QUALITY_THRESHOLD: ${{ github.event.inputs.quality_threshold || '7' }}
         run: |
-          echo "🚀 Senaryo Görsel Botu v2.0 Başlatılıyor..."
-          echo "📅 Tarih: $(date)"
-          echo "🔧 Test Modu: $TEST_MODE"
-          echo "📊 Batch Boyutu: $BATCH_SIZE soru"
-          echo "⭐ Kalite Eşiği: $QUALITY_THRESHOLD/10"
+          echo "🚀 Senaryo Görsel Botu v3.0"
+          echo "📅 $(date)"
           echo ""
-          echo "📋 Yeni Özellikler:"
-          echo "   - Tablo/veri içeren sorulara görsel oluşturma"
-          echo "   - Soru metni sadeleştirme (veri → görsel)"
-          echo "   - Gemini ile kalite kontrolü ve puanlama"
+          echo "🆕 v3.0 Özellikleri:"
+          echo "   📐 Geometrik şekiller (silindir, küp, koni, küre)"
+          echo "   📊 Grafikler (çubuk, çizgi, pasta)"
+          echo "   📋 Dinamik tablolar"
+          echo "   ⚖️ Karşılaştırma kartları"
+          echo "   ❓ Dinamik soru metni"
           echo ""
-          python scenario_bot.py
+          python scenario_bot_v3.py
       
-      - name: 📊 Job Summary
+      - name: 📊 Summary
         if: always()
         run: |
-          echo "## 🖼️ Senaryo Bot v2.0 Çalışması Tamamlandı" >> $GITHUB_STEP_SUMMARY
+          echo "## 🖼️ Senaryo Bot v3.0 Tamamlandı" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### ⚙️ Ayarlar" >> $GITHUB_STEP_SUMMARY
-          echo "| Parametre | Değer |" >> $GITHUB_STEP_SUMMARY
-          echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Tarih | $(date) |" >> $GITHUB_STEP_SUMMARY
-          echo "| Test Modu | ${{ github.event.inputs.test_mode || 'false' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Batch Boyutu | ${{ github.event.inputs.batch_size || '30' }} soru |" >> $GITHUB_STEP_SUMMARY
-          echo "| Kalite Eşiği | ${{ github.event.inputs.quality_threshold || '7' }}/10 |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 🆕 v2.0 Özellikleri" >> $GITHUB_STEP_SUMMARY
-          echo "- ✨ Tablo/veri içeren sorulara otomatik görsel" >> $GITHUB_STEP_SUMMARY
-          echo "- ✂️ Soru metni sadeleştirme (veri görsele taşınır)" >> $GITHUB_STEP_SUMMARY
-          echo "- 🎯 Gemini ile kalite kontrolü ve puanlama" >> $GITHUB_STEP_SUMMARY
-          echo "- 📝 Veritabanında hem görsel hem metin güncelleme" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Detaylar için logları kontrol edin." >> $GITHUB_STEP_SUMMARY
+          echo "### 🆕 Desteklenen Görsel Tipleri" >> $GITHUB_STEP_SUMMARY
+          echo "| Tip | Açıklama |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|----------|" >> $GITHUB_STEP_SUMMARY
+          echo "| comparison_geometry | Geometrik şekillerle karşılaştırma |" >> $GITHUB_STEP_SUMMARY
+          echo "| comparison | Basit karşılaştırma kartları |" >> $GITHUB_STEP_SUMMARY
+          echo "| table | Veri tablosu |" >> $GITHUB_STEP_SUMMARY
+          echo "| bar_chart | Çubuk grafik |" >> $GITHUB_STEP_SUMMARY
+          echo "| line_chart | Çizgi grafik |" >> $GITHUB_STEP_SUMMARY
+          echo "| pie_chart | Pasta grafik |" >> $GITHUB_STEP_SUMMARY
+          echo "| geometry | Sadece geometrik şekiller |" >> $GITHUB_STEP_SUMMARY
+          echo "| infographic | Bilgi kartları |" >> $GITHUB_STEP_SUMMARY
