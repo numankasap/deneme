@@ -1,8 +1,10 @@
 """
-Senaryo Görsel Botu (PISA/Problem)
-==================================
-Supabase'deki senaryo tabanlı soruları (PISA, hareket, maliyet, havuz, yaş) tarar,
-Gemini ile analiz eder, HTML template'lerden profesyonel infografikler üretir.
+Senaryo Görsel Botu v2.0
+========================
+- Senaryo sorularındaki tablo ve verileri görsele aktarır
+- Soru metnini sadeleştirir (tablo/veri kısmını çıkarır)
+- Gemini ile kalite kontrolü yapar (puan sistemi)
+- Onay gelirse değişikliği uygular
 
 GitHub Actions ile çalışır.
 Günde 3 seans, her seansta 30 soru işler.
@@ -13,9 +15,9 @@ import json
 import time
 import logging
 import base64
-import asyncio
+import re
 from datetime import datetime
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Any, Tuple
 from string import Template
 import tempfile
 
@@ -58,13 +60,16 @@ class Config:
     STORAGE_BUCKET = 'questions-images'
     
     # İşlem limitleri
-    BATCH_SIZE = int(os.environ.get('BATCH_SIZE', '30'))  # Varsayılan 30 soru
+    BATCH_SIZE = int(os.environ.get('BATCH_SIZE', '30'))
     TEST_MODE = os.environ.get('TEST_MODE', 'false').lower() == 'true'
     TEST_BATCH_SIZE = 10
     
     # Görsel ayarları
     IMAGE_WIDTH = 900
     IMAGE_HEIGHT = 600
+    
+    # Kalite eşiği (10 üzerinden)
+    QUALITY_THRESHOLD = 7
 
 
 # ============== HTML TEMPLATE'LERİ ==============
@@ -81,6 +86,7 @@ class HTMLTemplates:
         'orange': {'primary': '#f59e0b', 'light': '#fef3c7', 'dark': '#92400e'},
         'pink': {'primary': '#ec4899', 'light': '#fce7f3', 'dark': '#9d174d'},
         'teal': {'primary': '#14b8a6', 'light': '#ccfbf1', 'dark': '#115e59'},
+        'indigo': {'primary': '#6366f1', 'light': '#e0e7ff', 'dark': '#4338ca'},
     }
     
     # Ana CSS stilleri
@@ -213,8 +219,8 @@ class HTMLTemplates:
         }
     """
     
-    # ==================== YOL/HAREKET PROBLEMİ ====================
-    HAREKET_TEMPLATE = """
+    # ==================== VERİ TABLOSU TEMPLATE ====================
+    TABLO_TEMPLATE = """
     <!DOCTYPE html>
     <html lang="tr">
     <head>
@@ -222,148 +228,85 @@ class HTMLTemplates:
         <style>
             ${base_css}
             
-            .road-diagram {
-                position: relative;
-                height: 320px;
-                margin: 20px 0;
+            .table-card {
+                background: ${color_light};
+                border: 3px solid ${color_primary};
+                border-radius: 18px;
+                padding: 24px;
+                margin-bottom: 20px;
             }
             
-            .road {
-                position: absolute;
-                border-radius: 8px;
+            .table-card h3 {
+                color: ${color_dark};
+                font-size: 18px;
+                margin-bottom: 16px;
+                display: flex;
+                align-items: center;
+                gap: 10px;
             }
             
-            .road-vertical {
-                width: 70px;
-                background: linear-gradient(180deg, ${color1_primary} 0%, ${color1_dark} 100%);
+            table {
+                width: 100%;
+                border-collapse: separate;
+                border-spacing: 0;
+                background: white;
+                border-radius: 12px;
+                overflow: hidden;
+                box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
             }
             
-            .road-horizontal {
-                height: 70px;
-                background: linear-gradient(90deg, ${color2_primary} 0%, ${color2_dark} 100%);
-            }
-            
-            .road::after {
-                content: '';
-                position: absolute;
-                background: repeating-linear-gradient(
-                    var(--line-direction),
-                    #ffffff 0px, #ffffff 15px,
-                    transparent 15px, transparent 30px
-                );
-                opacity: 0.7;
-            }
-            
-            .road-vertical::after {
-                --line-direction: 180deg;
-                left: 50%;
-                top: 15px;
-                bottom: 15px;
-                width: 3px;
-                transform: translateX(-50%);
-            }
-            
-            .road-horizontal::after {
-                --line-direction: 90deg;
-                top: 50%;
-                left: 15px;
-                right: 15px;
-                height: 3px;
-                transform: translateY(-50%);
-            }
-            
-            .vehicle {
-                position: absolute;
-                padding: 10px 16px;
-                border-radius: 10px;
+            th {
+                background: linear-gradient(135deg, ${color_primary} 0%, ${color_dark} 100%);
+                color: white;
+                padding: 14px 18px;
+                text-align: center;
                 font-weight: 700;
                 font-size: 14px;
-                color: white;
-                box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-                z-index: 10;
-                display: flex;
-                align-items: center;
-                gap: 6px;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
             }
             
-            .intersection {
-                position: absolute;
-                width: 70px;
-                height: 70px;
-                background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                z-index: 5;
+            td {
+                padding: 12px 18px;
+                text-align: center;
+                font-size: 15px;
+                font-weight: 600;
+                color: #334155;
+                border-bottom: 1px solid #e2e8f0;
             }
             
-            .intersection-icon {
-                width: 45px;
-                height: 45px;
-                background: white;
-                border-radius: 50%;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                font-size: 22px;
-                box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+            tr:last-child td {
+                border-bottom: none;
             }
             
-            .info-label {
-                position: absolute;
-                padding: 8px 14px;
-                border-radius: 20px;
-                font-weight: 700;
-                font-size: 13px;
-                box-shadow: 0 3px 12px rgba(0, 0, 0, 0.1);
-                z-index: 15;
-                white-space: nowrap;
+            tr:nth-child(even) td {
+                background: #f8fafc;
             }
             
-            .clock {
-                position: absolute;
-                width: 75px;
-                height: 75px;
-                background: white;
-                border-radius: 50%;
-                border: 4px solid;
-                display: flex;
-                flex-direction: column;
-                justify-content: center;
-                align-items: center;
-                box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
-                z-index: 20;
+            tr:hover td {
+                background: ${color_light};
             }
             
-            .clock-time {
-                font-size: 18px;
+            .question-cell {
+                background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%) !important;
+                color: #92400e;
                 font-weight: 800;
+                font-size: 18px;
             }
             
-            .clock-label {
-                font-size: 10px;
-                color: #64748b;
-            }
-            
-            .target-label {
-                position: absolute;
-                background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%);
-                color: #6b21a8;
-                padding: 10px 20px;
-                border-radius: 25px;
+            .highlight-row td {
+                background: linear-gradient(135deg, ${color_light} 0%, white 100%) !important;
                 font-weight: 700;
-                font-size: 13px;
-                border: 2px solid #8b5cf6;
-                box-shadow: 0 4px 15px rgba(139, 92, 246, 0.2);
-                z-index: 20;
-                display: flex;
-                align-items: center;
-                gap: 8px;
             }
             
-            .arrow {
-                position: absolute;
-                z-index: 8;
+            .source-note {
+                margin-top: 16px;
+                padding: 12px 16px;
+                background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+                border-radius: 10px;
+                font-size: 12px;
+                color: #64748b;
+                text-align: center;
             }
         </style>
     </head>
@@ -376,15 +319,120 @@ class HTMLTemplates:
                 </div>
             </div>
             
-            <div class="road-diagram">
-                ${diagram_html}
+            <div class="content">
+                <div class="table-card">
+                    <h3>📊 ${tablo_baslik}</h3>
+                    <table>
+                        ${table_html}
+                    </table>
+                    ${source_note_html}
+                </div>
             </div>
         </div>
     </body>
     </html>
     """
     
-    # ==================== MALİYET/KARŞILAŞTIRMA ====================
+    # ==================== VERİ KARTLARI TEMPLATE ====================
+    VERI_KARTLARI_TEMPLATE = """
+    <!DOCTYPE html>
+    <html lang="tr">
+    <head>
+        <meta charset="UTF-8">
+        <style>
+            ${base_css}
+            
+            .data-grid {
+                display: grid;
+                grid-template-columns: repeat(${grid_cols}, 1fr);
+                gap: 16px;
+                margin-bottom: 20px;
+            }
+            
+            .data-card {
+                background: linear-gradient(135deg, ${color_light} 0%, white 100%);
+                border: 2px solid ${color_primary};
+                border-radius: 16px;
+                padding: 20px;
+                text-align: center;
+                transition: transform 0.2s;
+            }
+            
+            .data-card:hover {
+                transform: translateY(-3px);
+            }
+            
+            .data-card .icon {
+                font-size: 32px;
+                margin-bottom: 10px;
+            }
+            
+            .data-card .label {
+                font-size: 12px;
+                color: #64748b;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                margin-bottom: 6px;
+            }
+            
+            .data-card .value {
+                font-size: 24px;
+                font-weight: 800;
+                color: ${color_dark};
+            }
+            
+            .data-card .unit {
+                font-size: 14px;
+                color: #94a3b8;
+                margin-top: 4px;
+            }
+            
+            .data-card.highlight {
+                background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+                border-color: #f59e0b;
+            }
+            
+            .data-card.highlight .value {
+                color: #92400e;
+            }
+            
+            .formula-box {
+                background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+                border-radius: 14px;
+                padding: 16px 24px;
+                text-align: center;
+                margin-top: 16px;
+            }
+            
+            .formula-box .formula {
+                font-size: 18px;
+                font-weight: 700;
+                color: #334155;
+                font-family: 'Courier New', monospace;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container" style="width: ${width}px;">
+            <div class="header">
+                <h1>${baslik}</h1>
+                <div class="badges">
+                    ${badges_html}
+                </div>
+            </div>
+            
+            <div class="content">
+                <div class="data-grid">
+                    ${cards_html}
+                </div>
+                ${formula_html}
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    # ==================== KARŞILAŞTIRMA TEMPLATE ====================
     KARSILASTIRMA_TEMPLATE = """
     <!DOCTYPE html>
     <html lang="tr">
@@ -493,7 +541,125 @@ class HTMLTemplates:
     </html>
     """
     
-    # ==================== HAVUZ/MUSLUK PROBLEMİ ====================
+    # ==================== HAREKET/YOL TEMPLATE ====================
+    HAREKET_TEMPLATE = """
+    <!DOCTYPE html>
+    <html lang="tr">
+    <head>
+        <meta charset="UTF-8">
+        <style>
+            ${base_css}
+            
+            .road-diagram {
+                position: relative;
+                height: 320px;
+                margin: 20px 0;
+            }
+            
+            .road {
+                position: absolute;
+                border-radius: 8px;
+            }
+            
+            .road-vertical {
+                width: 70px;
+                background: linear-gradient(180deg, ${color1_primary} 0%, ${color1_dark} 100%);
+            }
+            
+            .road-horizontal {
+                height: 70px;
+                background: linear-gradient(90deg, ${color2_primary} 0%, ${color2_dark} 100%);
+            }
+            
+            .road::after {
+                content: '';
+                position: absolute;
+                background: repeating-linear-gradient(
+                    var(--line-direction),
+                    #ffffff 0px, #ffffff 15px,
+                    transparent 15px, transparent 30px
+                );
+                opacity: 0.7;
+            }
+            
+            .road-vertical::after {
+                --line-direction: 180deg;
+                left: 50%;
+                top: 15px;
+                bottom: 15px;
+                width: 3px;
+                transform: translateX(-50%);
+            }
+            
+            .road-horizontal::after {
+                --line-direction: 90deg;
+                top: 50%;
+                left: 15px;
+                right: 15px;
+                height: 3px;
+                transform: translateY(-50%);
+            }
+            
+            .vehicle {
+                position: absolute;
+                padding: 10px 16px;
+                border-radius: 10px;
+                font-weight: 700;
+                font-size: 14px;
+                color: white;
+                box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+                z-index: 10;
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }
+            
+            .info-label {
+                position: absolute;
+                padding: 8px 14px;
+                border-radius: 20px;
+                font-weight: 700;
+                font-size: 13px;
+                box-shadow: 0 3px 12px rgba(0, 0, 0, 0.1);
+                z-index: 15;
+                white-space: nowrap;
+            }
+            
+            .target-label {
+                position: absolute;
+                background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%);
+                color: #6b21a8;
+                padding: 10px 20px;
+                border-radius: 25px;
+                font-weight: 700;
+                font-size: 13px;
+                border: 2px solid #8b5cf6;
+                box-shadow: 0 4px 15px rgba(139, 92, 246, 0.2);
+                z-index: 20;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container" style="width: ${width}px;">
+            <div class="header">
+                <h1>${baslik}</h1>
+                <div class="badges">
+                    ${badges_html}
+                </div>
+            </div>
+            
+            <div class="road-diagram">
+                ${diagram_html}
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    # ==================== HAVUZ/MUSLUK TEMPLATE ====================
     HAVUZ_TEMPLATE = """
     <!DOCTYPE html>
     <html lang="tr">
@@ -595,16 +761,6 @@ class HTMLTemplates:
             .drain-pipe .pipe-info .value {
                 color: #991b1b;
             }
-            
-            .arrow-down {
-                font-size: 20px;
-                color: #22c55e;
-            }
-            
-            .arrow-up {
-                font-size: 20px;
-                color: #ef4444;
-            }
         </style>
     </head>
     <body>
@@ -617,23 +773,14 @@ class HTMLTemplates:
             </div>
             
             <div class="pool-diagram">
-                ${pipes_html}
-                
-                <div class="pool">
-                    <span class="pool-label">${havuz_bilgi}</span>
-                </div>
-            </div>
-            
-            <div class="question-box" style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 3px solid #f59e0b; border-radius: 16px; padding: 20px; text-align: center;">
-                <div style="font-size: 12px; color: #92400e; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; font-weight: 700;">❓ Soru</div>
-                <div style="font-size: 18px; font-weight: 800; color: #78350f;">${soru_metni}</div>
+                ${diagram_html}
             </div>
         </div>
     </body>
     </html>
     """
     
-    # ==================== YAŞ PROBLEMİ / TIMELINE ====================
+    # ==================== YAŞ PROBLEMİ TEMPLATE ====================
     YAS_TEMPLATE = """
     <!DOCTYPE html>
     <html lang="tr">
@@ -642,179 +789,101 @@ class HTMLTemplates:
         <style>
             ${base_css}
             
-            .timeline-container {
-                padding: 30px 20px;
-                background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
-                border-radius: 16px;
-                margin-bottom: 20px;
+            .timeline {
+                position: relative;
+                padding: 30px 0;
+                margin: 20px 0;
             }
             
-            .timeline {
+            .timeline-line {
+                position: absolute;
+                left: 50px;
+                right: 50px;
+                top: 50%;
+                height: 6px;
+                background: linear-gradient(90deg, #94a3b8 0%, #64748b 50%, #94a3b8 100%);
+                border-radius: 3px;
+            }
+            
+            .timeline-points {
                 display: flex;
                 justify-content: space-between;
-                align-items: center;
                 position: relative;
-                padding: 40px 0;
+                z-index: 1;
+                padding: 0 30px;
             }
             
-            .timeline::before {
-                content: '';
-                position: absolute;
-                top: 50%;
-                left: 10%;
-                right: 10%;
-                height: 4px;
-                background: linear-gradient(90deg, #22c55e 0%, #16a34a 100%);
-                border-radius: 2px;
-                transform: translateY(-50%);
-            }
-            
-            .time-point {
+            .timeline-point {
                 display: flex;
                 flex-direction: column;
                 align-items: center;
                 gap: 10px;
-                z-index: 1;
             }
             
-            .time-dot {
-                width: 20px;
-                height: 20px;
+            .point-marker {
+                width: 24px;
+                height: 24px;
                 background: white;
-                border: 4px solid #22c55e;
+                border: 4px solid ${color_primary};
                 border-radius: 50%;
             }
             
-            .time-label {
-                background: white;
-                padding: 8px 16px;
-                border-radius: 12px;
+            .point-label {
+                font-size: 13px;
                 font-weight: 700;
-                font-size: 14px;
-                color: #166534;
-                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-            }
-            
-            .persons-container {
-                display: flex;
-                justify-content: center;
-                gap: 30px;
-                margin-top: 20px;
-            }
-            
-            .person-card {
-                background: white;
-                border-radius: 16px;
-                padding: 20px;
-                text-align: center;
-                box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-                min-width: 140px;
-            }
-            
-            .person-avatar {
-                font-size: 40px;
-                margin-bottom: 10px;
-            }
-            
-            .person-name {
-                font-size: 16px;
-                font-weight: 700;
-                color: #1e293b;
-                margin-bottom: 8px;
-            }
-            
-            .person-age {
-                font-size: 14px;
                 color: #64748b;
             }
             
-            .person-age strong {
-                color: #166534;
-                font-size: 18px;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="container" style="width: ${width}px;">
-            <div class="header">
-                <h1>${baslik}</h1>
-                <div class="badges">
-                    ${badges_html}
-                </div>
-            </div>
-            
-            <div class="timeline-container">
-                <div class="timeline">
-                    ${timeline_html}
-                </div>
-            </div>
-            
-            <div class="persons-container">
-                ${persons_html}
-            </div>
-            
-            <div class="question-box" style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 3px solid #f59e0b; border-radius: 16px; padding: 20px; text-align: center; margin-top: 20px;">
-                <div style="font-size: 12px; color: #92400e; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; font-weight: 700;">❓ Soru</div>
-                <div style="font-size: 18px; font-weight: 800; color: #78350f;">${soru_metni}</div>
-            </div>
-        </div>
-    </body>
-    </html>
-    """
-    
-    # ==================== TABLO/VERİ ====================
-    TABLO_TEMPLATE = """
-    <!DOCTYPE html>
-    <html lang="tr">
-    <head>
-        <meta charset="UTF-8">
-        <style>
-            ${base_css}
-            
-            .data-table {
-                width: 100%;
-                border-collapse: separate;
-                border-spacing: 0;
-                border-radius: 12px;
-                overflow: hidden;
-                box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-                margin-bottom: 20px;
+            .people-row {
+                display: flex;
+                justify-content: center;
+                gap: 30px;
+                margin: 30px 0;
             }
             
-            .data-table th {
-                background: linear-gradient(135deg, ${color_primary} 0%, ${color_dark} 100%);
-                color: white;
-                padding: 14px 16px;
-                font-weight: 700;
-                font-size: 14px;
-                text-align: left;
+            .person-card {
+                background: linear-gradient(135deg, ${color_light} 0%, white 100%);
+                border: 3px solid ${color_primary};
+                border-radius: 18px;
+                padding: 20px;
+                text-align: center;
+                min-width: 140px;
             }
             
-            .data-table td {
-                padding: 12px 16px;
-                border-bottom: 1px solid #e2e8f0;
-                font-size: 14px;
+            .person-card .avatar {
+                font-size: 48px;
+                margin-bottom: 10px;
             }
             
-            .data-table tr:nth-child(even) {
-                background: #f8fafc;
-            }
-            
-            .data-table tr:last-child td {
-                border-bottom: none;
-            }
-            
-            .data-table tr:hover {
-                background: ${color_light};
-            }
-            
-            .highlight-cell {
-                font-weight: 700;
+            .person-card .name {
+                font-size: 16px;
+                font-weight: 800;
                 color: ${color_dark};
+                margin-bottom: 8px;
             }
             
-            .question-cell {
-                background: #fef3c7 !important;
+            .person-card .age {
+                font-size: 24px;
+                font-weight: 800;
+                color: ${color_primary};
+            }
+            
+            .person-card .age-label {
+                font-size: 12px;
+                color: #64748b;
+            }
+            
+            .relation-box {
+                background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+                border: 2px solid #f59e0b;
+                border-radius: 12px;
+                padding: 14px 20px;
+                text-align: center;
+                margin-top: 16px;
+            }
+            
+            .relation-box .relation {
+                font-size: 16px;
                 font-weight: 700;
                 color: #92400e;
             }
@@ -829,20 +898,21 @@ class HTMLTemplates:
                 </div>
             </div>
             
-            <table class="data-table">
-                ${table_html}
-            </table>
-            
-            <div class="question-box" style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 3px solid #f59e0b; border-radius: 16px; padding: 20px; text-align: center;">
-                <div style="font-size: 12px; color: #92400e; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; font-weight: 700;">❓ Soru</div>
-                <div style="font-size: 18px; font-weight: 800; color: #78350f;">${soru_metni}</div>
+            <div class="content">
+                ${timeline_html}
+                
+                <div class="people-row">
+                    ${people_html}
+                </div>
+                
+                ${relations_html}
             </div>
         </div>
     </body>
     </html>
     """
     
-    # ==================== GENEL PISA/SENARYO ====================
+    # ==================== GENEL SENARYO TEMPLATE ====================
     GENEL_TEMPLATE = """
     <!DOCTYPE html>
     <html lang="tr">
@@ -851,7 +921,7 @@ class HTMLTemplates:
         <style>
             ${base_css}
             
-            .scenario-box {
+            .scenario-card {
                 background: linear-gradient(135deg, ${color_light} 0%, white 100%);
                 border: 3px solid ${color_primary};
                 border-radius: 18px;
@@ -859,83 +929,87 @@ class HTMLTemplates:
                 margin-bottom: 20px;
             }
             
-            .scenario-header {
-                display: flex;
-                align-items: center;
-                gap: 12px;
-                margin-bottom: 16px;
-            }
-            
-            .scenario-icon {
-                width: 50px;
-                height: 50px;
-                background: linear-gradient(135deg, ${color_primary} 0%, ${color_dark} 100%);
-                border-radius: 14px;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                font-size: 24px;
-            }
-            
-            .scenario-title {
+            .scenario-card h3 {
+                color: ${color_dark};
                 font-size: 18px;
-                font-weight: 800;
-                color: ${color_dark};
-            }
-            
-            .info-grid {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-                gap: 12px;
-            }
-            
-            .info-item {
-                background: white;
-                padding: 14px 18px;
-                border-radius: 12px;
+                margin-bottom: 16px;
                 display: flex;
-                justify-content: space-between;
                 align-items: center;
-                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-            }
-            
-            .info-item .label {
-                font-size: 13px;
-                color: #64748b;
-                font-weight: 600;
-            }
-            
-            .info-item .value {
-                font-size: 16px;
-                font-weight: 800;
-                color: ${color_dark};
+                gap: 10px;
             }
             
             .characters {
                 display: flex;
                 justify-content: center;
                 gap: 20px;
-                margin: 20px 0;
-                flex-wrap: wrap;
+                margin-bottom: 20px;
             }
             
             .character {
                 display: flex;
+                flex-direction: column;
                 align-items: center;
-                gap: 10px;
-                background: white;
-                padding: 12px 18px;
-                border-radius: 30px;
-                box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+                gap: 8px;
             }
             
             .character-avatar {
-                font-size: 28px;
+                font-size: 48px;
             }
             
             .character-name {
+                font-size: 14px;
                 font-weight: 700;
-                color: #1e293b;
+                color: #334155;
+            }
+            
+            .info-grid {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 12px;
+            }
+            
+            .info-item {
+                background: white;
+                border-radius: 12px;
+                padding: 14px;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+            }
+            
+            .info-item .label {
+                font-size: 11px;
+                color: #64748b;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                margin-bottom: 4px;
+            }
+            
+            .info-item .value {
+                font-size: 16px;
+                font-weight: 700;
+                color: ${color_dark};
+            }
+            
+            .question-box {
+                background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+                border: 3px solid #f59e0b;
+                border-radius: 16px;
+                padding: 20px;
+                text-align: center;
+            }
+            
+            .question-box .title {
+                font-size: 12px;
+                color: #92400e;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+                margin-bottom: 8px;
+                font-weight: 700;
+            }
+            
+            .question-box .question {
+                font-size: 18px;
+                font-weight: 800;
+                color: #78350f;
             }
         </style>
     </head>
@@ -948,21 +1022,20 @@ class HTMLTemplates:
                 </div>
             </div>
             
-            ${characters_html}
-            
-            <div class="scenario-box">
-                <div class="scenario-header">
-                    <div class="scenario-icon">${icon}</div>
-                    <div class="scenario-title">${senaryo_baslik}</div>
+            <div class="content">
+                ${characters_html}
+                
+                <div class="scenario-card">
+                    <h3>${icon} ${senaryo_baslik}</h3>
+                    <div class="info-grid">
+                        ${info_items_html}
+                    </div>
                 </div>
-                <div class="info-grid">
-                    ${info_items_html}
+                
+                <div class="question-box">
+                    <div class="title">❓ Soru</div>
+                    <div class="question">${soru_metni}</div>
                 </div>
-            </div>
-            
-            <div class="question-box" style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 3px solid #f59e0b; border-radius: 16px; padding: 20px; text-align: center;">
-                <div style="font-size: 12px; color: #92400e; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; font-weight: 700;">❓ Soru</div>
-                <div style="font-size: 18px; font-weight: 800; color: #78350f;">${soru_metni}</div>
             </div>
         </div>
     </body>
@@ -970,406 +1043,252 @@ class HTMLTemplates:
     """
 
 
-# ============== VERİTABANI İŞLEMLERİ ==============
+# ============== VERİTABANI ==============
 
 class DatabaseManager:
-    """Supabase veritabanı işlemleri"""
+    """Veritabanı işlemleri"""
     
     def __init__(self):
         if not Config.SUPABASE_URL or not Config.SUPABASE_KEY:
-            raise ValueError("SUPABASE_URL ve SUPABASE_KEY gerekli!")
+            raise ValueError("Supabase bilgileri gerekli!")
         
         self.client: Client = create_client(Config.SUPABASE_URL, Config.SUPABASE_KEY)
         logger.info("Supabase bağlantısı kuruldu")
     
-    def get_scenario_questions(self, limit: int) -> List[Dict]:
-        """Senaryo tabanlı soruları çek"""
+    def get_scenario_questions(self, limit: int = 30) -> List[Dict]:
+        """Görsel olmayan senaryo sorularını getir"""
         try:
-            # scenario_text dolu olan ve image_url boş olan sorular
-            response = self.client.table('question_bank').select('*').is_('image_url', 'null').eq('is_active', True).not_.is_('scenario_text', 'null').limit(limit).execute()
+            response = self.client.table('question_bank') \
+                .select('*') \
+                .is_('image_url', 'null') \
+                .eq('is_active', True) \
+                .not_.is_('scenario_text', 'null') \
+                .limit(limit) \
+                .execute()
             
-            questions = response.data
+            questions = response.data if response.data else []
             logger.info(f"{len(questions)} senaryo sorusu bulundu")
             return questions
             
         except Exception as e:
             logger.error(f"Soru çekme hatası: {e}")
-            
-            # Alternatif: Uzun metinli soruları çek
-            try:
-                response = self.client.table('question_bank').select('*').is_('image_url', 'null').eq('is_active', True).limit(limit * 2).execute()
-                
-                # Manuel filtreleme - uzun sorular veya anahtar kelimeler
-                keywords = ['yolculuk', 'hareket', 'hız', 'maliyet', 'fiyat', 'havuz', 'musluk',
-                           'yaş', 'yıl önce', 'yıl sonra', 'tablo', 'grafik', 'karşılaştır',
-                           'firma', 'şirket', 'proje', 'bütçe', 'inşaat', 'üretim']
-                
-                filtered = []
-                for q in response.data:
-                    text = (q.get('original_text') or '').lower()
-                    scenario = q.get('scenario_text')
-                    
-                    # Senaryo var veya uzun metin veya anahtar kelime
-                    if scenario or len(text) > 400 or any(kw in text for kw in keywords):
-                        filtered.append(q)
-                        if len(filtered) >= limit:
-                            break
-                
-                logger.info(f"{len(filtered)} senaryo sorusu bulundu (manuel filtreleme)")
-                return filtered
-                
-            except Exception as e2:
-                logger.error(f"Alternatif sorgu hatası: {e2}")
-                return []
-    
-    def update_image_url(self, question_id: int, image_url: str) -> bool:
-        """Soru kaydına görsel URL'i ekle"""
-        try:
-            self.client.table('question_bank').update({
-                'image_url': image_url
-            }).eq('id', question_id).execute()
-            
-            logger.info(f"Soru #{question_id} güncellendi")
-            return True
-        except Exception as e:
-            logger.error(f"Güncelleme hatası: {e}")
-            return False
+            return []
     
     def upload_image(self, image_bytes: bytes, filename: str) -> Optional[str]:
-        """Görseli Storage'a yükle"""
+        """Görseli storage'a yükle"""
         try:
-            self.client.storage.from_(Config.STORAGE_BUCKET).upload(
-                path=filename,
-                file=image_bytes,
-                file_options={"content-type": "image/png"}
-            )
+            response = self.client.storage \
+                .from_(Config.STORAGE_BUCKET) \
+                .upload(filename, image_bytes, {
+                    'content-type': 'image/png',
+                    'upsert': 'true'
+                })
             
-            public_url = self.client.storage.from_(Config.STORAGE_BUCKET).get_public_url(filename)
-            logger.info(f"Görsel yüklendi: {filename}")
+            public_url = self.client.storage \
+                .from_(Config.STORAGE_BUCKET) \
+                .get_public_url(filename)
+            
             return public_url
             
         except Exception as e:
-            if 'Duplicate' in str(e) or 'already exists' in str(e):
-                try:
-                    self.client.storage.from_(Config.STORAGE_BUCKET).update(
-                        path=filename,
-                        file=image_bytes,
-                        file_options={"content-type": "image/png"}
-                    )
-                    return self.client.storage.from_(Config.STORAGE_BUCKET).get_public_url(filename)
-                except:
-                    pass
-            logger.error(f"Yükleme hatası: {e}")
+            logger.error(f"Upload hatası: {e}")
             return None
+    
+    def update_question(self, question_id: int, image_url: str, 
+                       new_text: str = None, new_scenario: str = None) -> bool:
+        """Soru güncelle (görsel URL + sadeleştirilmiş metin)"""
+        try:
+            update_data = {'image_url': image_url}
+            
+            if new_text:
+                update_data['original_text'] = new_text
+            
+            if new_scenario:
+                update_data['scenario_text'] = new_scenario
+            
+            self.client.table('question_bank') \
+                .update(update_data) \
+                .eq('id', question_id) \
+                .execute()
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Güncelleme hatası: {e}")
+            return False
 
 
-# ============== GEMİNİ ANALİZ ==============
+# ============== GEMİNİ ANALİZÖR ==============
 
 class GeminiAnalyzer:
-    """Gemini ile senaryo analizi"""
+    """Gemini ile soru analizi, metin sadeleştirme ve kalite kontrolü"""
     
-    ANALYSIS_PROMPT = """Sen profesyonel bir eğitim infografik tasarımcısısın. SADECE görselleştirilebilir problemleri tasarlarsın.
+    ANALYSIS_PROMPT = """
+Sen bir matematik eğitimi görsel tasarım uzmanısın. Sana verilen senaryo sorusunu analiz et.
 
-🎨 GÖREV: Soruyu oku, GÖRSEL GEREKLİ Mİ kontrol et, gerekirse tasarla.
-
-═══════════════════════════════════════════════════════════════
-🚨 ADIM 0: GÖRSEL GEREKLİ Mİ? (EN ÖNEMLİ!)
-═══════════════════════════════════════════════════════════════
-
-❌❌❌ KESİNLİKLE GÖRSEL YAPMA - Bu sorular için infografik GEREKSIZ:
-
-🧮 KARMAŞIK MATEMATİK/FORMÜL PROBLEMLERİ:
-• Graf teorisi (minimum yol ağı, ağaç yapısı, düğüm bağlantıları)
-• Kombinatorik (n tane nesneyi bağlama, permütasyon, kombinasyon)
-• "Minimum spanning tree", "en az maliyetli ağaç"
-• "n-1 kenar ile n düğümü bağlama" → Bu GRAF TEORİSİ, görselleştirilemez!
-
-🔢 SOYUT HESAPLAMA:
-• "5 park, 7 park, 9 park arasında yol" → Bu sayı problemi
-• "Minimum yol sayısı = n-1" formülü → Görsel gereksiz
-• Bütçe/maliyet HESAPLAMA soruları
-
-📊 VERİLER TABLOYA SIĞMIYORSA:
-• Çok fazla değişken (5+ kategori)
-• Hesaplanması gereken değerler çok fazla
-• Formül uygulaması gerekiyorsa
+🎯 TEMEL AMAÇ: Soru metnindeki tablo, veri listesi veya sayısal bilgileri GÖRSEL'e aktararak soru metnini SADELEŞTIRMEK.
 
 ═══════════════════════════════════════════════════════════════
-✅ GÖRSEL YAP SADECE EĞer:
+📋 ANALİZ KRİTERLERİ
 ═══════════════════════════════════════════════════════════════
 
-• Problem SOMUT ve GÖRSELLEŞTİRİLEBİLİR ise
-• 2-3 kişi/nesne arasında basit ilişki varsa
-• Hareket, karşılaştırma, havuz, yaş gibi KLASIK problem tipiyse
-• Veriler az ve nettir (3-5 veri noktası)
+✅ GÖRSEL YAPILACAK DURUMLAR:
+1. TABLO varsa (satır-sütun formatında veri)
+2. VERİ LİSTESİ varsa (madde madde sayısal değerler)
+3. KARŞILAŞTIRMA varsa (iki seçenek, firma, plan)
+4. HAREKET/YOL problemi varsa (hız, mesafe, süre)
+5. HAVUZ/MUSLUK problemi varsa (dolum, boşaltma)
+6. YAŞ problemi varsa (zaman içinde değişim)
+
+❌ GÖRSEL YAPILMAYACAK:
+- Sadece düz metin, hikaye anlatımı
+- Karmaşık formül/graf teorisi
+- Geometrik şekil gerektiren (üçgen, kare vb.)
 
 ═══════════════════════════════════════════════════════════════
-🎯 ADIM 1: SORUYU DERİNLEMESİNE ANALİZ ET
+📝 METİN SADELEŞTİRME KURALLARI
 ═══════════════════════════════════════════════════════════════
 
-Önce kendine sor: "Bu soruyu görselleştirmek öğrenciye YARDIMCI OLUR MU?"
-• Karmaşık formül/graf problemi → gorsel_pisinilir: false
-• Basit, somut senaryo → devam et
+Görsel oluşturduktan sonra soru metninden:
+1. Tablo formatındaki veriyi SİL (görsel'de olacak)
+2. Madde madde veri listesini SİL
+3. Sayısal değerleri tekrarlamadan sadece referans ver
+4. "Tabloda verilen...", "Yukarıdaki verilere göre..." gibi ifadeler kullan
+5. Sorunun asıl sorusunu (ne hesaplanacak) KORU
 
-🔍 PROBLEM TİPİ NEDİR?
-• Bu bir hareket/yol problemi mi? (hız, mesafe, süre)
-• Bu bir karşılaştırma mı? (iki seçenek, hangisi avantajlı)
-• Bu bir havuz/musluk problemi mi? (dolum, boşaltma)
-• Bu bir yaş problemi mi? (yıllar önce/sonra)
-• Bu bir tablo/liste problemi mi?
+ÖRNEK:
+ÖNCEKİ METİN:
+"Defne bakteri sayısını gözlemliyor.
+Zaman (dk): 0, 20, 40, 60
+Bakteri: 50, 100, 200, 400
+5 saat sonra kaç bakteri olacak?"
 
-👤 KARAKTERLERİ BELİRLE:
-• Soruda kimler var? (Ali, Ayşe, firma adları...)
-• Her karakterin rolü ne? (sürücü, işçi, müşteri...)
-• Hangi emoji/avatar uygun?
-
-📊 VERİLERİ ÇIKAR (SOMUT DEĞERLER OLMALI!):
-• Hangi sayısal değerler VERİLMİŞ?
-• Hangi değer HESAPLANACAK (bilinmeyen)?
-• Birimler neler? (km, saat, TL, litre...)
-• VERİLER AÇIK VE NET Mİ? Değilse → gorsel_pisinilir: false
-
-⚠️ ALTIN KURAL: SADECE VERİLENLERİ GÖSTER!
-• Hesaplanan değerleri ASLA gösterme (cevabı vermiş olursun!)
-• Çözümün adımlarını ima etme
-• Bilinmeyenleri "?" ile işaretle
-• BOŞ HÜCRE BIRAKMA - ya değer yaz ya da "?" koy!
+SADELEŞTİRİLMİŞ METİN:
+"Defne bakteri sayısının zamanla değişimini gözlemliyor. Tabloda verilen gözlem sonuçlarına göre, 5 saat sonra petri kabında yaklaşık kaç bakteri olacaktır?"
 
 ═══════════════════════════════════════════════════════════════
-📝 GÖRSEL YAPILMAYACAK ÖRNEK:
+🎨 GÖRSEL TİPLERİ
 ═══════════════════════════════════════════════════════════════
 
-SORU: "A bölgesinde 5 park, B'de 7 park, C'de 9 park. Her bölgede parkları bağlayan minimum yol sayısı n-1. Maliyetler: A=150, B=200, C=250 birim. Toplam maliyet?"
-
-→ gorsel_pisinilir: FALSE!
-→ Neden: Graf teorisi problemi (minimum spanning tree)
-→ Neden: Formül uygulaması (n-1 kenar)
-→ Neden: Çok fazla hesaplama gerekli
-→ Neden: Görsel soruyu anlamaya YARDIMCI OLMAZ
-
-═══════════════════════════════════════════════════════════════
-🚗 ADIM 2A: HAREKET PROBLEMİ İSE
-═══════════════════════════════════════════════════════════════
-
-Zihninde canlandır:
-• Araçlar hangi yönde hareket ediyor? (aynı yön, karşı yön, dik)
-• Nereden başlıyorlar? (aynı nokta, farklı noktalar)
-• Hedef ne? (buluşma, yakalama, aradaki mesafe)
-• Hareket ne zaman başlıyor? (aynı anda, farklı zamanlarda)
-
-Görsel tasarımı:
-• Yolları çiz (yatay, dikey, çapraz)
-• Araçları konumlandır (başlangıç noktaları)
-• Ok işaretleri ile yönleri göster
-• Hız ve süre bilgilerini etiketle
-• Hedef noktayı vurgula
-
-ANAHTAR KELİMELER: hız, km/saat, m/s, mesafe, yol, süre, otobüs, araba, tren, bisiklet, yürüme, koşma, buluşma, karşılaşma, yetişme, şehir
+"tablo" → Satır-sütun veri tablosu
+"veri_kartlari" → Ayrı ayrı veri kartları
+"karsilastirma" → İki seçenek yan yana
+"hareket" → Yol/hareket diyagramı
+"havuz" → Havuz/musluk diyagramı
+"yas" → Zaman çizelgesi + kişiler
+"genel" → Genel senaryo kartı
 
 ═══════════════════════════════════════════════════════════════
-⚖️ ADIM 2B: KARŞILAŞTIRMA PROBLEMİ İSE  
-═══════════════════════════════════════════════════════════════
-
-Zihninde canlandır:
-• Kaç seçenek var? (genellikle 2)
-• Her seçeneğin özellikleri neler?
-• Sabit ve değişken maliyetler var mı?
-• Karşılaştırma kriteri ne? (maliyet, süre, miktar)
-
-Görsel tasarımı:
-• İki kartı yan yana koy
-• Her kartın başlığını yaz (Firma A, Plan X...)
-• Özellikleri alt alta listele
-• Aynı özellikleri aynı sırada yaz (karşılaştırma kolay olsun)
-• Renk kodlaması kullan (mavi vs pembe)
-
-ANAHTAR KELİMELER: firma, şirket, plan, tarife, paket, seçenek, hangisi, avantajlı, ucuz, karlı, karşılaştır
-
-═══════════════════════════════════════════════════════════════
-🏊 ADIM 2C: HAVUZ/MUSLUK PROBLEMİ İSE
-═══════════════════════════════════════════════════════════════
-
-Zihninde canlandır:
-• Havuzun/deponun kapasitesi ne?
-• Kaç musluk/boru var?
-• Hangileri dolduruyor, hangileri boşaltıyor?
-• Aynı anda mı çalışıyorlar?
-
-Görsel tasarımı:
-• Havuz/tank şeklini çiz
-• Muslukları konumlandır (üstte dolum, altta boşaltma)
-• Her musluğun hızını/süresini etiketle
-• Su akış yönünü oklarla göster
-• Kapasite bilgisini yaz
-
-ANAHTAR KELİMELER: havuz, depo, tank, musluk, boru, pompa, doldurma, boşaltma, dolum, litre, saatte
-
-═══════════════════════════════════════════════════════════════
-👨‍👩‍👧 ADIM 2D: YAŞ PROBLEMİ İSE
-═══════════════════════════════════════════════════════════════
-
-Zihninde canlandır:
-• Kaç kişi var? (anne, baba, çocuk, kardeş)
-• Hangi zaman dilimleri? (şimdi, X yıl önce, Y yıl sonra)
-• Verilen yaşlar hangi zamana ait?
-• Bilinmeyen yaşlar hangileri?
-
-Görsel tasarımı:
-• Zaman çizelgesi çiz (yatay ok)
-• Zaman noktalarını işaretle (geçmiş, şimdi, gelecek)
-• Her kişiyi avatar ile göster
-• Bilinen yaşları yaz, bilinmeyenleri "?" ile işaretle
-• Yaş ilişkilerini belirt (fark, toplam, kat)
-
-ANAHTAR KELİMELER: yaş, yaşında, yıl önce, yıl sonra, anne, baba, çocuk, kardeş, yaşlar toplamı, yaş farkı
-
-═══════════════════════════════════════════════════════════════
-📊 ADIM 2E: TABLO PROBLEMİ İSE
-═══════════════════════════════════════════════════════════════
-
-SADECE şu durumlarda tablo şablonu kullan:
-• Veriler AÇIKÇA tablo formatında sunulmuşsa
-• Birden fazla satır VE sütun varsa
-• Ürün-fiyat-miktar listesi gibi yapısal veri varsa
-
-Görsel tasarımı:
-• Sütun başlıklarını belirle
-• Satırları doldur
-• Bilinmeyenleri "?" ile işaretle
-• Toplam satırı gerekirse ekle
-
-═══════════════════════════════════════════════════════════════
-⚠️ ADIM 3: ALTIN KURALLAR
-═══════════════════════════════════════════════════════════════
-
-🚫 KESİNLİKLE YAPMA:
-• Hesaplanan değerleri gösterme (toplam maliyet, sonuç yaşı, buluşma süresi...)
-• Çözümün ara adımlarını gösterme
-• Formül veya denklem yazma
-• Cevaba ipucu verme
-
-✅ KESİNLİKLE YAP:
-• Sadece SORUDA VERİLEN bilgileri göster
-• Bilinmeyenleri "?" ile işaretle
-• Soruyu ANLAMAYI kolaylaştır, ÇÖZMEYI değil!
-• Temiz, profesyonel, anlaşılır tasarım yap
-• Doğru şablonu seç (hareket, karşılaştırma, havuz, yaş, tablo)
-
-═══════════════════════════════════════════════════════════════
-📋 JSON ÇIKTI FORMATI
+📊 JSON ÇIKTI FORMATI
 ═══════════════════════════════════════════════════════════════
 
 {
   "gorsel_pisinilir": true,
-  "dusunce_sureci": "Soruyu nasıl analiz ettiğimin açıklaması",
-  "gorsel_tipi": "hareket|karsilastirma|havuz|yas|tablo|genel",
-  "baslik": "Kısa, açıklayıcı başlık",
-  "icon": "🚗|⚖️|🏊|👨‍👩‍👧|📊|📋",
-  "karakterler": [
-    {"isim": "Ali", "avatar": "👨", "rol": "Sürücü"}
-  ],
-  "verilenler": [
-    {"etiket": "Açıklayıcı etiket", "deger": "Soruda verilen değer", "renk": "blue|pink|green|orange"}
-  ],
+  "gorsel_tipi": "tablo|veri_kartlari|karsilastirma|hareket|havuz|yas|genel",
+  "baslik": "Görselin başlığı",
+  "icon": "📊|📈|⚖️|🚗|🏊|👨‍👩‍👧|📋",
+  
   "ozel_pisiniler": {
-    // Seçilen şablona göre doldur
+    // Görsel tipine göre detaylar
   },
-  "soru_metni": "Sorunun kısa, net ifadesi"
+  
+  "sadellestirilmis_metin": "Görsele aktarılan veriler çıkarıldıktan sonraki yeni soru metni",
+  "sadellestirilmis_senaryo": "Varsa sadeleştirilmiş senaryo metni (null olabilir)",
+  
+  "cikarilan_veriler": ["Tablo: Bakteri sayısı değişimi", "Liste: Zaman değerleri"],
+  
+  "kalite_degerlendirmesi": {
+    "gorunum_puani": 8,
+    "sadeleştirme_puani": 9,
+    "anlam_butunlugu_puani": 8,
+    "toplam_puan": 8.3,
+    "onay": true,
+    "aciklama": "Değişiklik uygun, tablo görselde daha anlaşılır"
+  }
 }
 
 ═══════════════════════════════════════════════════════════════
-📝 ÖRNEK ANALİZLER
+📊 TABLO TİPİ DETAYLARI
 ═══════════════════════════════════════════════════════════════
 
-SORU: "Ali, İstanbul'dan Ankara'ya 100 km/saat hızla, Veli ise Ankara'dan İstanbul'a 80 km/saat hızla aynı anda yola çıkıyor. İki şehir arası 450 km ise kaç saat sonra buluşurlar?"
+"ozel_pisiniler": {
+  "tablo": {
+    "tablo_baslik": "Bakteri Sayısının Zamana Göre Değişimi",
+    "basliklar": ["Zaman (dk)", "Bakteri Sayısı"],
+    "satirlar": [
+      ["0", "50"],
+      ["20", "100"],
+      ["40", "200"],
+      ["60", "400"]
+    ],
+    "kaynak_notu": "İlk 1 saatlik gözlem sonuçları"
+  }
+}
 
-DÜŞÜNCE SÜRECİ:
-"Bu bir hareket problemi. İki kişi KARŞI YÖNDE hareket ediyor.
-Ali: İstanbul'dan başlıyor, 100 km/saat, sağa doğru gidiyor.
-Veli: Ankara'dan başlıyor, 80 km/saat, sola doğru gidiyor.
-Toplam mesafe 450 km.
-Buluşma süresi HESAPLANACAK - göstermeyeceğim!
+═══════════════════════════════════════════════════════════════
+📈 VERİ KARTLARI TİPİ DETAYLARI
+═══════════════════════════════════════════════════════════════
 
-Görsel: Yatay bir yol, sol uçta İstanbul (Ali), sağ uçta Ankara (Veli).
-Ortada buluşma noktası (? ile işaretli).
-Her aracın yanında hızı yazılı."
+"ozel_pisiniler": {
+  "veri_kartlari": {
+    "kartlar": [
+      {"etiket": "Başlangıç", "deger": "50", "birim": "bakteri", "icon": "🦠"},
+      {"etiket": "Periyot", "deger": "20", "birim": "dakika", "icon": "⏱️"},
+      {"etiket": "Hedef Süre", "deger": "5", "birim": "saat", "icon": "🎯", "highlight": true}
+    ],
+    "formul": "Bakteri = Başlangıç × 2^(periyot sayısı)"
+  }
+}
 
-JSON:
+═══════════════════════════════════════════════════════════════
+
+Şimdi aşağıdaki soruyu analiz et:
+
+"""
+    
+    VALIDATION_PROMPT = """
+Sen bir kalite kontrol uzmanısın. Yapılan değişikliği değerlendir.
+
+ORİJİNAL SORU:
+{original_text}
+
+SADELEŞTİRİLMİŞ SORU:
+{simplified_text}
+
+GÖRSEL İÇERİĞİ:
+{visual_content}
+
+═══════════════════════════════════════════════════════════════
+KALİTE KRİTERLERİ (Her biri 10 üzerinden)
+═══════════════════════════════════════════════════════════════
+
+1. GÖRÜNÜM UYGUNLUĞU (gorunum_puani):
+   - Görsel tasarım profesyonel mi?
+   - Veriler net ve okunaklı mı?
+   - Renk ve tipografi uyumlu mu?
+
+2. SADELEŞTİRME KALİTESİ (sadelestirme_puani):
+   - Tekrarlayan bilgiler kaldırıldı mı?
+   - Metin gereksiz yere uzun mu?
+   - Görsel-metin dengesi iyi mi?
+
+3. ANLAM BÜTÜNLÜĞÜ (anlam_butunlugu_puani):
+   - Soru hâlâ anlaşılır mı?
+   - Önemli bilgi kaybı var mı?
+   - Öğrenci soruyu çözebilir mi?
+
+═══════════════════════════════════════════════════════════════
+
+JSON olarak yanıt ver:
 {
-  "gorsel_pisinilir": true,
-  "dusunce_sureci": "Karşı yönde hareket problemi, iki şehir arası yol gösterilecek",
-  "gorsel_tipi": "hareket",
-  "baslik": "İstanbul - Ankara Yolculuğu",
-  "icon": "🚗",
-  "karakterler": [
-    {"isim": "Ali", "avatar": "🚗", "rol": "İstanbul'dan gidiyor"},
-    {"isim": "Veli", "avatar": "🚙", "rol": "Ankara'dan gidiyor"}
-  ],
-  "verilenler": [
-    {"etiket": "Toplam Mesafe", "deger": "450 km", "renk": "blue"},
-    {"etiket": "Ali'nin Hızı", "deger": "100 km/saat", "renk": "green"},
-    {"etiket": "Veli'nin Hızı", "deger": "80 km/saat", "renk": "orange"}
-  ],
-  "ozel_pisiniler": {
-    "hareket": {
-      "yollar": [{"isim": "Ana Yol", "yon": "yatay", "renk": "blue"}],
-      "araclar": [
-        {"isim": "Ali", "konum": "sol", "hiz": "100 km/saat", "yon": "sag"},
-        {"isim": "Veli", "konum": "sag", "hiz": "80 km/saat", "yon": "sol"}
-      ],
-      "noktalar": [
-        {"isim": "İstanbul", "konum": "sol"},
-        {"isim": "Ankara", "konum": "sag"},
-        {"isim": "Buluşma", "konum": "orta", "bilinmeyen": true}
-      ],
-      "mesafe": "450 km"
-    }
-  },
-  "soru_metni": "Kaç saat sonra buluşurlar?"
+  "gorunum_puani": 1-10,
+  "sadelestirme_puani": 1-10,
+  "anlam_butunlugu_puani": 1-10,
+  "toplam_puan": ortalama,
+  "onay": true/false (toplam >= 7 ise true),
+  "aciklama": "Kısa değerlendirme",
+  "iyilestirme_onerileri": ["Öneri 1", "Öneri 2"] // onay false ise
 }
-
----
-
-SORU: "X telefon şirketi aylık 50 TL sabit + dakikası 1 TL, Y şirketi aylık 100 TL sabit + dakikası 0.5 TL. Hangi dakikadan sonra Y şirketi daha avantajlı olur?"
-
-DÜŞÜNCE SÜRECİ:
-"Bu bir karşılaştırma problemi. İki şirket, iki farklı tarife.
-Her birinin sabit ücreti ve dakika ücreti var.
-Eşitlenme noktası HESAPLANACAK - göstermeyeceğim!
-
-Görsel: İki kart yan yana. 
-Sol kart X şirketi (mavi), sağ kart Y şirketi (pembe).
-Her kartta sabit ücret ve dakika ücreti yazılı."
-
-JSON:
-{
-  "gorsel_pisinilir": true,
-  "dusunce_sureci": "İki tarife karşılaştırması, yan yana kartlar",
-  "gorsel_tipi": "karsilastirma",
-  "baslik": "Telefon Tarifeleri",
-  "icon": "⚖️",
-  "ozel_pisiniler": {
-    "karsilastirma": {
-      "secenekler": [
-        {"isim": "X Şirketi", "renk": "blue", "ozellikler": [
-          {"etiket": "Sabit Ücret", "deger": "50 TL/ay"},
-          {"etiket": "Dakika Ücreti", "deger": "1 TL/dk"}
-        ]},
-        {"isim": "Y Şirketi", "renk": "pink", "ozellikler": [
-          {"etiket": "Sabit Ücret", "deger": "100 TL/ay"},
-          {"etiket": "Dakika Ücreti", "deger": "0.5 TL/dk"}
-        ]}
-      ]
-    }
-  },
-  "soru_metni": "Hangi dakikadan sonra Y daha avantajlı?"
-}
-
-═══════════════════════════════════════════════════════════════
-
-Şimdi aşağıdaki soruyu analiz et. Önce düşün, senaryoyu zihninde canlandır, sonra JSON çıktı ver.
-
-SORU:
 """
     
     def __init__(self):
@@ -1385,7 +1304,7 @@ SORU:
         logger.info(f"Gemini hazır: {Config.GEMINI_MODEL}")
     
     def analyze_question(self, question_text: str, scenario_text: str = None) -> Optional[Dict]:
-        """Soruyu analiz et"""
+        """Soruyu analiz et ve sadeleştir"""
         try:
             full_text = question_text
             if scenario_text:
@@ -1398,28 +1317,28 @@ SORU:
                     model=Config.GEMINI_MODEL,
                     contents=prompt,
                     config=types.GenerateContentConfig(
-                        temperature=0.1,
+                        temperature=0.3,
                         response_mime_type="application/json"
                     )
                 )
-                response_text = response.text
+                result_text = response.text
             else:
                 response = self.model.generate_content(
                     prompt,
-                    generation_config=genai.types.GenerationConfig(
-                        temperature=0.1,
-                        response_mime_type="application/json"
-                    )
+                    generation_config={
+                        'temperature': 0.3,
+                        'response_mime_type': 'application/json'
+                    }
                 )
-                response_text = response.text
+                result_text = response.text
             
-            result = json.loads(response_text)
+            # JSON parse
+            result = json.loads(result_text)
             
-            if not result.get('gorsel_pisinilir', True):
-                logger.info(f"Görsel gerekmez: {result.get('neden', '')}")
+            if not result.get('gorsel_pisinilir', False):
+                logger.info(f"Görsel gerekmez: {result.get('aciklama', '')}")
                 return None
             
-            logger.info(f"Analiz OK: {result.get('gorsel_tipi', 'genel')}")
             return result
             
         except json.JSONDecodeError as e:
@@ -1428,280 +1347,126 @@ SORU:
         except Exception as e:
             logger.error(f"Analiz hatası: {e}")
             return None
+    
+    def validate_changes(self, original_text: str, simplified_text: str, 
+                        visual_content: str) -> Dict:
+        """Değişiklikleri doğrula ve puanla"""
+        try:
+            prompt = self.VALIDATION_PROMPT.format(
+                original_text=original_text,
+                simplified_text=simplified_text,
+                visual_content=visual_content
+            )
+            
+            if NEW_GENAI:
+                response = self.client.models.generate_content(
+                    model=Config.GEMINI_MODEL,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        temperature=0.2,
+                        response_mime_type="application/json"
+                    )
+                )
+                result_text = response.text
+            else:
+                response = self.model.generate_content(
+                    prompt,
+                    generation_config={
+                        'temperature': 0.2,
+                        'response_mime_type': 'application/json'
+                    }
+                )
+                result_text = response.text
+            
+            return json.loads(result_text)
+            
+        except Exception as e:
+            logger.error(f"Doğrulama hatası: {e}")
+            return {
+                'toplam_puan': 0,
+                'onay': False,
+                'aciklama': f'Doğrulama başarısız: {str(e)}'
+            }
 
 
 # ============== HTML RENDERER ==============
 
 class HTMLRenderer:
-    """HTML template'den görsel oluştur"""
+    """Analiz sonucunu HTML'e çevir"""
     
     def __init__(self):
-        self.templates = HTMLTemplates()
+        pass
     
-    def render(self, analysis: Dict) -> Optional[str]:
-        """Analiz sonucuna göre HTML oluştur"""
-        try:
-            gorsel_tipi = analysis.get('gorsel_tipi', 'genel')
-            
-            if gorsel_tipi == 'hareket':
-                return self._render_hareket(analysis)
-            elif gorsel_tipi == 'karsilastirma':
-                return self._render_karsilastirma(analysis)
-            elif gorsel_tipi == 'havuz':
-                return self._render_havuz(analysis)
-            elif gorsel_tipi == 'yas':
-                return self._render_yas(analysis)
-            elif gorsel_tipi == 'tablo':
-                return self._render_tablo(analysis)
-            else:
-                return self._render_genel(analysis)
-                
-        except Exception as e:
-            logger.error(f"Render hatası: {e}")
-            return None
-    
-    def _get_base_css(self) -> str:
-        """Base CSS'i width ile birlikte döndür"""
+    def _get_base_css(self):
         return Template(HTMLTemplates.BASE_CSS).safe_substitute(width=Config.IMAGE_WIDTH)
     
     def _render_badges(self, verilenler: List[Dict]) -> str:
-        """Badge HTML'i oluştur"""
-        colors = HTMLTemplates.COLORS
+        """Badge HTML oluştur"""
         badges = []
-        
-        for i, v in enumerate(verilenler[:4]):  # Max 4 badge
-            renk = v.get('renk', 'blue')
-            if renk not in colors:
-                renk = 'blue'
-            c = colors[renk]
-            
+        for v in verilenler[:4]:  # Max 4 badge
+            color = HTMLTemplates.COLORS.get(v.get('renk', 'blue'), HTMLTemplates.COLORS['blue'])
             badges.append(f'''
-                <span class="badge" style="background: linear-gradient(135deg, {c['light']} 0%, white 100%); 
-                      color: {c['dark']}; border: 2px solid {c['primary']};">
-                    {v.get('etiket', '')}: <strong>{v.get('deger', '')}</strong>
+                <span class="badge" style="background: {color['light']}; color: {color['dark']};">
+                    {v.get('etiket', '')}: {v.get('deger', '')}
                 </span>
             ''')
-        
         return '\n'.join(badges)
     
-    def _render_hareket(self, analysis: Dict) -> str:
-        """Hareket/yol problemi görseli"""
-        ozel = analysis.get('ozel_pisiniler', {}).get('hareket', {})
-        colors = HTMLTemplates.COLORS
+    def render(self, analysis: Dict) -> Tuple[Optional[str], str]:
+        """HTML oluştur, görsel içerik açıklamasını da döndür"""
+        gorsel_tipi = analysis.get('gorsel_tipi', 'genel')
         
-        # Yolları ve araçları çiz
-        araclar = ozel.get('araclar', [])
+        renderers = {
+            'tablo': self._render_tablo,
+            'veri_kartlari': self._render_veri_kartlari,
+            'karsilastirma': self._render_karsilastirma,
+            'hareket': self._render_hareket,
+            'havuz': self._render_havuz,
+            'yas': self._render_yas,
+            'genel': self._render_genel
+        }
         
-        # Renkleri belirle
-        color1 = colors.get('blue', colors['blue'])
-        color2 = colors.get('red', colors['red'])
+        renderer = renderers.get(gorsel_tipi, self._render_genel)
         
-        # Diagram HTML
-        diagram_parts = []
-        
-        # Dikey yol
-        diagram_parts.append(f'''
-            <div class="road road-vertical" style="left: 50%; top: 0; height: 220px; transform: translateX(-50%);"></div>
-        ''')
-        
-        # Yatay yol  
-        diagram_parts.append(f'''
-            <div class="road road-horizontal" style="left: 0; top: 185px; width: 380px;"></div>
-        ''')
-        
-        # Kavşak
-        diagram_parts.append(f'''
-            <div class="intersection" style="left: 50%; top: 185px; transform: translateX(-50%);">
-                <div class="intersection-icon">📍</div>
-            </div>
-        ''')
-        
-        # Araçlar ve etiketler
-        if len(araclar) >= 1:
-            a1 = araclar[0]
-            diagram_parts.append(f'''
-                <div class="vehicle" style="left: 50%; top: 30px; transform: translateX(-50%); 
-                     background: linear-gradient(180deg, {color1['primary']} 0%, {color1['dark']} 100%);">
-                    🚌 {a1.get('isim', 'Kişi 1')}
-                </div>
-                <div class="info-label" style="right: 60px; top: 100px; background: {color1['light']}; 
-                     color: {color1['dark']}; border: 2px solid {color1['primary']};">
-                    ⏱ {a1.get('sure', '')}
-                </div>
-                <div class="clock" style="right: 50px; top: 20px; border-color: {color1['primary']};">
-                    <span class="clock-time" style="color: {color1['dark']};">{a1.get('saat', '10:00')}</span>
-                    <span class="clock-label">Hareket</span>
-                </div>
-            ''')
-        
-        if len(araclar) >= 2:
-            a2 = araclar[1]
-            saat2 = a2.get('saat', '?')
-            is_unknown = saat2 == '?' or saat2 == ''
-            
-            diagram_parts.append(f'''
-                <div class="vehicle" style="left: 40px; top: 198px; 
-                     background: linear-gradient(90deg, {color2['primary']} 0%, {color2['dark']} 100%);">
-                    🚌 {a2.get('isim', 'Kişi 2')}
-                </div>
-                <div class="info-label" style="left: 60px; top: 270px; background: {color2['light']}; 
-                     color: {color2['dark']}; border: 2px solid {color2['primary']};">
-                    ⏱ {a2.get('sure', '')}
-                </div>
-                <div class="clock" style="left: 40px; bottom: 20px; border-color: {color2['primary']};">
-                    <span class="{'question-mark' if is_unknown else 'clock-time'}" 
-                          style="color: {color2['dark']};">{'?' if is_unknown else saat2}</span>
-                    {'<span class="clock-label">Hareket</span>' if not is_unknown else ''}
-                </div>
-            ''')
-        
-        # Hedef etiketi
-        hedef = ozel.get('hedef', 'Buluşma Noktası')
-        diagram_parts.append(f'''
-            <div class="target-label" style="left: 50%; bottom: 10px; transform: translateX(-50%);">
-                📍 {hedef}
-            </div>
-        ''')
-        
-        html = Template(HTMLTemplates.HAREKET_TEMPLATE).safe_substitute(
-            base_css=self._get_base_css(),
-            width=Config.IMAGE_WIDTH,
-            baslik=analysis.get('baslik', 'Hareket Problemi'),
-            badges_html=self._render_badges(analysis.get('verilenler', [])),
-            color1_primary=color1['primary'],
-            color1_dark=color1['dark'],
-            color2_primary=color2['primary'],
-            color2_dark=color2['dark'],
-            diagram_html='\n'.join(diagram_parts)
-        )
-        
-        return html
+        try:
+            html = renderer(analysis)
+            visual_desc = self._get_visual_description(analysis)
+            return html, visual_desc
+        except Exception as e:
+            logger.error(f"Render hatası ({gorsel_tipi}): {e}")
+            return None, ""
     
-    def _render_karsilastirma(self, analysis: Dict) -> str:
-        """Karşılaştırma görseli"""
-        ozel = analysis.get('ozel_pisiniler', {}).get('karsilastirma', {})
-        secenekler = ozel.get('secenekler', [])
-        colors = HTMLTemplates.COLORS
+    def _get_visual_description(self, analysis: Dict) -> str:
+        """Görsel içeriğinin metin açıklaması"""
+        gorsel_tipi = analysis.get('gorsel_tipi', 'genel')
+        ozel = analysis.get('ozel_pisiniler', {})
         
-        color_pairs = [('blue', 'pink'), ('green', 'orange'), ('purple', 'teal')]
+        if gorsel_tipi == 'tablo':
+            tablo = ozel.get('tablo', {})
+            basliklar = tablo.get('basliklar', [])
+            satirlar = tablo.get('satirlar', [])
+            desc = f"Tablo: {' | '.join(basliklar)}\n"
+            for satir in satirlar[:5]:
+                desc += f"  {' | '.join(str(s) for s in satir)}\n"
+            return desc
         
-        cards_html = []
-        for i, secenek in enumerate(secenekler[:2]):
-            renk_key = color_pairs[i % len(color_pairs)][i % 2]
-            c = colors.get(renk_key, colors['blue'])
-            
-            # Hem 'pisiniler' hem 'ozellikler' anahtarını destekle
-            ozellikler = secenek.get('ozellikler', secenek.get('pisiniler', []))
-            rows = []
-            for oz in ozellikler:
-                rows.append(f'''
-                    <div class="data-row">
-                        <span class="data-label">{oz.get('etiket', '')}</span>
-                        <span class="data-value" style="color: {c['dark']};">{oz.get('deger', '')}</span>
-                    </div>
-                ''')
-            
-            cards_html.append(f'''
-                <div class="compare-card" style="background: linear-gradient(135deg, {c['light']} 0%, white 100%); 
-                     border-color: {c['primary']};">
-                    <h3 style="color: {c['dark']};">
-                        <span class="icon" style="background: {c['primary']};">{chr(65+i)}</span>
-                        {secenek.get('isim', f'Seçenek {chr(65+i)}')}
-                    </h3>
-                    {''.join(rows)}
-                </div>
-            ''')
+        elif gorsel_tipi == 'veri_kartlari':
+            kartlar = ozel.get('veri_kartlari', {}).get('kartlar', [])
+            desc = "Veri Kartları:\n"
+            for k in kartlar:
+                desc += f"  {k.get('etiket')}: {k.get('deger')} {k.get('birim', '')}\n"
+            return desc
         
-        html = Template(HTMLTemplates.KARSILASTIRMA_TEMPLATE).safe_substitute(
-            base_css=self._get_base_css(),
-            width=Config.IMAGE_WIDTH,
-            baslik=analysis.get('baslik', 'Karşılaştırma'),
-            badges_html=self._render_badges(analysis.get('verilenler', [])),
-            cards_html='\n'.join(cards_html),
-            soru_metni=analysis.get('soru_metni', 'Hangi seçenek daha uygun?')
-        )
+        elif gorsel_tipi == 'karsilastirma':
+            secenekler = ozel.get('karsilastirma', {}).get('secenekler', [])
+            desc = "Karşılaştırma:\n"
+            for s in secenekler:
+                desc += f"  {s.get('isim')}:\n"
+                for oz in s.get('ozellikler', []):
+                    desc += f"    - {oz.get('etiket')}: {oz.get('deger')}\n"
+            return desc
         
-        return html
-    
-    def _render_havuz(self, analysis: Dict) -> str:
-        """Havuz/musluk görseli"""
-        ozel = analysis.get('ozel_pisiniler', {}).get('havuz', {})
-        musluklar = ozel.get('musluklar', [])
-        
-        pipes_html = []
-        for m in musluklar:
-            tip = m.get('tip', 'dolum')
-            css_class = 'fill-pipe' if tip == 'dolum' else 'drain-pipe'
-            emoji = '🚿' if tip == 'dolum' else '🔻'
-            arrow = '⬇️' if tip == 'dolum' else '⬆️'
-            
-            pipes_html.append(f'''
-                <div class="pipe {css_class}">
-                    <div class="pipe-icon">
-                        <span class="emoji">{emoji}</span>
-                        <span class="name">{m.get('isim', 'Musluk')}</span>
-                    </div>
-                    <div class="arrow-{'down' if tip == 'dolum' else 'up'}">{arrow}</div>
-                    <div class="pipe-info">
-                        <div class="label">Süre</div>
-                        <div class="value">{m.get('sure', '?')}</div>
-                    </div>
-                </div>
-            ''')
-        
-        html = Template(HTMLTemplates.HAVUZ_TEMPLATE).safe_substitute(
-            base_css=self._get_base_css(),
-            width=Config.IMAGE_WIDTH,
-            baslik=analysis.get('baslik', 'Havuz Problemi'),
-            badges_html=self._render_badges(analysis.get('verilenler', [])),
-            pipes_html='\n'.join(pipes_html),
-            havuz_bilgi=ozel.get('havuz_hacmi', 'Havuz'),
-            soru_metni=analysis.get('soru_metni', 'Havuz ne kadar sürede dolar?')
-        )
-        
-        return html
-    
-    def _render_yas(self, analysis: Dict) -> str:
-        """Yaş problemi görseli"""
-        ozel = analysis.get('ozel_pisiniler', {}).get('yas', {})
-        zaman_noktalari = ozel.get('zaman_noktalari', ['Geçmiş', 'Şimdi', 'Gelecek'])
-        kisiler = ozel.get('kisiler', [])
-        
-        # Timeline
-        timeline_html = []
-        for z in zaman_noktalari:
-            timeline_html.append(f'''
-                <div class="time-point">
-                    <div class="time-label">{z}</div>
-                    <div class="time-dot"></div>
-                </div>
-            ''')
-        
-        # Kişiler
-        persons_html = []
-        for k in kisiler:
-            yas = k.get('yas_simdi', '?')
-            yas_display = f'<span class="question-mark">?</span>' if yas == '?' else f'<strong>{yas}</strong> yaşında'
-            
-            persons_html.append(f'''
-                <div class="person-card">
-                    <div class="person-avatar">{k.get('avatar', '👤')}</div>
-                    <div class="person-name">{k.get('isim', 'Kişi')}</div>
-                    <div class="person-age">{yas_display}</div>
-                </div>
-            ''')
-        
-        html = Template(HTMLTemplates.YAS_TEMPLATE).safe_substitute(
-            base_css=self._get_base_css(),
-            width=Config.IMAGE_WIDTH,
-            baslik=analysis.get('baslik', 'Yaş Problemi'),
-            badges_html=self._render_badges(analysis.get('verilenler', [])),
-            timeline_html='\n'.join(timeline_html),
-            persons_html='\n'.join(persons_html),
-            soru_metni=analysis.get('soru_metni', 'Yaşları kaçtır?')
-        )
-        
-        return html
+        return f"Görsel Tipi: {gorsel_tipi}\nBaşlık: {analysis.get('baslik', '')}"
     
     def _render_tablo(self, analysis: Dict) -> str:
         """Tablo görseli"""
@@ -1726,6 +1491,10 @@ class HTMLRenderer:
         
         table_parts.append('</tbody>')
         
+        # Kaynak notu
+        source_note = ozel.get('kaynak_notu', '')
+        source_note_html = f'<div class="source-note">📝 {source_note}</div>' if source_note else ''
+        
         html = Template(HTMLTemplates.TABLO_TEMPLATE).safe_substitute(
             base_css=self._get_base_css(),
             width=Config.IMAGE_WIDTH,
@@ -1734,8 +1503,255 @@ class HTMLRenderer:
             color_primary=colors['primary'],
             color_dark=colors['dark'],
             color_light=colors['light'],
+            tablo_baslik=ozel.get('tablo_baslik', 'Veri'),
             table_html='\n'.join(table_parts),
-            soru_metni=analysis.get('soru_metni', 'Tabloya göre hesaplayın.')
+            source_note_html=source_note_html
+        )
+        
+        return html
+    
+    def _render_veri_kartlari(self, analysis: Dict) -> str:
+        """Veri kartları görseli"""
+        ozel = analysis.get('ozel_pisiniler', {}).get('veri_kartlari', {})
+        kartlar = ozel.get('kartlar', [])
+        colors = HTMLTemplates.COLORS['indigo']
+        
+        # Kartlar HTML
+        cards_html_parts = []
+        for kart in kartlar:
+            highlight = 'highlight' if kart.get('highlight') else ''
+            cards_html_parts.append(f'''
+                <div class="data-card {highlight}">
+                    <div class="icon">{kart.get('icon', '📊')}</div>
+                    <div class="label">{kart.get('etiket', '')}</div>
+                    <div class="value">{kart.get('deger', '')}</div>
+                    <div class="unit">{kart.get('birim', '')}</div>
+                </div>
+            ''')
+        
+        # Formül
+        formul = ozel.get('formul', '')
+        formula_html = ''
+        if formul:
+            formula_html = f'''
+                <div class="formula-box">
+                    <div class="formula">{formul}</div>
+                </div>
+            '''
+        
+        grid_cols = min(len(kartlar), 4)
+        
+        html = Template(HTMLTemplates.VERI_KARTLARI_TEMPLATE).safe_substitute(
+            base_css=self._get_base_css(),
+            width=Config.IMAGE_WIDTH,
+            baslik=analysis.get('baslik', 'Veriler'),
+            badges_html='',
+            color_primary=colors['primary'],
+            color_dark=colors['dark'],
+            color_light=colors['light'],
+            grid_cols=grid_cols,
+            cards_html='\n'.join(cards_html_parts),
+            formula_html=formula_html
+        )
+        
+        return html
+    
+    def _render_karsilastirma(self, analysis: Dict) -> str:
+        """Karşılaştırma görseli"""
+        ozel = analysis.get('ozel_pisiniler', {}).get('karsilastirma', {})
+        secenekler = ozel.get('secenekler', [])
+        
+        cards_html_parts = []
+        color_order = ['blue', 'pink', 'green', 'orange']
+        
+        for i, secenek in enumerate(secenekler[:2]):
+            color_name = secenek.get('renk', color_order[i % len(color_order)])
+            colors = HTMLTemplates.COLORS.get(color_name, HTMLTemplates.COLORS['blue'])
+            
+            props_html = ''
+            for oz in secenek.get('ozellikler', []):
+                props_html += f'''
+                    <div class="data-row">
+                        <span class="data-label">{oz.get('etiket', '')}</span>
+                        <span class="data-value" style="color: {colors['dark']}">{oz.get('deger', '')}</span>
+                    </div>
+                '''
+            
+            cards_html_parts.append(f'''
+                <div class="compare-card" style="background: {colors['light']}; border-color: {colors['primary']}">
+                    <h3 style="color: {colors['dark']}">
+                        <span class="icon" style="background: {colors['primary']}">{secenek.get('icon', chr(65+i))}</span>
+                        {secenek.get('isim', f'Seçenek {i+1}')}
+                    </h3>
+                    {props_html}
+                </div>
+            ''')
+        
+        html = Template(HTMLTemplates.KARSILASTIRMA_TEMPLATE).safe_substitute(
+            base_css=self._get_base_css(),
+            width=Config.IMAGE_WIDTH,
+            baslik=analysis.get('baslik', 'Karşılaştırma'),
+            badges_html='',
+            cards_html='\n'.join(cards_html_parts),
+            soru_metni=analysis.get('soru_metni', 'Hangisi daha avantajlı?')
+        )
+        
+        return html
+    
+    def _render_hareket(self, analysis: Dict) -> str:
+        """Hareket/yol görseli"""
+        ozel = analysis.get('ozel_pisiniler', {}).get('hareket', {})
+        colors1 = HTMLTemplates.COLORS['blue']
+        colors2 = HTMLTemplates.COLORS['green']
+        
+        # Basit yatay yol diyagramı
+        araclar = ozel.get('araclar', [])
+        noktalar = ozel.get('noktalar', [])
+        mesafe = ozel.get('mesafe', '')
+        
+        diagram_html = f'''
+            <div class="road road-horizontal" style="top: 50%; left: 50px; right: 50px; transform: translateY(-50%);">
+            </div>
+        '''
+        
+        # Başlangıç ve bitiş noktaları
+        if noktalar:
+            for i, nokta in enumerate(noktalar):
+                pos = 'left: 30px;' if nokta.get('konum') == 'sol' else 'right: 30px;' if nokta.get('konum') == 'sag' else 'left: 50%;'
+                diagram_html += f'''
+                    <div class="info-label" style="{pos} top: 20px; background: white; color: #334155;">
+                        📍 {nokta.get('isim', '')}
+                    </div>
+                '''
+        
+        # Araçlar
+        if araclar:
+            for i, arac in enumerate(araclar):
+                color = colors1 if i == 0 else colors2
+                pos = 'left: 80px;' if arac.get('konum') == 'sol' else 'right: 80px;'
+                diagram_html += f'''
+                    <div class="vehicle" style="{pos} top: 50%; transform: translateY(-50%); background: {color['primary']};">
+                        🚗 {arac.get('isim', '')} ({arac.get('hiz', '')})
+                    </div>
+                '''
+        
+        # Mesafe etiketi
+        if mesafe:
+            diagram_html += f'''
+                <div class="target-label" style="left: 50%; bottom: 30px; transform: translateX(-50%);">
+                    📏 {mesafe}
+                </div>
+            '''
+        
+        html = Template(HTMLTemplates.HAREKET_TEMPLATE).safe_substitute(
+            base_css=self._get_base_css(),
+            width=Config.IMAGE_WIDTH,
+            baslik=analysis.get('baslik', 'Hareket Problemi'),
+            badges_html=self._render_badges(analysis.get('verilenler', [])),
+            color1_primary=colors1['primary'],
+            color1_dark=colors1['dark'],
+            color2_primary=colors2['primary'],
+            color2_dark=colors2['dark'],
+            diagram_html=diagram_html
+        )
+        
+        return html
+    
+    def _render_havuz(self, analysis: Dict) -> str:
+        """Havuz/musluk görseli"""
+        ozel = analysis.get('ozel_pisiniler', {}).get('havuz', {})
+        
+        havuz_kapasitesi = ozel.get('kapasite', '?')
+        musluklar = ozel.get('musluklar', [])
+        
+        diagram_html = '<div class="pool"><span class="pool-label">' + str(havuz_kapasitesi) + '</span></div>'
+        
+        for i, musluk in enumerate(musluklar):
+            tip = musluk.get('tip', 'dolum')
+            pipe_class = 'fill-pipe' if tip == 'dolum' else 'drain-pipe'
+            emoji = '🚰' if tip == 'dolum' else '🔻'
+            
+            diagram_html += f'''
+                <div class="pipe {pipe_class}">
+                    <div class="pipe-icon">
+                        <span class="emoji">{emoji}</span>
+                        <span class="name">{musluk.get('isim', f'Musluk {i+1}')}</span>
+                    </div>
+                    <div class="pipe-info">
+                        <div class="label">Hız</div>
+                        <div class="value">{musluk.get('hiz', '?')}</div>
+                    </div>
+                </div>
+            '''
+        
+        html = Template(HTMLTemplates.HAVUZ_TEMPLATE).safe_substitute(
+            base_css=self._get_base_css(),
+            width=Config.IMAGE_WIDTH,
+            baslik=analysis.get('baslik', 'Havuz Problemi'),
+            badges_html=self._render_badges(analysis.get('verilenler', [])),
+            diagram_html=diagram_html
+        )
+        
+        return html
+    
+    def _render_yas(self, analysis: Dict) -> str:
+        """Yaş problemi görseli"""
+        ozel = analysis.get('ozel_pisiniler', {}).get('yas', {})
+        colors = HTMLTemplates.COLORS['purple']
+        
+        kisiler = ozel.get('kisiler', [])
+        zaman_noktalari = ozel.get('zaman_noktalari', [])
+        iliskiler = ozel.get('iliskiler', [])
+        
+        # Zaman çizelgesi
+        timeline_html = ''
+        if zaman_noktalari:
+            timeline_html = '''
+                <div class="timeline">
+                    <div class="timeline-line"></div>
+                    <div class="timeline-points">
+            '''
+            for nokta in zaman_noktalari:
+                timeline_html += f'''
+                    <div class="timeline-point">
+                        <div class="point-marker"></div>
+                        <div class="point-label">{nokta}</div>
+                    </div>
+                '''
+            timeline_html += '</div></div>'
+        
+        # Kişiler
+        people_html = ''
+        for kisi in kisiler:
+            people_html += f'''
+                <div class="person-card">
+                    <div class="avatar">{kisi.get('avatar', '👤')}</div>
+                    <div class="name">{kisi.get('isim', 'Kişi')}</div>
+                    <div class="age">{kisi.get('yas', '?')}</div>
+                    <div class="age-label">yaş</div>
+                </div>
+            '''
+        
+        # İlişkiler
+        relations_html = ''
+        for iliski in iliskiler:
+            relations_html += f'''
+                <div class="relation-box">
+                    <div class="relation">{iliski}</div>
+                </div>
+            '''
+        
+        html = Template(HTMLTemplates.YAS_TEMPLATE).safe_substitute(
+            base_css=self._get_base_css(),
+            width=Config.IMAGE_WIDTH,
+            baslik=analysis.get('baslik', 'Yaş Problemi'),
+            badges_html='',
+            color_primary=colors['primary'],
+            color_dark=colors['dark'],
+            color_light=colors['light'],
+            timeline_html=timeline_html,
+            people_html=people_html,
+            relations_html=relations_html
         )
         
         return html
@@ -1747,17 +1763,17 @@ class HTMLRenderer:
         verilenler = analysis.get('verilenler', [])
         
         # Karakterler
-        chars_html = []
+        chars_html = ''
         if karakterler:
-            chars_html.append('<div class="characters">')
+            chars_html = '<div class="characters">'
             for k in karakterler:
-                chars_html.append(f'''
+                chars_html += f'''
                     <div class="character">
                         <span class="character-avatar">{k.get('avatar', '👤')}</span>
                         <span class="character-name">{k.get('isim', 'Kişi')}</span>
                     </div>
-                ''')
-            chars_html.append('</div>')
+                '''
+            chars_html += '</div>'
         
         # Bilgi kutuları
         info_items = []
@@ -1777,7 +1793,7 @@ class HTMLRenderer:
             color_primary=colors['primary'],
             color_dark=colors['dark'],
             color_light=colors['light'],
-            characters_html='\n'.join(chars_html),
+            characters_html=chars_html,
             icon=analysis.get('icon', '📊'),
             senaryo_baslik='Verilenler',
             info_items_html='\n'.join(info_items),
@@ -1839,7 +1855,7 @@ class ImageConverter:
 # ============== ANA BOT ==============
 
 class ScenarioBot:
-    """Ana senaryo görsel botu"""
+    """Ana senaryo görsel botu v2.0"""
     
     def __init__(self):
         self.db = DatabaseManager()
@@ -1851,13 +1867,16 @@ class ScenarioBot:
             'total': 0,
             'success': 0,
             'skipped': 0,
-            'failed': 0
+            'failed': 0,
+            'rejected': 0,  # Kalite kontrolünden geçemeyenler
+            'avg_quality': 0
         }
+        self.quality_scores = []
     
     def run(self):
         """Botu çalıştır"""
         logger.info("="*60)
-        logger.info("SENARYO GÖRSEL BOTU BAŞLADI")
+        logger.info("SENARYO GÖRSEL BOTU v2.0 BAŞLADI")
         logger.info("="*60)
         
         # Playwright başlat
@@ -1867,6 +1886,7 @@ class ScenarioBot:
             batch_size = Config.TEST_BATCH_SIZE if Config.TEST_MODE else Config.BATCH_SIZE
             logger.info(f"Mod: {'TEST' if Config.TEST_MODE else 'PRODUCTION'}")
             logger.info(f"Batch: {batch_size}")
+            logger.info(f"Kalite Eşiği: {Config.QUALITY_THRESHOLD}/10")
             
             questions = self.db.get_scenario_questions(batch_size)
             
@@ -1890,33 +1910,61 @@ class ScenarioBot:
     def _process_question(self, question: Dict):
         """Tek soru işle"""
         qid = question['id']
-        text = question.get('original_text', '')
-        scenario = question.get('scenario_text', '')
+        original_text = question.get('original_text', '')
+        scenario_text = question.get('scenario_text', '')
         
-        if not text:
+        if not original_text:
             logger.warning(f"#{qid}: Boş metin")
             self.stats['skipped'] += 1
             return
         
-        # 1. Analiz
-        logger.info("Analiz...")
-        analysis = self.analyzer.analyze_question(text, scenario)
+        # 1. Analiz ve sadeleştirme
+        logger.info("Analiz ve sadeleştirme...")
+        analysis = self.analyzer.analyze_question(original_text, scenario_text)
         
         if not analysis:
-            logger.warning(f"#{qid}: Analiz başarısız")
+            logger.warning(f"#{qid}: Analiz başarısız veya görsel gerekmez")
             self.stats['skipped'] += 1
             return
         
         # 2. HTML oluştur
-        logger.info(f"Render ({analysis.get('gorsel_tipi', 'genel')})...")
-        html = self.renderer.render(analysis)
+        gorsel_tipi = analysis.get('gorsel_tipi', 'genel')
+        logger.info(f"Render ({gorsel_tipi})...")
+        html, visual_desc = self.renderer.render(analysis)
         
         if not html:
             logger.error(f"#{qid}: Render başarısız")
             self.stats['failed'] += 1
             return
         
-        # 3. PNG'ye çevir
+        # 3. Sadeleştirilmiş metinleri al
+        simplified_text = analysis.get('sadellestirilmis_metin', original_text)
+        simplified_scenario = analysis.get('sadellestirilmis_senaryo')
+        
+        # 4. Kalite kontrolü
+        logger.info("Kalite kontrolü...")
+        validation = analysis.get('kalite_degerlendirmesi', {})
+        
+        # Eğer analiz içinde yoksa, ayrıca doğrulama yap
+        if not validation or 'toplam_puan' not in validation:
+            validation = self.analyzer.validate_changes(
+                original_text, 
+                simplified_text, 
+                visual_desc
+            )
+        
+        quality_score = validation.get('toplam_puan', 0)
+        is_approved = validation.get('onay', False)
+        
+        self.quality_scores.append(quality_score)
+        logger.info(f"Kalite puanı: {quality_score}/10 - {'✅ Onaylandı' if is_approved else '❌ Reddedildi'}")
+        
+        if not is_approved:
+            logger.warning(f"#{qid}: Kalite yetersiz - {validation.get('aciklama', '')}")
+            self.stats['rejected'] += 1
+            return
+        
+        # 5. PNG'ye çevir
         logger.info("PNG...")
         png_bytes = self.converter.html_to_png(html)
         
@@ -1925,7 +1973,7 @@ class ScenarioBot:
             self.stats['failed'] += 1
             return
         
-        # 4. Yükle
+        # 6. Yükle
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         filename = f"scenario/q_{qid}_{timestamp}.png"
         
@@ -1937,9 +1985,19 @@ class ScenarioBot:
             self.stats['failed'] += 1
             return
         
-        # 5. Güncelle
-        if self.db.update_image_url(qid, url):
-            logger.info(f"✅ #{qid}: BAŞARILI")
+        # 7. Veritabanını güncelle (görsel + sadeleştirilmiş metin)
+        logger.info("Veritabanı güncelleniyor...")
+        success = self.db.update_question(
+            qid, 
+            url,
+            new_text=simplified_text if simplified_text != original_text else None,
+            new_scenario=simplified_scenario
+        )
+        
+        if success:
+            logger.info(f"✅ #{qid}: BAŞARILI (Puan: {quality_score}/10)")
+            if simplified_text != original_text:
+                logger.info(f"   📝 Metin sadeleştirildi")
             self.stats['success'] += 1
         else:
             self.stats['failed'] += 1
@@ -1952,11 +2010,16 @@ class ScenarioBot:
         logger.info(f"Toplam: {self.stats['total']}")
         logger.info(f"✅ Başarılı: {self.stats['success']}")
         logger.info(f"⏭️  Atlanan: {self.stats['skipped']}")
+        logger.info(f"🚫 Reddedilen: {self.stats['rejected']}")
         logger.info(f"❌ Başarısız: {self.stats['failed']}")
         
         if self.stats['total'] > 0:
             rate = (self.stats['success'] / self.stats['total']) * 100
-            logger.info(f"Oran: %{rate:.1f}")
+            logger.info(f"Başarı Oranı: %{rate:.1f}")
+        
+        if self.quality_scores:
+            avg_quality = sum(self.quality_scores) / len(self.quality_scores)
+            logger.info(f"Ortalama Kalite: {avg_quality:.1f}/10")
 
 
 # ============== ÇALIŞTIR ==============
