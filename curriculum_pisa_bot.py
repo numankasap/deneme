@@ -1,14 +1,15 @@
 """
-🎯 BAĞLAM TEMELLİ SORU ÜRETİCİ BOT V5
+🎯 BAĞLAM TEMELLİ SORU ÜRETİCİ BOT V6 - GÖRSEL DESTEKLİ
 ═══════════════════════════════════════════════════════════════════════════════
 
 Temiz, sade ve etkili soru üretici.
 - Gemini 2.5 Flash: Soru üretimi
+- Gemini 3 Pro Image Preview: Görsel üretimi
 - DeepSeek: Doğrulama ve geri bildirim (opsiyonel)
 - 12 farklı bağlam türü
 - Sınıf seviyesine uygun Bloom taksonomisi
 
-@version 5.0.1
+@version 6.0.0
 @author MATAİ PRO
 """
 
@@ -17,6 +18,9 @@ import json
 import random
 import time
 import hashlib
+import base64
+import uuid
+import requests
 from datetime import datetime
 from openai import OpenAI
 from google import genai
@@ -35,6 +39,11 @@ DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY', '')
 SORU_PER_KAZANIM = int(os.environ.get('SORU_PER_KAZANIM', '3'))
 MAX_KAZANIM = int(os.environ.get('MAX_ISLEM_PER_RUN', '10'))
 BEKLEME = 2.0
+
+# Görsel ayarları
+GEMINI_IMAGE_MODEL = "gemini-3-pro-image-preview"   # Görsel üretimi için
+STORAGE_BUCKET = "questions-images"  # Üretilen görseller için bucket
+GORSEL_URETIM_AKTIF = True  # Görsel üretimini aç/kapat
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 12 BAĞLAM TÜRÜ
@@ -56,24 +65,105 @@ BAGLAMLAR = [
 ]
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# GÖRSEL TİPLERİ - Konuya göre uygun görsel tipleri
+# ═══════════════════════════════════════════════════════════════════════════════
+
+GORSEL_TIPLERI = {
+    "geometri": ["geometrik_sekil", "ucgen", "dortgen", "daire", "prizma", "silindir", "koni", "koordinat_duzlemi"],
+    "sayilar": ["sayi_dogrusu", "tablo", "grafik", "bilgi_kutusu"],
+    "cebir": ["denklem_sema", "fonksiyon_grafigi", "koordinat_duzlemi", "tablo"],
+    "veri": ["sutun_grafik", "pasta_grafik", "cizgi_grafik", "histogram", "tablo"],
+    "olasilik": ["agac_sema", "tablo", "diagram"],
+    "gunluk": ["senaryo_gorseli", "tablo", "bilgi_kutusu", "infografik"],
+    "mesleki": ["teknik_cizim", "plan", "kesit", "3d_model"],
+    "ekonomik": ["grafik", "tablo", "infografik"],
+    "default": ["tablo", "bilgi_kutusu", "geometrik_sekil", "grafik"]
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # SINIF SEVİYE AYARLARI
 # ═══════════════════════════════════════════════════════════════════════════════
 
 SINIF_AYARLARI = {
-    3: {"kelime": (80, 120), "bloom": ["hatırlama", "anlama"], "secenek": 4},
-    4: {"kelime": (80, 120), "bloom": ["hatırlama", "anlama", "uygulama"], "secenek": 4},
-    5: {"kelime": (120, 180), "bloom": ["anlama", "uygulama", "analiz"], "secenek": 4},
-    6: {"kelime": (120, 180), "bloom": ["anlama", "uygulama", "analiz"], "secenek": 4},
-    7: {"kelime": (150, 200), "bloom": ["uygulama", "analiz"], "secenek": 4},
-    8: {"kelime": (150, 200), "bloom": ["uygulama", "analiz", "değerlendirme"], "secenek": 4},
-    9: {"kelime": (180, 250), "bloom": ["uygulama", "analiz", "değerlendirme"], "secenek": 5},
-    10: {"kelime": (180, 250), "bloom": ["analiz", "değerlendirme"], "secenek": 5},
-    11: {"kelime": (200, 300), "bloom": ["analiz", "değerlendirme", "yaratma"], "secenek": 5},
-    12: {"kelime": (200, 300), "bloom": ["analiz", "değerlendirme", "yaratma"], "secenek": 5}
+    3: {"kelime": (80, 120), "bloom": ["hatırlama", "anlama"], "secenek": 4, "gorsel_oran": 0.3},
+    4: {"kelime": (80, 120), "bloom": ["hatırlama", "anlama", "uygulama"], "secenek": 4, "gorsel_oran": 0.4},
+    5: {"kelime": (120, 180), "bloom": ["anlama", "uygulama", "analiz"], "secenek": 4, "gorsel_oran": 0.5},
+    6: {"kelime": (120, 180), "bloom": ["anlama", "uygulama", "analiz"], "secenek": 4, "gorsel_oran": 0.5},
+    7: {"kelime": (150, 200), "bloom": ["uygulama", "analiz"], "secenek": 4, "gorsel_oran": 0.6},
+    8: {"kelime": (150, 200), "bloom": ["uygulama", "analiz", "değerlendirme"], "secenek": 4, "gorsel_oran": 0.7},
+    9: {"kelime": (180, 250), "bloom": ["uygulama", "analiz", "değerlendirme"], "secenek": 5, "gorsel_oran": 0.7},
+    10: {"kelime": (180, 250), "bloom": ["analiz", "değerlendirme"], "secenek": 5, "gorsel_oran": 0.8},
+    11: {"kelime": (200, 300), "bloom": ["analiz", "değerlendirme", "yaratma"], "secenek": 5, "gorsel_oran": 0.8},
+    12: {"kelime": (200, 300), "bloom": ["analiz", "değerlendirme", "yaratma"], "secenek": 5, "gorsel_oran": 0.8}
 }
 
 ISIMLER = ["Elif", "Yusuf", "Zeynep", "Ahmet", "Ayşe", "Mehmet", "Fatma", "Ali", 
            "Defne", "Ege", "Ada", "Kerem", "Mira", "Baran", "Ela", "Deniz", "Can", "Su"]
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# GÖRSEL ÜRETİM PROMPT ŞABLONU
+# ═══════════════════════════════════════════════════════════════════════════════
+
+IMAGE_PROMPT_TEMPLATE = """📐 MATEMATİK SORUSU GÖRSELİ - ÖĞRETİM MATERYALİ
+
+### GÖREV:
+Aşağıdaki betimlemelere uygun, profesyonel bir matematik sorusu görseli oluştur.
+
+### GÖRSEL TİPİ: {tip}
+
+### DETAYLI BETİMLEME:
+{detay}
+
+### 📏 TEKNİK GEREKSİNİMLER:
+
+**Genel Kurallar:**
+- Temiz, net çizgiler
+- Profesyonel eğitim materyali görünümü
+- Türkçe etiketler (varsa)
+- Ölçüler ve değerler NET görünmeli
+
+**Geometrik Şekiller için:**
+- Köşe noktaları büyük harflerle (A, B, C, D...)
+- Her köşede küçük siyah nokta (●)
+- Kenar uzunlukları çift yönlü ok (↔) ile
+- Ölçüler şeklin DIŞINDA yazılmalı
+
+**Grafikler için:**
+- X ve Y eksenleri etiketli
+- Birimler belirtilmeli
+- Veri noktaları net görünmeli
+
+**Tablolar için:**
+- Başlık satırı vurgulu
+- Hücreler düzgün hizalı
+- Okunabilir font boyutu
+
+### 🎨 STİL KURALLARI (MEB DERS KİTABI):
+
+**Renkler (CANLI AMA GÖZ YORMAYAN):**
+- Arka plan: Beyaz veya çok açık krem (#FFFEF5)
+- Şekil dolguları:
+  * Açık mavi: #E3F2FD (su, gökyüzü temaları)
+  * Açık yeşil: #E8F5E9 (doğa, bahçe temaları)
+  * Açık turuncu: #FFF3E0 (enerji, sıcak temalar)
+  * Açık mor: #F3E5F5 (bilim, teknoloji temaları)
+  * Açık sarı: #FFFDE7 (güneş, ışık temaları)
+- Çizgiler: Koyu gri (#424242), 2px kalınlık
+- Etiketler: Siyah veya koyu gri, kalın font
+
+**Boyutlandırma:**
+- Şekil görsel alanının %60-70'ini kaplamalı
+- Etiketler için yeterli boşluk bırak
+
+### ❌ MUTLAK YASAKLAR:
+❌ Soru metni veya cümleler
+❌ "Buna göre...", "Aşağıdaki..." gibi ifadeler
+❌ A), B), C), D) şıkları
+❌ Çözüm adımları veya hesaplamalar
+❌ Cevabı veren bilgi
+❌ Gereksiz dekorasyon
+❌ Bulanık çizgiler
+❌ Türkçe karakter hatası"""
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # API BAĞLANTILARI
@@ -155,6 +245,115 @@ def json_parse(text):
     except:
         return None
 
+def gorsel_tipi_sec(topic_name, baglam_id):
+    """Konuya ve bağlama göre uygun görsel tipi seç"""
+    topic_lower = topic_name.lower() if topic_name else ""
+    
+    # Konu bazlı seçim
+    if any(x in topic_lower for x in ["üçgen", "dörtgen", "çember", "daire", "geometri", "açı"]):
+        tipler = GORSEL_TIPLERI["geometri"]
+    elif any(x in topic_lower for x in ["cebir", "denklem", "fonksiyon", "polinom"]):
+        tipler = GORSEL_TIPLERI["cebir"]
+    elif any(x in topic_lower for x in ["veri", "istatistik", "grafik", "tablo"]):
+        tipler = GORSEL_TIPLERI["veri"]
+    elif any(x in topic_lower for x in ["olasılık", "permütasyon", "kombinasyon"]):
+        tipler = GORSEL_TIPLERI["olasilik"]
+    else:
+        # Bağlam bazlı fallback
+        tipler = GORSEL_TIPLERI.get(baglam_id, GORSEL_TIPLERI["default"])
+    
+    return random.choice(tipler)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# GÖRSEL ÜRETİM FONKSİYONLARI
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def gorsel_uret(gorsel_betimleme):
+    """Gemini Image API ile görsel üret"""
+    
+    if not GORSEL_URETIM_AKTIF:
+        return None
+    
+    tip = gorsel_betimleme.get("tip", "geometrik_sekil")
+    detay = gorsel_betimleme.get("detay", "")
+    gorunen_veriler = gorsel_betimleme.get("gorunen_veriler", "")
+    
+    full_detay = f"{detay}\n\nGörselde görünecek değerler: {gorunen_veriler}"
+    prompt = IMAGE_PROMPT_TEMPLATE.format(tip=tip, detay=full_detay)
+    
+    for attempt in range(3):
+        try:
+            print(f"      🎨 Görsel üretiliyor (deneme {attempt + 1}/3)...")
+            
+            response = gemini.models.generate_content(
+                model=GEMINI_IMAGE_MODEL,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_modalities=["IMAGE", "TEXT"],
+                )
+            )
+            
+            # Response'dan görsel çıkar
+            if response.candidates:
+                for part in response.candidates[0].content.parts:
+                    if hasattr(part, 'inline_data') and part.inline_data:
+                        inline = part.inline_data
+                        if hasattr(inline, 'data') and inline.data:
+                            image_data = inline.data
+                            if isinstance(image_data, str):
+                                image_bytes = base64.b64decode(image_data)
+                            else:
+                                image_bytes = bytes(image_data) if not isinstance(image_data, bytes) else image_data
+                            print(f"      ✅ Görsel üretildi ({len(image_bytes)} bytes)")
+                            return image_bytes
+            
+            print("      ⚠️ Görsel response'da bulunamadı")
+            
+        except Exception as e:
+            print(f"      ⚠️ Görsel hatası (deneme {attempt + 1}): {str(e)[:100]}")
+            time.sleep(2)
+    
+    print("      ❌ Görsel üretimi başarısız")
+    return None
+
+def storage_yukle(image_data, filename):
+    """Supabase Storage'a görsel yükle"""
+    
+    if not image_data:
+        return None
+    
+    try:
+        # image_data bytes olarak geliyor
+        if isinstance(image_data, str):
+            image_bytes = base64.b64decode(image_data)
+        else:
+            image_bytes = image_data
+        
+        upload_url = f"{SUPABASE_URL}/storage/v1/object/{STORAGE_BUCKET}/{filename}"
+        
+        response = requests.post(
+            upload_url,
+            headers={
+                "apikey": SUPABASE_KEY,
+                "Authorization": f"Bearer {SUPABASE_KEY}",
+                "Content-Type": "image/png"
+            },
+            data=image_bytes,
+            timeout=30
+        )
+        
+        if response.status_code in [200, 201]:
+            public_url = f"{SUPABASE_URL}/storage/v1/object/public/{STORAGE_BUCKET}/{filename}"
+            print(f"      ✅ Görsel yüklendi: {filename}")
+            return public_url
+        else:
+            print(f"      ⚠️ Yükleme hatası: {response.status_code} - {response.text[:100]}")
+            return None
+            
+    except Exception as e:
+        print(f"      ⚠️ Storage hatası: {str(e)[:100]}")
+        return None
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # VERİTABANI FONKSİYONLARI
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -179,7 +378,7 @@ def mevcut_soru_sayisi(curriculum_id):
     """Kazanım için mevcut soru sayısı - devre dışı, her zaman 0 döner"""
     return 0  # Her zaman yeni soru üret
 
-def soru_kaydet(soru, curriculum_row, puan):
+def soru_kaydet(soru, curriculum_row, puan, image_url=None):
     """Soruyu veritabanına kaydet - question_bank tablosuna uygun"""
     try:
         senaryo = soru.get('senaryo', '')
@@ -220,6 +419,10 @@ def soru_kaydet(soru, curriculum_row, puan):
             'verified': False
         }
         
+        # Görsel URL varsa ekle
+        if image_url:
+            kayit['image_url'] = image_url
+        
         result = supabase.table('question_bank').insert(kayit).execute()
         return result.data[0].get('id') if result.data else None
     except Exception as e:
@@ -227,11 +430,11 @@ def soru_kaydet(soru, curriculum_row, puan):
         return None
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# GEMINI SORU ÜRETİMİ
+# GEMINI SORU ÜRETİMİ (GÖRSEL BETİMLEME DAHİL)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def gemini_soru_uret(curriculum_row, bloom_seviye, baglam, geri_bildirim=None):
-    """Gemini ile soru üret - CoT yaklaşımı"""
+def gemini_soru_uret(curriculum_row, bloom_seviye, baglam, geri_bildirim=None, gorsel_gerekli=False):
+    """Gemini ile soru üret - Görsel betimleme dahil"""
     
     sinif = curriculum_row.get('grade_level', 8)
     topic = curriculum_row.get('topic_name', '')
@@ -248,9 +451,34 @@ def gemini_soru_uret(curriculum_row, bloom_seviye, baglam, geri_bildirim=None):
     if geri_bildirim:
         geri_bildirim_text = f"\n\n⚠️ ÖNCEKİ HATA: {geri_bildirim}\nBu hatayı düzelt!"
     
+    # Görsel tipi seç
+    gorsel_tipi = gorsel_tipi_sec(topic, baglam['id'])
+    
+    # Görsel betimleme talimatı
+    gorsel_talimat = ""
+    if gorsel_gerekli:
+        gorsel_talimat = f'''
+
+ADIM 4 - GÖRSEL BETİMLEME (ÇOK ÖNEMLİ!):
+Soru için profesyonel bir eğitim görseli betimle.
+Görsel tipi: {gorsel_tipi}
+
+Betimleme kuralları:
+- Görselde sadece SORU ÇÖZÜMİNDE KULLANILAN veriler olmalı
+- Soru metninde geçmeyen ölçüler görsele EKLENMEMELİ
+- Net, temiz, profesyonel çizim
+- MEB ders kitabı kalitesinde
+
+"gorsel_betimleme" alanında şunları yaz:
+- "tip": görsel tipi ("{gorsel_tipi}")
+- "detay": çizilecek şeklin detaylı açıklaması (minimum 50 kelime)
+- "gorunen_veriler": görselde yazılı görünecek sayısal değerler ve etiketler
+'''
+
     prompt = f'''Matematik sorusu oluştur. ÖNEMLİ: Önce çözümü yap, sonra şıkları oluştur!
 
 KONU: {topic}
+ALT KONU: {sub_topic}
 SINIF: {sinif}. sınıf
 KARAKTER: {isim}
 BAĞLAM: {ornek}
@@ -267,12 +495,13 @@ ADIM 2 - SENARYO YAZ:
 
 ADIM 3 - ŞIKLARI OLUŞTUR:
 - A: Doğru cevap (hesapladığın)
-- B,C,D: Yaygın hatalardan türetilmiş çeldiriciler
+- B,C,D{",E" if secenek_sayisi == 5 else ""}: Yaygın hatalardan türetilmiş çeldiriciler
+{gorsel_talimat}
 
 KRİTİK: Doğru cevap MUTLAKA şıklarda olmalı! Çözümdeki sonuç = Doğru şık
 
 JSON:
-{{"senaryo":"hikaye", "soru_metni":"soru", "secenekler":{{"A":"doğru","B":"çeldirici1","C":"çeldirici2","D":"çeldirici3"}}, "dogru_cevap":"A", "cozum":"Adım adım çözüm"}}'''
+{{"senaryo":"hikaye", "soru_metni":"soru", "secenekler":{{"A":"doğru","B":"çeldirici1","C":"çeldirici2","D":"çeldirici3"{', "E":"çeldirici4"' if secenek_sayisi == 5 else ''}}}, "dogru_cevap":"A", "cozum":"Adım adım çözüm"{', "gorsel_betimleme":{{"tip":"...", "detay":"...", "gorunen_veriler":"..."}}' if gorsel_gerekli else ''}}}'''
 
     try:
         response = gemini.models.generate_content(
@@ -401,19 +630,28 @@ def soru_dogrula(soru):
     return gemini_dogrula(soru)
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# SORU ÜRETİM PIPELINE
+# SORU ÜRETİM PIPELINE (GÖRSEL DAHİL)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def tek_soru_uret(curriculum_row, bloom_seviye, baglam):
-    """Tek soru üret"""
+    """Tek soru üret - görsel dahil"""
     
     MAX_DENEME = 3
     geri_bildirim = None
     
+    # Görsel gerekli mi?
+    sinif = curriculum_row.get('grade_level', 8)
+    ayar = SINIF_AYARLARI.get(sinif, SINIF_AYARLARI[8])
+    gorsel_oran = ayar.get('gorsel_oran', 0.5)
+    gorsel_gerekli = GORSEL_URETIM_AKTIF and (random.random() < gorsel_oran)
+    
+    if gorsel_gerekli:
+        print(f"      🎨 Görsel ÜRETİLECEK")
+    
     for deneme in range(MAX_DENEME):
         time.sleep(0.5)
         
-        soru = gemini_soru_uret(curriculum_row, bloom_seviye, baglam, geri_bildirim)
+        soru = gemini_soru_uret(curriculum_row, bloom_seviye, baglam, geri_bildirim, gorsel_gerekli)
         
         if not soru:
             print(f"      ⚠️ Soru üretilemedi (Deneme {deneme+1})")
@@ -428,12 +666,21 @@ def tek_soru_uret(curriculum_row, bloom_seviye, baglam):
         puan = dogrulama.get('puan', 75)
         
         if dogrulama.get('gecerli', True) and puan >= 50:
-            return soru, puan
+            # Görsel üret (eğer betimleme varsa)
+            image_url = None
+            if gorsel_gerekli and soru.get('gorsel_betimleme'):
+                image_data = gorsel_uret(soru['gorsel_betimleme'])
+                if image_data:
+                    # Benzersiz dosya adı oluştur
+                    filename = f"pisa_{sinif}_{uuid.uuid4().hex[:8]}_{int(time.time())}.png"
+                    image_url = storage_yukle(image_data, filename)
+            
+            return soru, puan, image_url
         else:
             geri_bildirim = dogrulama.get('geri_bildirim')
             print(f"      ⚠️ Puan: {puan}/100 (Deneme {deneme+1})")
     
-    return None, 0
+    return None, 0, None
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TOPLU ÜRETİM
@@ -473,14 +720,16 @@ def toplu_uret():
     secilen = secilen[:MAX_KAZANIM]
     
     print(f"\n{'='*70}")
-    print(f"🎯 BAĞLAM TEMELLİ SORU ÜRETİM V5")
+    print(f"🎯 BAĞLAM TEMELLİ SORU ÜRETİM V6 - GÖRSEL DESTEKLİ")
     print(f"   Tarih: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     print(f"   İşlenecek: {len(secilen)} kazanım")
     print(f"   Kazanım başına: {SORU_PER_KAZANIM} soru")
     print(f"   DeepSeek: {'✅ AKTİF' if DEEPSEEK_AKTIF else '❌ DEVRE DIŞI'}")
+    print(f"   Görsel Üretim: {'✅ AKTİF' if GORSEL_URETIM_AKTIF else '❌ DEVRE DIŞI'}")
     print(f"{'='*70}\n")
     
     basarili = 0
+    gorselli = 0
     toplam_puan = 0
     baslangic = time.time()
     
@@ -504,14 +753,18 @@ def toplu_uret():
             print(f"\n   Soru {mevcut + soru_idx + 1}/{SORU_PER_KAZANIM}:")
             print(f"      Bloom: {bloom} | Bağlam: {baglam['ad']}")
             
-            soru, puan = tek_soru_uret(kaz, bloom, baglam)
+            soru, puan, image_url = tek_soru_uret(kaz, bloom, baglam)
             
             if soru:
-                soru_id = soru_kaydet(soru, kaz, puan)
+                soru_id = soru_kaydet(soru, kaz, puan, image_url)
                 if soru_id:
                     basarili += 1
                     toplam_puan += puan
-                    print(f"      ✅ Başarılı! ID: {soru_id} | Puan: {puan}/100")
+                    if image_url:
+                        gorselli += 1
+                        print(f"      ✅ Başarılı! ID: {soru_id} | Puan: {puan}/100 | 🖼️ GÖRSELLİ")
+                    else:
+                        print(f"      ✅ Başarılı! ID: {soru_id} | Puan: {puan}/100")
                 else:
                     print(f"      ❌ Kayıt başarısız")
             else:
@@ -528,6 +781,7 @@ def toplu_uret():
     print(f"📊 SONUÇ RAPORU")
     print(f"{'='*70}")
     print(f"   ✅ Toplam üretilen: {basarili} soru")
+    print(f"   🖼️ Görselli soru: {gorselli}")
     print(f"   📈 Ortalama Kalite: {ort_puan:.1f}/100")
     print(f"   ⏱️ Süre: {sure/60:.1f} dakika")
     print(f"{'='*70}\n")
@@ -540,10 +794,11 @@ def toplu_uret():
 
 def main():
     print("\n" + "="*70)
-    print("🎯 BAĞLAM TEMELLİ SORU ÜRETİCİ BOT V5")
+    print("🎯 BAĞLAM TEMELLİ SORU ÜRETİCİ BOT V6 - GÖRSEL DESTEKLİ")
     print("   📚 12 Farklı Bağlam Türü")
     print("   🧠 Bloom Taksonomisi")
-    print("   ✨ Gemini 2.5 Flash")
+    print("   ✨ Gemini 2.5 Flash + Gemini Image")
+    print("   🖼️ Otomatik Görsel Üretimi")
     print("="*70 + "\n")
     
     print("🔍 Gemini API test ediliyor...")
