@@ -596,8 +596,31 @@ class VisualRenderer:
         t = a.get('table', {})
         headers = t.get('headers', [])
         rows = t.get('rows', [])
+        
+        # BOŞ TABLO KONTROLÜ
         if not headers or not rows:
+            logger.warning("Tablo başlık veya satır yok!")
             return self._render_infographic(a)
+        
+        # Minimum 2 sütun olmalı (sadece etiket sütunu yetmez)
+        if len(headers) < 2:
+            logger.warning(f"Tablo çok az sütun: {len(headers)} (min 2)")
+            return self._render_infographic(a)
+        
+        # Satırlarda gerçek veri olmalı
+        has_real_data = False
+        for row in rows:
+            for cell in row[1:]:  # İlk sütun (etiket) hariç
+                if cell and str(cell).strip() and str(cell).strip() != '-':
+                    has_real_data = True
+                    break
+            if has_real_data:
+                break
+        
+        if not has_real_data:
+            logger.warning("Tablo satırlarında veri yok!")
+            return self._render_infographic(a)
+        
         content = TableRenderer.render(headers, rows, t.get('title', ''), t.get('highlight_col'))
         formula = a.get('formula', '')
         if formula:
@@ -739,6 +762,29 @@ Soru: "Notlar: 60, 70, 80, 90, 100. Ortalama?"
 - Not 5: 100
 (Toplam ve ortalama YOK!)
 
+📝 ÖRNEK - MEZUNİYET ORANI SORUSU:
+
+Soru: "Son 5 yılın mezuniyet oranları %64, %81, %100, %49, %36. Kareköklerin ortalaması?"
+
+❌ YANLIŞ GÖRSEL (boş tablo):
+headers: ["Yıl"]
+rows: [["1. Yıl"], ["2. Yıl"]]  ← VERİ YOK, SADECE ETİKET!
+
+❌ YANLIŞ GÖRSEL (hesaplama var):
+headers: ["Yıl", "Oran", "Karekök"]
+rows: [["1. Yıl", "%64", "8"]]  ← KAREKÖK YASAK! Öğrenci hesaplayacak
+
+✅ DOĞRU GÖRSEL:
+headers: ["Yıl", "Mezuniyet Oranı"]
+rows: [
+  ["1. Yıl", "%64"],
+  ["2. Yıl", "%81"],
+  ["3. Yıl", "%100"],
+  ["4. Yıl", "%49"],
+  ["5. Yıl", "%36"]
+]
+(Karekök ve ortalama YOK! Sadece ham veriler)
+
 📝 ÖRNEK - KARŞILAŞTIRMA SORUSU:
 
 Soru: "A firması: Aylık 50 TL + dakikası 0.5 TL. B firması: Aylık 30 TL + dakikası 1 TL. 100 dakika konuşan için hangisi avantajlı?"
@@ -764,13 +810,26 @@ B Firması:
 ═══════════════════════════════════════════════════════════════
 
 "comparison" → Karşılaştırma kartları (firmalar, tarifeler, planlar)
-"table" → Veri tablosu (çoklu satır-sütun)
+"table" → Veri tablosu (EN AZ 2 SÜTUN + VERİ OLMALI!)
 "bar_chart" → Çubuk grafik (kategorik karşılaştırma)
 "line_chart" → Çizgi grafik (fonksiyon, zaman serisi)
 "pie_chart" → Pasta grafik (yüzde dağılımları)
 "venn" → Venn diyagramı (EKOK, EBOB, küme)
 "number_line" → Sayı doğrusu (eşitsizlik, aralık)
 "infographic" → Bilgi kartları (genel veriler)
+
+📋 TABLO KURALLARI:
+- Tablo en az 2 sütun içermeli (etiket + veri)
+- Her satırda gerçek veri olmalı (boş satır yasak!)
+- Sadece etiket sütunu olan tablo YASAK!
+
+Örnek - YANLIŞ TABLO:
+headers: ["Yıl"]
+rows: [["1. Yıl"], ["2. Yıl"]]  ← VERİ YOK!
+
+Örnek - DOĞRU TABLO:
+headers: ["Yıl", "Mezuniyet Oranı"]
+rows: [["1. Yıl", "%64"], ["2. Yıl", "%81"], ...]
 
 ═══════════════════════════════════════════════════════════════
 ✅ GÖRSEL GEREKLİ DURUMLAR
@@ -890,7 +949,13 @@ visual_quality (Görsel Kalitesi):
         'toplam ücret', 'toplam fiyat', 'net tutar',
         'ödenecek', 'ödenecek tutar', 'indirimli fiyat',
         # Oran sonuçları
-        'oran', 'yüzde', 'kesir', 'pay/payda'
+        'oran', 'yüzde', 'kesir', 'pay/payda',
+        # Matematiksel işlemler
+        'karekök', 'karekok', 'küp kök', 'kup kok',
+        'faktöriyel', 'faktoriyel',
+        'üs', 'kuvvet',
+        'çarpım', 'carpim', 'bölüm', 'bolum',
+        'ekok', 'ebob', 'obeb', 'okek',  # Bunlar hesaplama sonucu olarak yasak
     ]
     
     # Yasak pattern'ler - matematiksel işlem sonuçları
