@@ -664,6 +664,101 @@ class GeminiAnalyzer:
 2. Kalite puanı ver: question_quality (1-10), visual_quality (1-10)
 3. Sadece GÖRSEL GEREKTİREN sorular için görsel tasarla
 
+🚫🚫🚫 ALTIN KURAL: SADECE VERİLER! 🚫🚫🚫
+═══════════════════════════════════════════════════════════════
+
+Görsel SADECE soruda verilen ham verileri içermeli!
+Öğrencinin hesaplayıp bulacağı HİÇBİR ŞEY görselde olmamalı!
+
+✅ GÖRSELDE OLMASI GEREKENLER:
+- Soruda direkt verilen sayılar (3 egzersiz türü, 2 zorluk)
+- Kategori/seçenek isimleri (Koşu, Yüzme, Yoga)
+- Birimler (kg, TL, saat, metre)
+- Yüzdeler (eğer soruda verilmişse)
+- Tarih/zaman (eğer soruda verilmişse)
+
+❌ GÖRSELDE OLMAMASI GEREKENLER:
+- Toplam hesabı (3 × 2 = 6 YASAK!)
+- Çarpım sonuçları
+- Toplam, fark, oran hesapları
+- "Toplam olası durum" 
+- "İstenen durum"
+- Olasılık değeri
+- Yüzde hesabı sonucu
+- Kar/zarar miktarı (öğrenci bulacak)
+- Ortalama değeri (öğrenci hesaplayacak)
+- Herhangi bir işlem sonucu
+- Formül uygulaması sonucu
+- Cevap, sonuç, bulunan değer
+
+📝 ÖRNEK - OLASILIK SORUSU:
+
+Soru: "3 egzersiz türü ve 2 zorluk seviyesi var. Yüzme-Zor olasılığı?"
+
+❌ YANLIŞ GÖRSEL:
+- Egzersiz: 3 tür
+- Zorluk: 2 seviye  
+- Toplam: 3 × 2 = 6  ← YASAK! Öğrenci hesaplayacak
+- İstenen: 1         ← YASAK!
+- Olasılık: 1/6      ← YASAK!
+
+✅ DOĞRU GÖRSEL:
+- Egzersiz Türleri: Koşu, Yüzme, Yoga
+- Zorluk Seviyeleri: Kolay, Zor
+(Başka bir şey YOK! Öğrenci 3×2=6 ve 1/6'yı kendisi bulacak)
+
+📝 ÖRNEK - KAR/ZARAR SORUSU:
+
+Soru: "100 TL'ye alınan ürün 120 TL'ye satıldı. Kar yüzdesi?"
+
+❌ YANLIŞ GÖRSEL:
+- Alış: 100 TL
+- Satış: 120 TL
+- Kar: 20 TL        ← YASAK! Öğrenci hesaplayacak
+- Kar yüzdesi: %20  ← YASAK!
+
+✅ DOĞRU GÖRSEL:
+- Alış Fiyatı: 100 TL
+- Satış Fiyatı: 120 TL
+(Başka bir şey YOK!)
+
+📝 ÖRNEK - İSTATİSTİK SORUSU:
+
+Soru: "Notlar: 60, 70, 80, 90, 100. Ortalama?"
+
+❌ YANLIŞ GÖRSEL:
+- Notlar: 60, 70, 80, 90, 100
+- Toplam: 400        ← YASAK!
+- Ortalama: 80       ← YASAK!
+
+✅ DOĞRU GÖRSEL:
+- Not 1: 60
+- Not 2: 70
+- Not 3: 80
+- Not 4: 90
+- Not 5: 100
+(Toplam ve ortalama YOK!)
+
+📝 ÖRNEK - KARŞILAŞTIRMA SORUSU:
+
+Soru: "A firması: Aylık 50 TL + dakikası 0.5 TL. B firması: Aylık 30 TL + dakikası 1 TL. 100 dakika konuşan için hangisi avantajlı?"
+
+❌ YANLIŞ GÖRSEL:
+- A toplam: 50 + 100×0.5 = 100 TL  ← YASAK!
+- B toplam: 30 + 100×1 = 130 TL    ← YASAK!
+- Fark: 30 TL                       ← YASAK!
+
+✅ DOĞRU GÖRSEL:
+A Firması:
+- Aylık Ücret: 50 TL
+- Dakika Ücreti: 0,5 TL
+
+B Firması:
+- Aylık Ücret: 30 TL
+- Dakika Ücreti: 1 TL
+
+(Toplam maliyet hesabı YOK! Öğrenci yapacak)
+
 ═══════════════════════════════════════════════════════════════
 🎯 GÖRSEL TİPLERİ (Geometri YOK!)
 ═══════════════════════════════════════════════════════════════
@@ -715,7 +810,15 @@ class GeminiAnalyzer:
   "subtitle": "Alt başlık",
   
   "items": [
-    {"name": "A Firması", "color": "blue", "properties": [{"label": "Fiyat", "value": "100 TL"}]}
+    {
+      "name": "Ceren'in Planı", 
+      "color": "blue", 
+      "properties": [
+        {"label": "Egzersiz Türleri", "value": "Koşu, Yüzme, Yoga (3)"},
+        {"label": "Zorluk Seviyeleri", "value": "Kolay, Zor (2)"},
+        {"label": "Toplam Olası Durum", "value": "3 × 2 = 6"}
+      ]
+    }
   ],
   
   "table": {"title": "", "headers": ["A", "B"], "rows": [["1", "2"]], "highlight_col": null},
@@ -727,12 +830,14 @@ class GeminiAnalyzer:
   
   "number_line_data": [{"value": 0, "label": "0"}, {"value": 5, "label": "5"}],
   
-  "info_items": [{"icon": "💰", "label": "Fiyat", "value": "100", "unit": "TL"}],
+  "info_items": [{"icon": "🎯", "label": "Seçenek Sayısı", "value": "3", "unit": "tür"}],
   
-  "formula": "Formül",
+  "formula": "Olasılık = İstenen Durum / Toplam Durum",
   
   "simplified_text": null
 }
+
+⚠️ DİKKAT: items içinde "İstenen Durum", "Olasılık", "Cevap" gibi alanlar OLMAMALI!
 
 ═══════════════════════════════════════════════════════════════
 📝 PUANLAMA KRİTERLERİ
@@ -764,6 +869,105 @@ visual_quality (Görsel Kalitesi):
             genai.configure(api_key=Config.GEMINI_API_KEY)
             self.model = genai.GenerativeModel(Config.GEMINI_MODEL)
         logger.info(f"Gemini hazır: {Config.GEMINI_MODEL}")
+    
+    # Yasak kelimeler - hesaplama sonucu içeren her şey
+    FORBIDDEN_LABELS = [
+        # Olasılık
+        'istenen durum', 'istenen', 'aranan durum', 'aranan',
+        'olasılık', 'olasilik', 'olası durum sayısı',
+        # Sonuçlar
+        'sonuç', 'sonuc', 'cevap', 'hesaplanan', 'bulunan', 'istenilen',
+        # Toplamlar
+        'toplam', 'genel toplam', 'toplam tutar', 'toplam maliyet',
+        'toplam durum', 'toplam sayı',
+        # Hesaplamalar
+        'kar', 'zarar', 'kar miktarı', 'zarar miktarı',
+        'kar yüzdesi', 'zarar yüzdesi', 'kar oranı',
+        'fark', 'artış', 'azalış', 'değişim',
+        'ortalama', 'aritmetik ortalama', 'medyan', 'mod',
+        'toplam puan', 'toplam not', 'genel ortalama',
+        # Maliyet hesapları
+        'toplam ücret', 'toplam fiyat', 'net tutar',
+        'ödenecek', 'ödenecek tutar', 'indirimli fiyat',
+        # Oran sonuçları
+        'oran', 'yüzde', 'kesir', 'pay/payda'
+    ]
+    
+    # Yasak pattern'ler - matematiksel işlem sonuçları
+    FORBIDDEN_PATTERNS = [
+        r'\d+\s*[×x\*]\s*\d+\s*=\s*\d+',  # 3 × 2 = 6
+        r'\d+\s*[+]\s*\d+\s*=\s*\d+',      # 50 + 50 = 100
+        r'\d+\s*[-]\s*\d+\s*=\s*\d+',      # 120 - 100 = 20
+        r'\d+\s*[/÷]\s*\d+\s*=\s*\d+',     # 20 / 100 = 0.2
+        r'%\s*\d+',                         # %20
+        r'\d+/\d+',                          # 1/6 (kesir)
+    ]
+    
+    def _remove_answers(self, result: Dict) -> Dict:
+        """Cevap ve hesaplama sonucu içeren alanları temizle"""
+        import re
+        
+        def contains_forbidden(text: str) -> bool:
+            """Metin yasak içerik içeriyor mu?"""
+            text_lower = text.lower()
+            # Yasak kelime kontrolü
+            for f in self.FORBIDDEN_LABELS:
+                if f in text_lower:
+                    return True
+            # Yasak pattern kontrolü
+            for p in self.FORBIDDEN_PATTERNS:
+                if re.search(p, text):
+                    return True
+            return False
+        
+        # items içindeki properties'leri kontrol et
+        if 'items' in result:
+            for item in result['items']:
+                if 'properties' in item:
+                    filtered_props = []
+                    for prop in item['properties']:
+                        label = prop.get('label', '')
+                        value = prop.get('value', '')
+                        combined = f"{label} {value}"
+                        
+                        if not contains_forbidden(combined):
+                            filtered_props.append(prop)
+                        else:
+                            logger.info(f"🚫 Hesaplama içeren alan silindi: {label}: {value}")
+                    item['properties'] = filtered_props
+        
+        # info_items içindeki hesaplamaları kontrol et
+        if 'info_items' in result:
+            filtered_info = []
+            for info in result['info_items']:
+                label = info.get('label', '')
+                value = str(info.get('value', ''))
+                combined = f"{label} {value}"
+                
+                if not contains_forbidden(combined):
+                    filtered_info.append(info)
+                else:
+                    logger.info(f"🚫 Hesaplama içeren info silindi: {label}: {value}")
+            result['info_items'] = filtered_info
+        
+        # table içindeki hesaplama sütunlarını kontrol et
+        if 'table' in result and result['table'].get('headers'):
+            headers = result['table']['headers']
+            rows = result['table'].get('rows', [])
+            
+            cols_to_remove = []
+            for i, h in enumerate(headers):
+                if contains_forbidden(h):
+                    cols_to_remove.append(i)
+                    logger.info(f"🚫 Hesaplama sütunu silindi: {h}")
+            
+            for i in sorted(cols_to_remove, reverse=True):
+                headers.pop(i)
+                for row in rows:
+                    if i < len(row):
+                        row.pop(i)
+        
+        return result
     
     def analyze(self, text: str, scenario: str = None) -> Optional[Dict]:
         try:
@@ -807,6 +1011,9 @@ visual_quality (Görsel Kalitesi):
             if not has_content:
                 logger.warning("İçerik boş!")
                 return None
+            
+            # CEVAP KONTROLÜ - yasak kelimeleri temizle
+            result = self._remove_answers(result)
             
             result['simplified_text'] = None
             return result
