@@ -1,94 +1,56 @@
-# Scenario Bot v3.0 Workflow
-# ESNEK VE ZENGİN GÖRSEL DESTEĞİ:
-# - Geometrik şekiller (silindir, küp, prizma, koni, küre)
-# - Grafikler (çubuk, çizgi, pasta)
-# - Dinamik tablolar
-# - Karşılaştırma kartları
-# - İnfografikler
-#
-# Dinamik soru metni - statik değil gerçek soru!
-
-name: Scenario Bot v3
+name: Scenario Image Bot v4
 
 on:
+  schedule:
+    # Her gün saat 03:00 ve 15:00'te çalışır (UTC)
+    - cron: '0 3,15 * * *'
   workflow_dispatch:
     inputs:
+      batch_size:
+        description: 'İşlenecek soru sayısı'
+        required: false
+        default: '20'
       test_mode:
-        description: 'Test modu (10 soru)'
+        description: 'Test modu (true/false)'
         required: false
         default: 'false'
-        type: choice
-        options:
-          - 'true'
-          - 'false'
-      batch_size:
-        description: 'İşlenecek soru sayısı (1-100)'
-        required: false
-        default: '30'
-        type: string
-  
-  schedule:
-    - cron: '0 6 * * *'   # 09:00 TR
-    - cron: '0 12 * * *'  # 15:00 TR
-    - cron: '0 18 * * *'  # 21:00 TR
+
+env:
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+  GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
 jobs:
   generate-visuals:
     runs-on: ubuntu-latest
-    
+    timeout-minutes: 60
+
     steps:
-      - name: 📥 Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
-      
-      - name: 🐍 Setup Python
+
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
-      
-      - name: 📦 Install dependencies
+
+      - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install -r scenario_requirements.txt
-      
-      - name: 🎭 Install Playwright
-        run: |
-          playwright install chromium
-          playwright install-deps chromium
-      
-      - name: 🖼️ Run Scenario Bot v3
+          pip install google-genai supabase
+
+      - name: Run Image Bot
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BATCH_SIZE: ${{ github.event.inputs.batch_size || '20' }}
           TEST_MODE: ${{ github.event.inputs.test_mode || 'false' }}
-          BATCH_SIZE: ${{ github.event.inputs.batch_size || '30' }}
         run: |
-          echo "🚀 Senaryo Görsel Botu v3.0"
-          echo "📅 $(date)"
-          echo ""
-          echo "🆕 v3.0 Özellikleri:"
-          echo "   📐 Geometrik şekiller (silindir, küp, koni, küre)"
-          echo "   📊 Grafikler (çubuk, çizgi, pasta)"
-          echo "   📋 Dinamik tablolar"
-          echo "   ⚖️ Karşılaştırma kartları"
-          echo "   ❓ Dinamik soru metni"
-          echo ""
-          python scenario_bot.py
-      
-      - name: 📊 Summary
+          python scenario_imagen_bot.py
+
+      - name: Summary
         if: always()
         run: |
-          echo "## 🖼️ Senaryo Bot v3.0 Tamamlandı" >> $GITHUB_STEP_SUMMARY
+          echo "## 🎨 Senaryo Görsel Botu Tamamlandı" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 🆕 Desteklenen Görsel Tipleri" >> $GITHUB_STEP_SUMMARY
-          echo "| Tip | Açıklama |" >> $GITHUB_STEP_SUMMARY
-          echo "|-----|----------|" >> $GITHUB_STEP_SUMMARY
-          echo "| comparison_geometry | Geometrik şekillerle karşılaştırma |" >> $GITHUB_STEP_SUMMARY
-          echo "| comparison | Basit karşılaştırma kartları |" >> $GITHUB_STEP_SUMMARY
-          echo "| table | Veri tablosu |" >> $GITHUB_STEP_SUMMARY
-          echo "| bar_chart | Çubuk grafik |" >> $GITHUB_STEP_SUMMARY
-          echo "| line_chart | Çizgi grafik |" >> $GITHUB_STEP_SUMMARY
-          echo "| pie_chart | Pasta grafik |" >> $GITHUB_STEP_SUMMARY
-          echo "| geometry | Sadece geometrik şekiller |" >> $GITHUB_STEP_SUMMARY
-          echo "| infographic | Bilgi kartları |" >> $GITHUB_STEP_SUMMARY
+          echo "- Model: gemini-2.0-flash-preview-image-generation" >> $GITHUB_STEP_SUMMARY
+          echo "- Batch Size: ${{ github.event.inputs.batch_size || '20' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Test Mode: ${{ github.event.inputs.test_mode || 'false' }}" >> $GITHUB_STEP_SUMMARY
