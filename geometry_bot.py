@@ -47,7 +47,7 @@ class Config:
     
     # Görsel üretim modelleri (Nano Banana serisi)
     GEMINI_IMAGE_FLASH = 'gemini-2.5-flash-image'  # Hızlı, yüksek hacim (Nano Banana)
-    GEMINI_IMAGE_PRO = 'gemini-2.5-flash-image'  # Yüksek kalite (Nano Banana Pro)
+    GEMINI_IMAGE_PRO = 'gemini-3-pro-image-preview'  # Yüksek kalite (Nano Banana Pro)
     
     # Görsel üretim stratejisi: 'cairo_only', 'ai_only', 'hybrid', 'ai_first'
     IMAGE_STRATEGY = os.environ.get('IMAGE_STRATEGY', 'hybrid')
