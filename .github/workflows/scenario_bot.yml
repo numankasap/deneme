@@ -3,7 +3,7 @@ name: Scenario Image Bot v4
 on:
   schedule:
     # Her gün saat 03:00 ve 15:00'te çalışır (UTC)
-     - cron: '0 3,15 * * *'
+    - cron: '0 3,15 * * *'
   workflow_dispatch:
     inputs:
       batch_size:
