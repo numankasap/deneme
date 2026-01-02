@@ -49,7 +49,7 @@ class Config:
     
     # Model ayarları
     GEMINI_TEXT = "gemini-2.5-flash"
-    GEMINI_IMAGE = "gemini-2.5-flash-image"
+    GEMINI_IMAGE = "gemini-3-pro-image-preview"
     GEMINI_VISION = "gemini-2.5-flash"
     
     # Bot ayarları
