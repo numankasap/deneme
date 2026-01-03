@@ -56,7 +56,7 @@ on:
     # 11:00 UTC = 14:00 TR
     - cron: '0 11 * * *'
     # 17:00 UTC = 20:00 TR
-     - cron: '0 17 * * *'
+    - cron: '0 17 * * *'
 
 jobs:
   generate-geometry-visuals:
