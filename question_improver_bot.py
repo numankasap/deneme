@@ -762,7 +762,7 @@ def gemini_ile_iyilestir(soru, analiz):
 Şimdi bu soruyu iyileştir. SADECE JSON döndür, başka bir şey yazma."""
 
         response = gemini_client.models.generate_content(
-            model='gemini-3-flash',
+            model='gemini-3-flash-preview',
             contents=prompt,
             config=types.GenerateContentConfig(
                 temperature=0.2,  # Daha deterministik çıktı için düşürüldü
@@ -1126,7 +1126,7 @@ def main():
     print("\n🔍 Gemini API test ediliyor...")
     try:
         test = gemini_client.models.generate_content(
-            model='gemini-3-flash',
+            model='gemini-3-flash-preview',
             contents='Merhaba, 2+2=?'
         )
         print(f"✅ Gemini çalışıyor: {test.text[:30] if test.text else 'OK'}...")
