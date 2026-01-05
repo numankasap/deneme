@@ -46,7 +46,7 @@ except ImportError:
 
 SUPABASE_URL = os.environ.get('SUPABASE_URL')
 SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
-GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
+_API_KEY = os.environ.get('GEMINI_API_KEY')
 DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY', '')
 
 # İşlenecek ID aralığı
@@ -762,11 +762,11 @@ def gemini_ile_iyilestir(soru, analiz):
 Şimdi bu soruyu iyileştir. SADECE JSON döndür, başka bir şey yazma."""
 
         response = gemini_client.models.generate_content(
-            model='gemini-2.0-flash',
+            model='gemini-3-flash-preview',
             contents=prompt,
             config=types.GenerateContentConfig(
                 temperature=0.2,  # Daha deterministik çıktı için düşürüldü
-                max_output_tokens=4000
+                max_output_tokens=8000
             )
         )
         
@@ -1126,7 +1126,7 @@ def main():
     print("\n🔍 Gemini API test ediliyor...")
     try:
         test = gemini_client.models.generate_content(
-            model='gemini-2.0-flash',
+            model='gemini-3-flash-preview',
             contents='Merhaba, 2+2=?'
         )
         print(f"✅ Gemini çalışıyor: {test.text[:30] if test.text else 'OK'}...")
