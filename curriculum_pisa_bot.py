@@ -528,7 +528,7 @@ JSON:
 
     try:
         response = gemini.models.generate_content(
-            model='gemini-3-pro-preview',
+            model='gemini-3-flash-preview',
             contents=prompt,
             config=types.GenerateContentConfig(
                 temperature=0.5,
@@ -627,7 +627,7 @@ JSON yanıt:
 {{"gecerli": true/false, "puan": 0-100, "geri_bildirim": "Eğer çözüm sonucu şıkla uyuşmuyorsa veya hata varsa açıkla, yoksa null"}}'''
 
         response = gemini.models.generate_content(
-            model='gemini-3-pro-preview',
+            model='gemini-3-flash-preview',
             contents=prompt,
             config=types.GenerateContentConfig(
                 temperature=0.2,
