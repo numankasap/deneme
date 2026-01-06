@@ -40,6 +40,16 @@ SORU_PER_KAZANIM = int(os.environ.get('SORU_PER_KAZANIM', '3'))
 MAX_KAZANIM = int(os.environ.get('MAX_ISLEM_PER_RUN', '10'))
 BEKLEME = 2.0
 
+# Sınıf filtresi (boş = tüm sınıflar)
+SINIF_FILTRE = os.environ.get('SINIF_SEVIYESI', '').strip()
+if SINIF_FILTRE:
+    try:
+        SINIF_FILTRE = int(SINIF_FILTRE)
+    except ValueError:
+        SINIF_FILTRE = None
+else:
+    SINIF_FILTRE = None
+
 # Görsel ayarları
 GEMINI_IMAGE_MODEL = "gemini-3-pro-image-preview"   # Görsel üretimi için
 STORAGE_BUCKET = "questions-images"  # Üretilen görseller için bucket
@@ -359,10 +369,23 @@ def storage_yukle(image_data, filename):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def curriculum_getir():
-    """Matematik ve Geometri kazanımlarını getir"""
+    """Matematik ve Geometri kazanımlarını getir - sınıf filtresine göre"""
     try:
-        matematik = supabase.table('curriculum').select('*').eq('lesson_name', 'Matematik').gte('grade_level', 3).lte('grade_level', 12).execute()
-        geometri = supabase.table('curriculum').select('*').eq('lesson_name', 'Geometri').gte('grade_level', 3).lte('grade_level', 12).execute()
+        # Temel sorgular
+        mat_query = supabase.table('curriculum').select('*').eq('lesson_name', 'Matematik')
+        geo_query = supabase.table('curriculum').select('*').eq('lesson_name', 'Geometri')
+        
+        # Sınıf filtresi varsa uygula
+        if SINIF_FILTRE:
+            mat_query = mat_query.eq('grade_level', SINIF_FILTRE)
+            geo_query = geo_query.eq('grade_level', SINIF_FILTRE)
+            print(f"📌 Sınıf filtresi aktif: {SINIF_FILTRE}. sınıf")
+        else:
+            mat_query = mat_query.gte('grade_level', 3).lte('grade_level', 12)
+            geo_query = geo_query.gte('grade_level', 3).lte('grade_level', 12)
+        
+        matematik = mat_query.execute()
+        geometri = geo_query.execute()
         
         sonuc = []
         if matematik.data:
@@ -722,6 +745,7 @@ def toplu_uret():
     print(f"\n{'='*70}")
     print(f"🎯 BAĞLAM TEMELLİ SORU ÜRETİM V6 - GÖRSEL DESTEKLİ")
     print(f"   Tarih: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    print(f"   Sınıf Filtresi: {f'{SINIF_FILTRE}. sınıf' if SINIF_FILTRE else 'Tüm sınıflar (3-12)'}")
     print(f"   İşlenecek: {len(secilen)} kazanım")
     print(f"   Kazanım başına: {SORU_PER_KAZANIM} soru")
     print(f"   DeepSeek: {'✅ AKTİF' if DEEPSEEK_AKTIF else '❌ DEVRE DIŞI'}")
@@ -799,6 +823,8 @@ def main():
     print("   🧠 Bloom Taksonomisi")
     print("   ✨ Gemini 2.5 Flash + Gemini Image")
     print("   🖼️ Otomatik Görsel Üretimi")
+    if SINIF_FILTRE:
+        print(f"   🎯 Hedef Sınıf: {SINIF_FILTRE}. sınıf")
     print("="*70 + "\n")
     
     print("🔍 Gemini API test ediliyor...")
