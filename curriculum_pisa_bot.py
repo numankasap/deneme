@@ -528,11 +528,11 @@ JSON:
 
     try:
         response = gemini.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-3-pro-preview',
             contents=prompt,
             config=types.GenerateContentConfig(
-                temperature=0.7,
-                max_output_tokens=4096
+                temperature=0.5,
+                max_output_tokens=8096
             )
         )
         
@@ -627,11 +627,11 @@ JSON yanıt:
 {{"gecerli": true/false, "puan": 0-100, "geri_bildirim": "Eğer çözüm sonucu şıkla uyuşmuyorsa veya hata varsa açıkla, yoksa null"}}'''
 
         response = gemini.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-3-pro-preview',
             contents=prompt,
             config=types.GenerateContentConfig(
                 temperature=0.2,
-                max_output_tokens=500
+                max_output_tokens=2500
             )
         )
         
