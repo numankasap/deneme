@@ -762,11 +762,11 @@ def gemini_ile_iyilestir(soru, analiz):
 Şimdi bu soruyu iyileştir. SADECE JSON döndür, başka bir şey yazma."""
 
         response = gemini_client.models.generate_content(
-            model='gemini-3-flash-preview',
+            model='gemini-3-pro-preview',
             contents=prompt,
             config=types.GenerateContentConfig(
-                temperature=0.2,  # Daha deterministik çıktı için düşürüldü
-                max_output_tokens=8000
+                temperature=0.3,  # Daha deterministik çıktı için düşürüldü
+                max_output_tokens=20000
             )
         )
         
