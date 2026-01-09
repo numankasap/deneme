@@ -621,7 +621,7 @@ Mevcut Çözüm:
 
     try:
         response = gemini_client.models.generate_content(
-            model='gemini-2.5-flash-preview-05-20',
+            model='gemini-3-flash-preview',
             contents=prompt,
             config=types.GenerateContentConfig(
                 temperature=0.3,
