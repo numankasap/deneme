@@ -1,20 +1,22 @@
 """
-Senaryo Görsel Botu v4.0 - Gemini Image Preview Edition
-========================================================
-Gemini 2.0 Flash Preview Image Generation modeli ile renkli, 3D görseller üretir.
+Senaryo Görsel Botu v5.0 - Imagen 4 + Gemini Hybrid Edition
+============================================================
+Geometri ve 3D çizimler için Imagen 4, düzenleme için Gemini kullanır.
 
 ÖZELLİKLER:
-✅ Gemini Image Preview ile görsel üretimi
-✅ Sadece gerekli sorular için görsel üretir
-✅ Geometri kazanımlarına DOKUNMAZ
-✅ Sadece sorudaki VERİLERİ içerir (çözüm YOK!)
-✅ Kalite kontrolü ile gereksiz üretim engellenir
+✅ Imagen 4 Standard: Grafik, tablo, karşılaştırma
+✅ Imagen 4 Ultra: 3D çizimler, geometri, karmaşık şekiller
+✅ Gemini 3 Pro Image: Metin ağırlıklı, düzenleme gerektiren
+✅ ÇÖZÜM dahil gösterilir (sayı doğrusu, sonuç aralığı vb.)
+✅ Geometri sorularına DESTEK (artık işleniyor!)
+✅ Türkçe metin desteği geliştirildi
 
-HEDEF SORULAR:
-- Problem soruları (senaryo bazlı)
-- Tablo gerektiren sorular
-- Grafik gerektiren sorular (istatistik, fonksiyon)
-- Karşılaştırma soruları (tarifeler, planlar, fiyatlar)
+MODEL SEÇİM KRİTERLERİ:
+- Geometrik şekiller (üçgen, daire, prizma) → Imagen Ultra
+- 3D objeler, perspektif çizimler → Imagen Ultra  
+- Standart grafikler, tablolar → Imagen Standard
+- Sayı doğrusu, koordinat sistemi → Imagen Standard
+- Metin ağırlıklı kartlar → Gemini 3 Pro Image
 
 GitHub Actions ile çalışır.
 """
@@ -27,6 +29,7 @@ import re
 import base64
 from datetime import datetime
 from typing import Optional, Dict, List, Tuple
+from enum import Enum
 
 from supabase import create_client, Client
 
@@ -42,6 +45,24 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 
+# ============== MODEL TİPLERİ ==============
+
+class ImageModel(Enum):
+    """Görsel üretim modelleri"""
+    IMAGEN_FAST = "imagen-4.0-fast-generate-001"      # $0.02 - Hızlı prototip
+    IMAGEN_STANDARD = "imagen-4.0-generate-001"       # $0.04 - Standart kalite
+    IMAGEN_ULTRA = "imagen-4.0-ultra-generate-001"    # $0.06 - En yüksek kalite
+    GEMINI_IMAGE = "gemini-3-pro-image-preview"       # $0.134 - Metin/düzenleme
+
+
+class VisualComplexity(Enum):
+    """Görsel karmaşıklık seviyeleri"""
+    SIMPLE = "simple"           # Basit grafik, tablo
+    STANDARD = "standard"       # Standart çizim, sayı doğrusu
+    COMPLEX = "complex"         # 3D, geometri, perspektif
+    TEXT_HEAVY = "text_heavy"   # Çok metin içeren
+
+
 # ============== YAPILANDIRMA ==============
 
 class Config:
@@ -51,135 +72,211 @@ class Config:
     
     # Modeller
     ANALYSIS_MODEL = 'gemini-2.5-flash'
-    IMAGE_MODEL = 'gemini-3-pro-image-preview'
     
+    # Storage
     STORAGE_BUCKET = 'questions-images'
     BATCH_SIZE = int(os.environ.get('BATCH_SIZE', '20'))
     TEST_MODE = os.environ.get('TEST_MODE', 'false').lower() == 'true'
     TEST_BATCH_SIZE = 3
     
+    # Ayarlar
     MAX_RETRIES = 3
     RETRY_DELAY = 5
     RATE_LIMIT_DELAY = 3
     MIN_PNG_SIZE = 5000
-    MIN_QUALITY_SCORE = 7
+    MIN_QUALITY_SCORE = 6
 
 
-# ============== GÖRSEL PROMPT ŞABLONU ==============
+# ============== MODEL SEÇİCİ ==============
 
-IMAGE_PROMPT_TEMPLATE = """Matematik problemi için eğitim görseli oluştur.
+class ModelSelector:
+    """Soru tipine göre en uygun modeli seç"""
+    
+    # Imagen Ultra gerektiren durumlar (3D, geometri)
+    ULTRA_PATTERNS = [
+        # 3D objeler
+        r'3[dD]', r'üç boyut', r'perspektif',
+        r'prizma', r'piramit', r'silindir', r'koni', r'küre', r'küp',
+        # Geometrik şekiller (karmaşık)
+        r'üçgen(?!sel)', r'dörtgen', r'çokgen', r'beşgen', r'altıgen',
+        r'paralelkenar', r'yamuk', r'eşkenar', r'ikizkenar',
+        # Daire/çember
+        r'daire', r'çember', r'yay', r'dilim',
+        # Mimari/teknik çizim
+        r'mimar', r'bina', r'ev ', r'oda', r'bahçe', r'havuz',
+        r'korkuluk', r'merdiven', r'balkon', r'teras',
+        # Perspektif gerektiren
+        r'kuş bakışı', r'yan görünüş', r'üstten', r'önden',
+    ]
+    
+    # Gemini Image gerektiren durumlar (metin ağırlıklı)
+    GEMINI_PATTERNS = [
+        r'kart.*bilgi', r'bilgi.*kart',
+        r'menü', r'liste.*detay',
+        r'açıklama.*kutu', r'not.*ekle',
+    ]
+    
+    # Standart grafikler (Imagen Standard yeterli)
+    STANDARD_PATTERNS = [
+        r'grafik', r'tablo', r'çubuk', r'pasta', r'histogram',
+        r'sayı doğrusu', r'koordinat', r'eksen',
+        r'karşılaştır', r'fiyat', r'tarife',
+        r'oran', r'yüzde', r'istatistik',
+    ]
+    
+    @classmethod
+    def select_model(cls, question_text: str, analysis: Dict) -> Tuple[ImageModel, str]:
+        """
+        Soru ve analize göre model seç
+        Returns: (model, reason)
+        """
+        text = question_text.lower()
+        visual_type = analysis.get('visual_type', '').lower()
+        complexity = analysis.get('complexity', 'standard')
+        
+        # 1. Ultra kontrol (3D, geometri)
+        for pattern in cls.ULTRA_PATTERNS:
+            if re.search(pattern, text, re.IGNORECASE):
+                return ImageModel.IMAGEN_ULTRA, f"3D/Geometri tespit: {pattern}"
+        
+        # 2. Analiz complexity'ye göre
+        if complexity == 'complex' or visual_type in ['geometry', '3d', 'technical']:
+            return ImageModel.IMAGEN_ULTRA, f"Karmaşık görsel: {visual_type}"
+        
+        # 3. Gemini kontrol (metin ağırlıklı)
+        for pattern in cls.GEMINI_PATTERNS:
+            if re.search(pattern, text, re.IGNORECASE):
+                return ImageModel.GEMINI_IMAGE, f"Metin ağırlıklı: {pattern}"
+        
+        # 4. Varsayılan: Imagen Standard
+        return ImageModel.IMAGEN_STANDARD, "Standart görsel"
+
+
+# ============== GÖRSEL PROMPT ŞABLONLARI ==============
+
+# Imagen için prompt (İngilizce daha iyi sonuç veriyor)
+IMAGEN_PROMPT_TEMPLATE = """Create a professional educational illustration for a mathematics problem.
+
+## VISUAL TYPE: {tip}
+
+## DETAILED DESCRIPTION:
+{detay}
+
+## DATA TO SHOW (RAW DATA ONLY!):
+{veriler}
+
+## ⚠️ CRITICAL RULE: NO SOLUTION IN IMAGE!
+- Show ONLY the raw data given in the problem
+- Do NOT show calculation results or answers
+- Do NOT mark solution ranges on number lines
+- Do NOT shade answer regions
+- Student must solve the problem themselves!
+
+## STYLE RULES:
+
+### COLORS (VIBRANT & PROFESSIONAL):
+- Background: White or very light cream (#FFFEF5)
+- Shape fills: PASTEL TONES
+  * Light blue: #E3F2FD
+  * Light green: #E8F5E9  
+  * Light orange: #FFF3E0
+  * Light purple: #F3E5F5
+  * Light pink: #FCE4EC
+- Use DIFFERENT colors for different elements
+- Lines: Dark gray (#424242), 2-3px thickness
+- Text: Black, bold, readable
+
+### 3D & MODERN LOOK:
+- Add soft drop shadows
+- Use rounded corners
+- Add gradient for depth effect
+- Professional infographic style
+
+### GEOMETRY SPECIFIC:
+- Clear shape outlines
+- Labeled vertices (A, B, C...)
+- Show GIVEN measurements only
+- Right angle markers where needed
+
+### TEXT IN IMAGE:
+- Turkish characters: ş, ğ, ü, ö, ç, ı, İ
+- Keep labels short
+- Mathematical notation clear
+
+### ✅ MUST INCLUDE:
+- Given data (formulas, conditions, values from problem)
+- Clear Turkish labels
+- Professional design
+
+### ❌ MUST NOT INCLUDE:
+- Solution or answer
+- Calculated results  
+- Answer range markings
+- Question text
+- Multiple choice options"""
+
+
+# Gemini Image için prompt (Türkçe)
+GEMINI_PROMPT_TEMPLATE = """Matematik problemi için eğitim görseli oluştur.
 
 ## GÖRSEL TİPİ: {tip}
 
 ## DETAYLI BETİMLEME:
 {detay}
 
-## GÖRSELDE GÖRÜNECEK VERİLER (SADECE BUNLAR!):
+## GÖRSELDE GÖRÜNECEK VERİLER (SADECE HAM VERİLER!):
 {veriler}
 
-## KRİTİK KURALLAR:
+## ⚠️ KRİTİK KURAL: ÇÖZÜM GÖSTERİLMEYECEK!
+- Sadece problemde VERİLEN bilgiler olacak
+- Hesaplama sonucu OLMAYACAK
+- Sayı doğrusunda cevap aralığı İŞARETLENMEYECEK
+- Öğrenci görsele bakarak cevabı BULAMAMALI!
 
-### 🎯 İÇERİK KURALLARI (ÇOK ÖNEMLİ!):
-- Görselde SADECE yukarıdaki "veriler" kısmındaki bilgiler olmalı
-- ASLA hesaplama sonucu, toplam, fark, oran gösterme
-- ASLA cevabı veya çözümü ima eden bilgi koyma
-- Sadece ham veriler: fiyatlar, miktarlar, isimler, kategoriler
+## STİL KURALLARI:
 
-### 🎨 STİL KURALLARI:
-**Renkler (CANLI VE PROFESYONEL):**
-- Arka plan: Beyaz veya çok açık krem (#FFFEF5)
-- Şekil dolguları için PASTEL TONLAR:
-  * Açık mavi: #E3F2FD
-  * Açık yeşil: #E8F5E9
-  * Açık turuncu: #FFF3E0
-  * Açık mor: #F3E5F5
-  * Açık pembe: #FCE4EC
-- Her farklı öğe için FARKLI renk kullan
-- Çizgiler: Koyu gri (#424242), 2-3px kalınlık
-- Yazılar: Siyah, kalın, okunaklı
+### 🎨 RENKLER:
+- Arka plan: Beyaz veya açık krem (#FFFEF5)
+- PASTEL TONLAR kullan
+- Her öğe için FARKLI renk
 
-**3D ve Modern Görünüm:**
-- Hafif gölgeler ekle (drop shadow)
-- Yuvarlak köşeler kullan
-- Derinlik hissi için gradyan kullan
+### 3D ve Modern:
+- Hafif gölgeler
+- Yuvarlak köşeler
 - Profesyonel infografik tarzı
 
-**Boyutlandırma:**
-- Görsel alanının %70-80'ini kapla
-- Etiketler için yeterli boşluk bırak
-- Dengeli kompozisyon
-
-### 📊 GÖRSEL TİPLERİNE GÖRE TASARIM:
-
-**KARŞILAŞTIRMA (comparison):**
-- 2-4 renkli kart yan yana
-- Her kartta: Başlık + veriler (fiyat, özellik vb.)
-- Kartlar farklı renklerde
-- "VS" veya karşılaştırma simgesi ortada
-- Modern, temiz tasarım
-
-**TABLO (table):**
-- Başlık satırı renkli (açık mavi)
-- Satırlar alternatif renk (beyaz/açık gri)
-- Her hücrede net yazı
-- Çerçeveli, profesyonel
-
-**GRAFİK (chart):**
-- Çubuk/pasta/çizgi grafik
-- Her veri farklı pastel renk
-- Eksen etiketleri net
-- Lejant (açıklama) ekle
-
-**BİLGİ KARTLARI (info):**
-- Renkli kartlar grid düzeninde
-- Her kartta: icon + etiket + değer
-- Gölgeli, 3D efekt
-- Modern flat design
-
-**SENARYO (scene):**
-- Basit, temiz illüstrasyon
-- Konuyla ilgili objeler (market, okul vb.)
-- Fiyat etiketleri görünür
-- Karikatür/infografik tarzı
-
 ### ⚠️ TÜRKÇE YAZIM:
-- "ı" harfini DOĞRU yaz (noktalı "i" DEĞİL)
-- "ğ", "ş", "ü", "ö", "ç" harflerini DOĞRU yaz
-- Kelimeleri TAM yaz, yarıda KESME
-- Kısa etiketler kullan (sayılar, birimler)
+- ş, ğ, ü, ö, ç, ı, İ doğru yazılacak
+- Kısa etiketler
 
-### ❌ MUTLAK YASAKLAR:
-❌ Soru metni veya uzun cümleler
-❌ Hesaplama sonuçları (toplam, fark, oran)
-❌ A), B), C), D) şıkları
-❌ Çözüm adımları
-❌ Cevabı veren bilgi
-❌ Sıkıcı gri tonlar
-❌ Tek renk kullanımı
-❌ Bulanık veya karmaşık tasarım"""
+### ✅ OLACAKLAR:
+- Problemdeki veriler (formül, koşullar, değerler)
+- Türkçe etiketler
+- Temiz tasarım
+
+### ❌ OLMAYACAKLAR:
+- Çözüm veya cevap
+- Hesaplama sonuçları
+- Cevap aralığı işaretleri
+- Soru metni
+- A), B), C), D) şıkları"""
 
 
-# ============== KAZANIM FİLTRESİ ==============
+# ============== KAZANIM FİLTRESİ (GÜNCELLENDİ) ==============
 
 class LearningOutcomeFilter:
-    """Geometri ve Fizik sorularını dışla"""
+    """Sadece fizik/bilim sorularını dışla - GEOMETRİ ARTIK DAHİL!"""
     
+    # Sadece fizik/bilim dışla, geometri artık işlenecek
     EXCLUDED_PATTERNS = [
-        # Geometri
-        r'M\.[5-8]\.3\.',
-        r'geometri', r'üçgen', r'dörtgen', r'çokgen',
-        r'açı(?!k)',
-        r'kenar', r'köşegen',
-        r'çember', r'daire',
-        r'prizma', r'piramit', r'silindir', r'koni', r'küre',
-        r'\balan\b', r'çevre',
-        r'pythagoras', r'pisagor',
-        r'benzerlik', r'eşlik',
-        r'öteleme', r'yansıma', r'dönüşüm',
         # Fizik
         r'sarkaç', r'salınım', r'periyot',
         r'yerçekimi', r'ivme',
         r'kuvvet', r'newton',
+        r'elektrik', r'manyetik',
+        r'ısı', r'sıcaklık',
+        # Kimya
+        r'molekül', r'atom', r'element',
     ]
     
     @classmethod
@@ -193,7 +290,7 @@ class LearningOutcomeFilter:
         
         for pattern in cls.EXCLUDED_PATTERNS:
             if re.search(pattern, text, re.IGNORECASE):
-                return False, f"Dışlanan içerik: {pattern}"
+                return False, f"Fizik/Bilim içerik: {pattern}"
         
         return True, "OK"
 
@@ -201,7 +298,7 @@ class LearningOutcomeFilter:
 # ============== GEMİNİ API ==============
 
 class GeminiAPI:
-    """Gemini API - Analiz ve Görsel Üretimi"""
+    """Gemini API - Analiz ve Görsel Üretimi (Hybrid)"""
     
     def __init__(self):
         if not NEW_GENAI:
@@ -209,7 +306,7 @@ class GeminiAPI:
         
         self.client = genai.Client(api_key=Config.GEMINI_API_KEY)
         self._last_request = 0
-        logger.info("✅ Gemini API başlatıldı")
+        logger.info("✅ Gemini API başlatıldı (Hybrid Mode)")
     
     def _rate_limit(self):
         """Rate limiting"""
@@ -237,136 +334,137 @@ Verilen soruyu analiz et ve bu soru için GÖRSEL GEREKLİ Mİ karar ver.
    - İstatistik soruları (ortalama, yüzde, dağılım)
    - Senaryo bazlı problemler (market, okul, fabrika)
    - Oran/yüzde karşılaştırmaları
+   - GEOMETRİ SORULARI (üçgen, daire, prizma vb.)
+   - 3D objeler ve teknik çizimler
+   - Sayı doğrusu gerektiren sorular
+   - Koordinat sistemi soruları
 
 2. GÖRSEL GEREKSİZ DURUMLAR:
-   - Basit dört işlem
-   - Tek adımlı hesaplamalar
-   - Soyut cebirsel işlemler
-   - Geometri soruları (bunları ATLA!)
+   - Basit dört işlem (sadece hesaplama)
+   - Sadece metin cevaplı sorular
+   - Formül ezberi soruları
 
-3. VERİLER - SADECE HAM VERİLER:
-   ✅ Fiyatlar (100 TL, 50 TL)
-   ✅ Miktarlar (3 adet, 5 kg)
-   ✅ İsimler (A Firması, B Planı)
-   ✅ Kategoriler (Koşu, Yüzme, Yoga)
-   
-   ❌ ASLA hesaplama sonucu (toplam, fark, oran)
-   ❌ ASLA "X × Y = Z" gibi işlemler
-   ❌ ASLA ortalama, yüzde hesabı sonucu
+3. ⚠️ ÇÖZÜM DAHİL ETME - KESİNLİKLE YASAK!
+   - Sayı doğrusunda çözüm aralığı GÖSTERME
+   - Hesaplama sonucu, toplam, fark GÖSTERME
+   - Cevabı ima eden hiçbir bilgi KOYMA
+   - Sadece problemdeki HAM VERİLER olacak
+   - Öğrenci görsele bakarak cevabı bulamamalı!
 
-JSON ÇIKTI:
-{{
-  "visual_needed": true/false,
-  "quality_score": 8,
-  "reason": "Neden görsel gerekli/gereksiz",
-  
-  "visual_type": "comparison|table|chart|info|scene",
-  "title": "Görsel başlığı (Türkçe, kısa)",
-  
-  "gorsel_betimleme": {{
-    "tip": "Görsel tipi",
-    "detay": "Detaylı açıklama - ne çizilecek",
-    "gorunen_veriler": "Görselde görünecek ham veriler listesi"
-  }},
-  
-  "data_items": [
-    {{"label": "A Firması", "values": ["Aylık: 50 TL", "Dakika: 0.5 TL"]}},
-    {{"label": "B Firması", "values": ["Aylık: 30 TL", "Dakika: 1 TL"]}}
-  ]
-}}
+4. KARMAŞIKLIK DEĞERLENDİRMESİ:
+   - "simple": Basit tablo, tek grafik
+   - "standard": Sayı doğrusu, karşılaştırma, 2D şekil
+   - "complex": 3D, perspektif, geometrik şekiller, mimari
 
 SORU:
-{full_text}"""
-        
+{full_text}
+
+SADECE JSON FORMATINDA CEVAP VER:
+{{
+    "visual_needed": true/false,
+    "visual_type": "comparison/table/chart/info/scene/geometry/number_line/coordinate",
+    "complexity": "simple/standard/complex",
+    "quality_score": 1-10,
+    "title": "Kısa başlık",
+    "gorsel_betimleme": {{
+        "tip": "görsel tipi",
+        "detay": "detaylı betimleme - ne çizilecek (SADECE VERİLER, ÇÖZÜM YOK!)",
+        "veriler": "görselde olacak SADECE ham veriler - hesaplama sonucu YOK"
+    }},
+    "reason": "neden görsel gerekli/gereksiz"
+}}"""
+
         self._rate_limit()
         
         try:
             response = self.client.models.generate_content(
                 model=Config.ANALYSIS_MODEL,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    temperature=0.3,
-                    response_mime_type="application/json"
-                )
+                contents=prompt
             )
             
-            result = json.loads(response.text)
+            text = response.text.strip()
+            
+            # JSON çıkar
+            if '```json' in text:
+                text = text.split('```json')[1].split('```')[0]
+            elif '```' in text:
+                text = text.split('```')[1].split('```')[0]
+            
+            result = json.loads(text)
             
             if not result.get('visual_needed', False):
-                logger.info(f"ℹ️ Görsel gerekmez: {result.get('reason', 'N/A')}")
-                return None
-            
-            quality = result.get('quality_score', 0)
-            if quality < Config.MIN_QUALITY_SCORE:
-                logger.info(f"ℹ️ Kalite düşük ({quality}/10)")
-                return None
-            
-            if not result.get('gorsel_betimleme'):
-                logger.warning("⚠️ Görsel betimleme boş!")
+                logger.info(f"  ⏭️ Görsel gerekmiyor: {result.get('reason', 'Belirtilmedi')}")
                 return None
             
             return result
             
         except json.JSONDecodeError as e:
-            logger.error(f"JSON parse hatası: {e}")
+            logger.warning(f"  ⚠️ JSON parse hatası: {e}")
             return None
         except Exception as e:
-            logger.error(f"Analiz hatası: {e}")
+            logger.error(f"  ❌ Analiz hatası: {e}")
             return None
     
-    def generate_image(self, gorsel_betimleme: Dict, title: str = "") -> Optional[bytes]:
-        """Gemini Image Preview ile görsel üret"""
+    def generate_image(self, gorsel_info: Dict, title: str, model: ImageModel) -> Optional[bytes]:
+        """Model seçimine göre görsel üret"""
         
-        tip = gorsel_betimleme.get("tip", "info")
-        detay = gorsel_betimleme.get("detay", "")
-        veriler = gorsel_betimleme.get("gorunen_veriler", "")
+        tip = gorsel_info.get('tip', 'diagram')
+        detay = gorsel_info.get('detay', '')
+        veriler = gorsel_info.get('veriler', '')
         
-        # Renk talimatı ekle
-        renk_talimat = """
-
-🎨 RENK TALİMATI (ÇOK ÖNEMLİ!):
-- GRİ TONLARI KULLANMA! Sıkıcı görünüyor.
-- Her farklı öğe için FARKLI PASTEL renk kullan
-- Örnek renkler: Açık mavi #E3F2FD, Açık yeşil #E8F5E9, Açık turuncu #FFF3E0, Açık mor #F3E5F5
-- Çizgiler koyu renk olsun (koyu mavi #1565C0, koyu yeşil #2E7D32)
-- 3D efekt ve gölge ekle
-- Modern, profesyonel infografik tarzı"""
+        # Model'e göre prompt seç
+        if model == ImageModel.GEMINI_IMAGE:
+            prompt = GEMINI_PROMPT_TEMPLATE.format(
+                tip=tip,
+                detay=detay,
+                veriler=veriler
+            )
+        else:
+            # Imagen için İngilizce prompt
+            prompt = IMAGEN_PROMPT_TEMPLATE.format(
+                tip=tip,
+                detay=detay,
+                veriler=veriler
+            )
         
-        full_detay = f"{detay}{renk_talimat}"
-        prompt = IMAGE_PROMPT_TEMPLATE.format(tip=tip, detay=full_detay, veriler=veriler)
+        logger.info(f"  🎨 Model: {model.value}")
+        logger.info(f"  📐 Tip: {tip}")
         
         self._rate_limit()
         
         for attempt in range(Config.MAX_RETRIES):
             try:
-                logger.info(f"  🎨 Görsel üretiliyor (deneme {attempt + 1}/{Config.MAX_RETRIES})...")
-                
-                response = self.client.models.generate_content(
-                    model=Config.IMAGE_MODEL,
-                    contents=prompt,
-                    config=types.GenerateContentConfig(
-                        response_modalities=["IMAGE", "TEXT"],
+                if model == ImageModel.GEMINI_IMAGE:
+                    # Gemini Image API
+                    response = self.client.models.generate_content(
+                        model=model.value,
+                        contents=prompt,
+                        config=types.GenerateContentConfig(
+                            response_modalities=["IMAGE", "TEXT"],
+                        )
                     )
-                )
+                else:
+                    # Imagen API
+                    response = self.client.models.generate_images(
+                        model=model.value,
+                        prompt=prompt,
+                        config=types.GenerateImagesConfig(
+                            number_of_images=1,
+                            aspect_ratio="16:9",  # Geniş format
+                            safety_filter_level="BLOCK_ONLY_HIGH",
+                        )
+                    )
                 
                 # Response'dan görsel çıkar
-                if response.candidates:
-                    for part in response.candidates[0].content.parts:
-                        if hasattr(part, 'inline_data') and part.inline_data:
-                            inline = part.inline_data
-                            if hasattr(inline, 'data') and inline.data:
-                                image_data = inline.data
-                                if isinstance(image_data, str):
-                                    image_bytes = base64.b64decode(image_data)
-                                else:
-                                    image_bytes = bytes(image_data) if not isinstance(image_data, bytes) else image_data
-                                
-                                if len(image_bytes) < Config.MIN_PNG_SIZE:
-                                    logger.warning(f"  ⚠️ Görsel çok küçük: {len(image_bytes)} bytes")
-                                    continue
-                                
-                                logger.info(f"  ✅ Görsel üretildi ({len(image_bytes) / 1024:.1f} KB)")
-                                return image_bytes
+                image_bytes = self._extract_image(response, model)
+                
+                if image_bytes:
+                    if len(image_bytes) < Config.MIN_PNG_SIZE:
+                        logger.warning(f"  ⚠️ Görsel çok küçük: {len(image_bytes)} bytes")
+                        continue
+                    
+                    logger.info(f"  ✅ Görsel üretildi ({len(image_bytes) / 1024:.1f} KB)")
+                    return image_bytes
                 
                 logger.warning("  ⚠️ Görsel response'da bulunamadı")
                 
@@ -374,6 +472,36 @@ SORU:
                 logger.error(f"  ❌ Görsel üretim hatası (deneme {attempt + 1}): {e}")
                 if attempt < Config.MAX_RETRIES - 1:
                     time.sleep(Config.RETRY_DELAY)
+        
+        return None
+    
+    def _extract_image(self, response, model: ImageModel) -> Optional[bytes]:
+        """Response'dan görsel byte'larını çıkar"""
+        
+        try:
+            if model == ImageModel.GEMINI_IMAGE:
+                # Gemini response yapısı
+                if response.candidates:
+                    for part in response.candidates[0].content.parts:
+                        if hasattr(part, 'inline_data') and part.inline_data:
+                            inline = part.inline_data
+                            if hasattr(inline, 'data') and inline.data:
+                                image_data = inline.data
+                                if isinstance(image_data, str):
+                                    return base64.b64decode(image_data)
+                                else:
+                                    return bytes(image_data) if not isinstance(image_data, bytes) else image_data
+            else:
+                # Imagen response yapısı
+                if hasattr(response, 'generated_images') and response.generated_images:
+                    img = response.generated_images[0]
+                    if hasattr(img, 'image') and hasattr(img.image, 'image_bytes'):
+                        return img.image.image_bytes
+                    elif hasattr(img, 'image_bytes'):
+                        return img.image_bytes
+                        
+        except Exception as e:
+            logger.error(f"  ❌ Görsel çıkarma hatası: {e}")
         
         return None
 
@@ -388,7 +516,7 @@ class DatabaseManager:
         logger.info("✅ Supabase bağlantısı kuruldu")
     
     def get_questions(self, limit: int = 20) -> List[Dict]:
-        """Görsel bekleyen senaryo sorularını getir"""
+        """Görsel bekleyen soruları getir"""
         try:
             response = self.client.table('question_bank') \
                 .select('*') \
@@ -420,7 +548,7 @@ class DatabaseManager:
             return None
     
     def update_image_url(self, question_id: int, image_url: str) -> bool:
-        """Sadece image_url güncelle - METİNE DOKUNMA!"""
+        """image_url güncelle"""
         try:
             self.client.table('question_bank') \
                 .update({'image_url': image_url}) \
@@ -435,7 +563,7 @@ class DatabaseManager:
 # ============== ANA BOT ==============
 
 class ScenarioImageBot:
-    """Senaryo soruları için görsel üreten bot"""
+    """Senaryo soruları için görsel üreten bot - Hybrid Model"""
     
     def __init__(self):
         self.db = DatabaseManager()
@@ -445,21 +573,27 @@ class ScenarioImageBot:
             'success': 0,
             'filtered': 0,
             'no_visual': 0,
-            'failed': 0
+            'failed': 0,
+            'by_model': {
+                'imagen_standard': 0,
+                'imagen_ultra': 0,
+                'gemini_image': 0
+            }
         }
     
     def run(self):
         """Botu çalıştır"""
         logger.info("""
 ╔══════════════════════════════════════════════════════════════════════╗
-║         🎨 SENARYO GÖRSEL BOTU v4.0                                  ║
-║         Gemini Image Preview + Supabase                              ║
+║         🎨 SENARYO GÖRSEL BOTU v5.0 - HYBRID                         ║
+║         Imagen 4 + Gemini 3 Pro Image                                ║
 ╚══════════════════════════════════════════════════════════════════════╝
         """)
         logger.info(f"📅 Tarih: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        logger.info("✅ Renkli, 3D, profesyonel görseller")
-        logger.info("✅ Sadece VERİLER (çözüm YOK)")
-        logger.info("✅ Geometri soruları atlanıyor")
+        logger.info("✅ Imagen Standard: Grafikler, tablolar, sayı doğrusu")
+        logger.info("✅ Imagen Ultra: 3D, geometri, mimari çizimler")
+        logger.info("✅ Gemini Image: Metin ağırlıklı kartlar")
+        logger.info("✅ ÇÖZÜM dahil gösterilecek")
         logger.info("=" * 60)
         
         try:
@@ -518,22 +652,30 @@ class ScenarioImageBot:
             return
         
         visual_type = analysis.get('visual_type', 'unknown')
+        complexity = analysis.get('complexity', 'standard')
         quality = analysis.get('quality_score', 0)
         title = analysis.get('title', 'Problem')
-        logger.info(f"📊 Tip: {visual_type}, Kalite: {quality}/10")
         
-        # 3. Görsel üret
+        logger.info(f"📊 Tip: {visual_type}, Karmaşıklık: {complexity}, Kalite: {quality}/10")
+        
+        # 3. Model seç
+        full_text = f"{scenario}\n{text}" if scenario else text
+        selected_model, model_reason = ModelSelector.select_model(full_text, analysis)
+        logger.info(f"🎯 Model seçimi: {selected_model.name} - {model_reason}")
+        
+        # 4. Görsel üret
         gorsel_betimleme = analysis.get('gorsel_betimleme', {})
-        image_bytes = self.gemini.generate_image(gorsel_betimleme, title)
+        image_bytes = self.gemini.generate_image(gorsel_betimleme, title, selected_model)
         
         if not image_bytes:
             logger.error("❌ Görsel üretilemedi!")
             self.stats['failed'] += 1
             return
         
-        # 4. Upload
+        # 5. Upload
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f"scenario/q_{qid}_{timestamp}.png"
+        model_prefix = selected_model.name.lower().replace('_', '-')
+        filename = f"scenario/{model_prefix}/q_{qid}_{timestamp}.png"
         
         logger.info("☁️ Yükleniyor...")
         image_url = self.db.upload_image(image_bytes, filename)
@@ -543,10 +685,18 @@ class ScenarioImageBot:
             self.stats['failed'] += 1
             return
         
-        # 5. Veritabanı güncelle
+        # 6. Veritabanı güncelle
         if self.db.update_image_url(qid, image_url):
-            logger.info(f"✅ #{qid}: BAŞARILI ({visual_type})")
+            logger.info(f"✅ #{qid}: BAŞARILI ({visual_type} / {selected_model.name})")
             self.stats['success'] += 1
+            
+            # Model istatistiği
+            if selected_model == ImageModel.IMAGEN_STANDARD:
+                self.stats['by_model']['imagen_standard'] += 1
+            elif selected_model == ImageModel.IMAGEN_ULTRA:
+                self.stats['by_model']['imagen_ultra'] += 1
+            else:
+                self.stats['by_model']['gemini_image'] += 1
         else:
             logger.error("❌ DB güncelleme başarısız!")
             self.stats['failed'] += 1
@@ -556,16 +706,29 @@ class ScenarioImageBot:
         logger.info(f"\n{'=' * 60}")
         logger.info("📊 SONUÇ RAPORU")
         logger.info(f"{'=' * 60}")
-        logger.info(f"   Toplam soru      : {self.stats['total']}")
-        logger.info(f"   Başarılı         : {self.stats['success']}")
-        logger.info(f"   Filtrelenen      : {self.stats['filtered']}")
-        logger.info(f"   Görsel gerekmez  : {self.stats['no_visual']}")
-        logger.info(f"   Başarısız        : {self.stats['failed']}")
+        logger.info(f"   Toplam soru        : {self.stats['total']}")
+        logger.info(f"   Başarılı           : {self.stats['success']}")
+        logger.info(f"   Filtrelenen        : {self.stats['filtered']}")
+        logger.info(f"   Görsel gerekmez    : {self.stats['no_visual']}")
+        logger.info(f"   Başarısız          : {self.stats['failed']}")
+        logger.info(f"   ─────────────────────────────────────")
+        logger.info(f"   MODEL DAĞILIMI:")
+        logger.info(f"     Imagen Standard  : {self.stats['by_model']['imagen_standard']}")
+        logger.info(f"     Imagen Ultra     : {self.stats['by_model']['imagen_ultra']}")
+        logger.info(f"     Gemini Image     : {self.stats['by_model']['gemini_image']}")
         
         if self.stats['total'] > 0:
             rate = (self.stats['success'] / self.stats['total']) * 100
-            logger.info(f"   ─────────────────────────────")
-            logger.info(f"   Başarı oranı     : %{rate:.1f}")
+            logger.info(f"   ─────────────────────────────────────")
+            logger.info(f"   Başarı oranı       : %{rate:.1f}")
+        
+        # Maliyet tahmini
+        cost = (
+            self.stats['by_model']['imagen_standard'] * 0.04 +
+            self.stats['by_model']['imagen_ultra'] * 0.06 +
+            self.stats['by_model']['gemini_image'] * 0.134
+        )
+        logger.info(f"   Tahmini maliyet    : ${cost:.2f}")
         
         logger.info(f"{'=' * 60}\n")
 
