@@ -1,18 +1,11 @@
-# Scenario Bot v2.0 Requirements
-# Senaryo görsel oluşturma + metin sadeleştirme + kalite kontrolü
+# Scenario Bot v5.0 Requirements
+# Imagen 4 + Gemini Hybrid görsel üretimi
 
 # Supabase
 supabase>=2.0.0
 
-# Google Gemini (yeni paket)
+# Google Gemini (yeni paket - Imagen 4 dahil)
 google-genai>=1.0.0
 
-# HTML to PNG
-playwright>=1.40.0
-
-# Resim işleme
+# Resim işleme (opsiyonel)
 Pillow>=10.0.0
-
-# JSON işleme (standart kütüphane, ekstra gerek yok)
-# Logging (standart kütüphane)
-# String Template (standart kütüphane)
