@@ -44,7 +44,7 @@ jobs:
           BATCH_SIZE: ${{ github.event.inputs.batch_size || '20' }}
           TEST_MODE: ${{ github.event.inputs.test_mode || 'false' }}
         run: |
-          python scenario_bot_v5.py
+          python scenario_bot.py
 
       - name: Summary
         if: always()
