@@ -451,7 +451,7 @@ SADECE JSON FORMATINDA CEVAP VER:
                         config=types.GenerateImagesConfig(
                             number_of_images=1,
                             aspect_ratio="16:9",  # Geniş format
-                            safety_filter_level="BLOCK_ONLY_HIGH",
+                            safety_filter_level="BLOCK_LOW_AND_ABOVE",
                         )
                     )
                 
