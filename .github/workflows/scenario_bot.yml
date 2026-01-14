@@ -1,4 +1,4 @@
-name: Scenario Image Bot v4
+name: Scenario Image Bot v5 - Hybrid
 
 on:
   schedule:
@@ -23,7 +23,7 @@ env:
 jobs:
   generate-visuals:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
 
     steps:
       - name: Checkout repository
@@ -37,20 +37,31 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install google-genai supabase
+          pip install google-genai supabase Pillow
 
       - name: Run Image Bot
         env:
           BATCH_SIZE: ${{ github.event.inputs.batch_size || '20' }}
           TEST_MODE: ${{ github.event.inputs.test_mode || 'false' }}
         run: |
-          python scenario_bot.py
+          python scenario_bot_v5.py
 
       - name: Summary
         if: always()
         run: |
-          echo "## 🎨 Senaryo Görsel Botu Tamamlandı" >> $GITHUB_STEP_SUMMARY
+          echo "## 🎨 Senaryo Görsel Botu v5.0 - Hybrid Tamamlandı" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- Model: gemini-2.0-flash-preview-image-generation" >> $GITHUB_STEP_SUMMARY
+          echo "### Kullanılan Modeller:" >> $GITHUB_STEP_SUMMARY
+          echo "- **Imagen 4 Standard**: Grafikler, tablolar, sayı doğrusu ($0.04/görsel)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Imagen 4 Ultra**: 3D, geometri, mimari ($0.06/görsel)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Gemini 3 Pro Image**: Metin ağırlıklı kartlar ($0.134/görsel)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Ayarlar:" >> $GITHUB_STEP_SUMMARY
           echo "- Batch Size: ${{ github.event.inputs.batch_size || '20' }}" >> $GITHUB_STEP_SUMMARY
           echo "- Test Mode: ${{ github.event.inputs.test_mode || 'false' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Yenilikler v5.0:" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Geometri soruları artık destekleniyor" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Çözüm görselleştirmesi eklendi" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Akıllı model seçimi" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ 3D ve perspektif çizimleri için Ultra" >> $GITHUB_STEP_SUMMARY
