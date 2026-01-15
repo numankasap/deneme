@@ -170,10 +170,21 @@ Aşağıdaki betimlemelere uygun, profesyonel bir matematik sorusu görseli olu�
 ❌ "Buna göre...", "Aşağıdaki..." gibi ifadeler
 ❌ A), B), C), D) şıkları
 ❌ Çözüm adımları veya hesaplamalar
-❌ Cevabı veren bilgi
+❌ Cevabı veren bilgi veya sonuç değerleri
+❌ Çözümde hesaplanan ara değerler
+❌ Doğru cevabı gösteren işaretlemeler (noktalar, oklar)
+❌ Çözüm sonucunu içeren koordinat noktaları
+❌ "Sonuç", "Cevap", "=" işaretleri ile sonuç gösterimi
 ❌ Gereksiz dekorasyon
 ❌ Bulanık çizgiler
-❌ Türkçe karakter hatası"""
+❌ Türkçe karakter hatası
+
+### ✅ SADECE BUNLAR OLABİLİR:
+✅ Soruda VERİLEN bilgiler (fiyatlar, ölçüler, oranlar)
+✅ Problemin BAŞLANGIÇ durumu
+✅ Senaryodaki sabit değerler
+✅ Şeklin boyutları (soruda verilmişse)
+✅ Grafik eksenleri ve birimleri (sonuç noktası HARİÇ)"""
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # API BAĞLANTILARI
@@ -486,16 +497,21 @@ ADIM 4 - GÖRSEL BETİMLEME (ÇOK ÖNEMLİ!):
 Soru için profesyonel bir eğitim görseli betimle.
 Görsel tipi: {gorsel_tipi}
 
-Betimleme kuralları:
-- Görselde sadece SORU ÇÖZÜMİNDE KULLANILAN veriler olmalı
-- Soru metninde geçmeyen ölçüler görsele EKLENMEMELİ
-- Net, temiz, profesyonel çizim
-- MEB ders kitabı kalitesinde
+⚠️ KRİTİK KURALLAR - ÇÖZÜM İPUCU VERMEME:
+- Görselde SADECE senaryoda VERİLEN bilgiler olmalı
+- ÇÖZÜMDE HESAPLANAN değerler ASLA görselde olmamalı
+- Cevabı gösteren noktalar, işaretler, değerler YASAK
+- Grafiklerde sonuç noktası (cevap koordinatı) GÖSTERİLMEMELİ
+- Sadece problemin BAŞLANGIÇ durumunu göster
+- Öğrenci görsele bakarak cevabı BULAMAMALI
+
+ÖRNEK - YANLIŞ: Kargo sorusunda (20, 75) noktası göstermek (çünkü 20 kg cevaptır)
+ÖRNEK - DOĞRU: Sadece 45 TL sabit ücret çizgisi ve 3 TL/kg eğimi göstermek
 
 "gorsel_betimleme" alanında şunları yaz:
 - "tip": görsel tipi ("{gorsel_tipi}")
-- "detay": çizilecek şeklin detaylı açıklaması (minimum 50 kelime)
-- "gorunen_veriler": görselde yazılı görünecek sayısal değerler ve etiketler
+- "detay": çizilecek şeklin detaylı açıklaması (minimum 50 kelime) - SADECE VERİLEN BİLGİLER
+- "gorunen_veriler": SADECE soruda verilen sabit değerler (hesaplanan sonuçlar HARİÇ)
 '''
 
     prompt = f'''Matematik sorusu oluştur. ÖNEMLİ: Önce çözümü yap, sonra şıkları oluştur!
