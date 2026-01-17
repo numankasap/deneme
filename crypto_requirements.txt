@@ -1,0 +1,13 @@
+# Kripto Teknik Analiz Telegram Botu - Bagimliliklar
+# ==================================================
+# Egitim botu ile ayni Telegram entegrasyonu (requests kullanir)
+
+# HTTP istekleri (Binance API + Telegram API)
+requests>=2.31.0
+
+# Veri isleme
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Zamanlama
+APScheduler>=3.10.0
