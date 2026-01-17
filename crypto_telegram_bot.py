@@ -14,8 +14,8 @@ OZELLIKLER:
 - Otomatik 4 saatlik bildirimler
 
 KULLANIM:
-1. TELEGRAM_BOT_TOKEN environment variable'i ayarla
-2. TELEGRAM_CHAT_ID environment variable'i ayarla
+1. TELEGRAM_TOKEN environment variable'i ayarla (egitim botu ile ayni)
+2. TELEGRAM_CHAT_ID environment variable'i ayarla (egitim botu ile ayni)
 3. Botu calistir: python crypto_telegram_bot.py
 
 GitHub Actions ile otomatik calistirilabilir.
@@ -33,8 +33,6 @@ from enum import Enum
 import requests
 import numpy as np
 import pandas as pd
-from telegram import Bot
-from telegram.constants import ParseMode
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
@@ -50,8 +48,9 @@ logger = logging.getLogger(__name__)
 
 class Config:
     """Bot yapilandirma ayarlari"""
-    TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
-    TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
+    # Egitim botu ile ayni environment variable'lar
+    TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN', '')
+    TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID', '')
 
     # Binance API (ucretsiz, API key gerektirmez)
     BINANCE_BASE_URL = "https://api.binance.com/api/v3"
@@ -698,7 +697,6 @@ class CryptoAnalysisBot:
 
     def __init__(self):
         self.api = BinanceAPI()
-        self.bot = Bot(token=Config.TELEGRAM_BOT_TOKEN) if Config.TELEGRAM_BOT_TOKEN else None
         self.scheduler = None
 
     async def analyze_symbol(self, symbol: str) -> Optional[AnalysisResult]:
@@ -741,22 +739,59 @@ class CryptoAnalysisBot:
             logger.error(f"Analiz hatasi ({symbol}): {e}")
             return None
 
-    async def send_telegram_message(self, text: str):
-        """Telegram mesaji gonder"""
-        if not self.bot or not Config.TELEGRAM_CHAT_ID:
-            logger.warning("Telegram yapilandirmasi eksik, mesaj gonderilemiyor")
-            print(text)  # Konsola yazdir
-            return
+    def send_telegram_message(self, text: str) -> bool:
+        """Telegram mesaji gonder - egitim botu ile ayni yontem"""
+        if not Config.TELEGRAM_TOKEN or not Config.TELEGRAM_CHAT_ID:
+            logger.warning("Telegram yapilandirmasi eksik, mesaj konsola yazilacak")
+            print(text)
+            return False
 
         try:
-            await self.bot.send_message(
-                chat_id=Config.TELEGRAM_CHAT_ID,
-                text=text,
-                parse_mode=ParseMode.MARKDOWN
-            )
+            # Uzun mesajlari parcala (Telegram limiti 4096 karakter)
+            max_length = 4000
+            parts = []
+
+            if len(text) <= max_length:
+                parts = [text]
+            else:
+                lines = text.split('\n')
+                current_part = ""
+
+                for line in lines:
+                    if len(current_part) + len(line) + 1 <= max_length:
+                        current_part += line + '\n'
+                    else:
+                        if current_part:
+                            parts.append(current_part.strip())
+                        current_part = line + '\n'
+
+                if current_part:
+                    parts.append(current_part.strip())
+
+            url = f"https://api.telegram.org/bot{Config.TELEGRAM_TOKEN}/sendMessage"
+
+            for part in parts:
+                payload = {
+                    'chat_id': Config.TELEGRAM_CHAT_ID,
+                    'text': part,
+                    'disable_web_page_preview': True
+                }
+
+                response = requests.post(url, json=payload, timeout=30)
+
+                if response.status_code != 200:
+                    logger.error(f"Telegram API hatasi: {response.status_code} - {response.text}")
+                    return False
+
+                import time
+                time.sleep(0.5)  # Rate limit icin kisa bekleme
+
             logger.info("Telegram mesaji gonderildi")
+            return True
+
         except Exception as e:
             logger.error(f"Telegram mesaj hatasi: {e}")
+            return False
 
     async def run_analysis(self):
         """Tum sembolleri analiz et ve bildir"""
@@ -777,12 +812,12 @@ class CryptoAnalysisBot:
 
         # Ozet mesaj gonder
         summary = MessageFormatter.format_summary(results)
-        await self.send_telegram_message(summary)
+        self.send_telegram_message(summary)
 
         # Her coin icin detayli analiz gonder
         for result in results:
             detailed = MessageFormatter.format_analysis(result)
-            await self.send_telegram_message(detailed)
+            self.send_telegram_message(detailed)
             await asyncio.sleep(1)  # Rate limit icin kisa bekleme
 
         logger.info("Tum analizler tamamlandi ve gonderildi")
@@ -841,8 +876,8 @@ async def run_github_action():
 def main():
     """Ana fonksiyon"""
     # Environment kontrol
-    if not Config.TELEGRAM_BOT_TOKEN:
-        logger.warning("TELEGRAM_BOT_TOKEN ayarlanmamis - Mesajlar konsola yazdirilacak")
+    if not Config.TELEGRAM_TOKEN:
+        logger.warning("TELEGRAM_TOKEN ayarlanmamis - Mesajlar konsola yazdirilacak")
     if not Config.TELEGRAM_CHAT_ID:
         logger.warning("TELEGRAM_CHAT_ID ayarlanmamis - Mesajlar konsola yazdirilacak")
 

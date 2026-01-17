@@ -1,10 +1,8 @@
 # Kripto Teknik Analiz Telegram Botu - Bagimliliklar
 # ==================================================
+# Egitim botu ile ayni Telegram entegrasyonu (requests kullanir)
 
-# Telegram Bot API
-python-telegram-bot>=20.0
-
-# HTTP istekleri (Binance API)
+# HTTP istekleri (Binance API + Telegram API)
 requests>=2.31.0
 
 # Veri isleme
@@ -13,6 +11,3 @@ numpy>=1.24.0
 
 # Zamanlama
 APScheduler>=3.10.0
-
-# Async islemler icin (Python 3.11+ ile birlikte gelir)
-# asyncio - standart kutuphane

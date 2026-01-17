@@ -32,8 +32,9 @@ jobs:
 
       - name: Run Crypto Analysis Bot
         env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.CRYPTO_TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.CRYPTO_TELEGRAM_CHAT_ID }}
+          # Egitim botu ile ayni secrets kullaniliyor
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           RUN_ONCE: 'true'
         run: |
           python crypto_telegram_bot.py
