@@ -49,7 +49,7 @@ on:
           - Anlama
           - Uygulama
           - Analiz
-          - Degerlendirme
+          - Değerlendirme
           - Yaratma
       zorluk:
         description: 'Zorluk seviyesi 1-6 (single modu icin)'
