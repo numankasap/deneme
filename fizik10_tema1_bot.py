@@ -861,33 +861,68 @@ III. DOĞRU - Serbest düşmede a = g
 # GÖRSEL PROMPT ŞABLONU
 # ============================================================================
 
-IMAGE_PROMPT_TEMPLATE = """10. Sınıf Fizik sorusu için PROFESYONEL eğitim görseli oluştur.
+IMAGE_PROMPT_TEMPLATE = """10. Sınıf Fizik sorusu için GERÇEKÇİ, 3D, CANLI eğitim görseli oluştur.
 
 ## GÖRSEL TİPİ: {tip}
 
 ## DETAYLI BETİMLEME:
 {detay}
 
-## RENK ŞEMASI
-- Arka plan: Beyaz (#FFFFFF)
-- Ana çizgiler: Koyu gri (#333333)
-- Grid çizgileri: Açık gri (#CCCCCC)
-- Cisimler: Mavi tonları (#2196F3)
-- Hız vektörleri: Yeşil (#4CAF50)
-- İvme vektörleri: Mor (#9C27B0)
-- Kuvvet vektörleri: Kırmızı (#E53935)
+## !!! GÖRSEL STİLİ - ÇOK ÖNEMLİ !!!
 
-## GRAFİK STANDARTLARI
-- Eksen etiketleri: Değişken adı ve birimi [m], [s], [m/s]
-- Grid çizgileri: Açık gri, ince
-- Veri çizgisi: Mavi, kalın
-- Eksenler: Siyah, kalın (2-3px)
+### 3D GERÇEKÇİ RENDER:
+- Fotorealistik 3D render kalitesi
+- Gerçekçi ışıklandırma ve gölgeler
+- Derinlik hissi veren perspektif
+- Yüksek kaliteli texture ve malzeme görünümü
+- Soft shadows ve ambient occlusion
 
-## YASAKLAR
+### CANLI VE DİNAMİK:
+- Hareket hissi veren blur efektleri (motion blur)
+- Canlı, parlak renkler
+- Enerji ve dinamizm hissi
+- Modern, çekici tasarım
+
+### SENARYO BAZLI:
+- Soruda geçen GERÇEK nesneler çizilmeli:
+  * Kuyu → Gerçekçi taş kuyu, derinlik hissi, düşen taş
+  * Tekne → 3D kürek teknesi, su yüzeyi, sporcular
+  * Araç → Modern araba, yol, çevre
+  * Top → Gerçekçi top, hareket yörüngesi
+  * Asansör → Modern asansör kabini, içi görünen
+
+### RENK PALETİ (CANLI):
+- Ana renkler: Canlı mavi (#0066FF), Turuncu (#FF6600), Yeşil (#00CC00)
+- Arka plan: Soft gradient (açık mavi → beyaz) veya gerçekçi ortam
+- Vektörler: Parlak, glow efektli oklar
+- Nesneler: Gerçekçi renkler ve dokular
+
+### FİZİK GÖSTERİMLERİ:
+- Hız vektörleri: Yeşil, parlak, ok ucu belirgin, glow efekti
+- İvme vektörleri: Turuncu/kırmızı, kalın oklar
+- Yörünge: Kesikli çizgi, hareket yönü belirgin
+- Ölçümler: Şık etiketler, modern font
+
+### GRAFİK STİLİ (Grafik tipi sorularda):
+- 3D görünümlü eksenler
+- Gradient dolgulu eğriler
+- Glow efektli data noktaları
+- Modern, minimalist grid
+- Drop shadow efektli etiketler
+
+## KALİTE:
+- 4K çözünürlük kalitesi
+- Anti-aliased, pürüzsüz kenarlar
+- Profesyonel eğitim materyali görünümü
+- Öğrencinin ilgisini çekecek modern tasarım
+
+## YASAKLAR:
 ❌ Soru metni veya cümleler
 ❌ A), B), C), D), E) şıkları
-❌ Çözüm adımları
+❌ Çözüm adımları veya formüller
 ❌ Cevabı veren bilgi
+❌ Düz, sıkıcı 2D çizimler
+❌ Clipart tarzı basit görseller
 """
 
 # ============================================================================
