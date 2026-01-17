@@ -706,10 +706,11 @@ Her soruda mutlaka 5 şık (A, B, C, D, E) olmalıdır.
   },
   "gorsel_gerekli": true/false,
   "gorsel_betimleme": {
-    "tip": "x-t_grafigi / v-t_grafigi / hareket_diyagrami",
-    "detay": "Çizilecek görselin detaylı açıklaması",
-    "ogeler": ["eksenler", "eğri", "noktalar"],
-    "etiketler": ["x(m)", "t(s)", "A noktası"]
+    "tip": "senaryo_diyagrami / x-t_grafigi / v-t_grafigi / hareket_sekli",
+    "detay": "!!! SORUYA ÖZGÜ GÖRSEL AÇIKLAMASI !!! - Senaryodaki nesne/durum çizilmeli (örn: kuyu ve düşen taş, tekne, araç, yol vb.)",
+    "ogeler": ["senaryodaki_ana_nesne", "hareket_yonu", "olcumler"],
+    "etiketler": ["Soruda geçen değerler ve etiketler"],
+    "senaryo_nesneleri": "Soruda geçen cisim/ortam: (örn: kuyu, taş, tekne, sporcular, araç, yol...)"
   },
   "maarif_uyumu": {
     "baglam_temelli": true/false,
@@ -1075,8 +1076,8 @@ Yaygın Yanılgılar:
 
         return None
 
-    def generate_image(self, gorsel_betimleme: Dict[str, str], konu: str = None) -> Optional[bytes]:
-        """Imagen 3 ile görsel üret"""
+    def generate_image(self, gorsel_betimleme: Dict[str, str], konu: str = None, soru_metni: str = None) -> Optional[bytes]:
+        """Imagen 3 ile SORUYA ÖZGÜ görsel üret"""
         if not NEW_GENAI or not self.client:
             logger.warning("  google-genai SDK yok, görsel üretilemiyor")
             return None
@@ -1093,7 +1094,22 @@ Yaygın Yanılgılar:
             for oge, renk in renkler.items():
                 renk_talimati += f"- {oge}: {renk}\n"
 
-        full_detay = f"{detay}\n\nGörselde görünecek öğeler: {', '.join(ogeler) if ogeler else 'Belirtilmemiş'}{renk_talimati}"
+        # SORUYA ÖZGÜ görsel için soru metnini analiz et
+        soru_baglami = ""
+        if soru_metni:
+            soru_baglami = f"""
+
+## SORU BAĞLAMI (Görsel bu senaryoya uygun olmalı):
+{soru_metni[:500]}
+
+ÖNEMLI: Görsel SADECE bu senaryodaki durumu göstermeli!
+- Soruda kuyu varsa → kuyu ve düşen taş göster
+- Soruda tekne varsa → tekne göster
+- Soruda araç varsa → araç göster
+- Genel fizik diyagramı ÇİZME, soruya özgü çiz!
+"""
+
+        full_detay = f"{detay}\n\nGörselde görünecek öğeler: {', '.join(ogeler) if ogeler else 'Belirtilmemiş'}{renk_talimati}{soru_baglami}"
         prompt = IMAGE_PROMPT_TEMPLATE.format(tip=tip, detay=full_detay)
 
         self._rate_limit()
@@ -1554,10 +1570,11 @@ class Fizik10Tema1Generator:
                     }
 
             if gorsel_uret and gorsel_betimleme:
-                logger.info(f"\n[2/5] Görsel üretiliyor...")
+                logger.info(f"\n[2/5] Görsel üretiliyor (soruya özgü)...")
+                soru_metni_for_image = question_data.get("soru_metni", "")
 
                 for img_attempt in range(max_image_retries):
-                    image_bytes = self.gemini.generate_image(gorsel_betimleme, params.konu)
+                    image_bytes = self.gemini.generate_image(gorsel_betimleme, params.konu, soru_metni_for_image)
 
                     if image_bytes:
                         logger.info("  Görsel kalite kontrolü yapılıyor...")
