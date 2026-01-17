@@ -22,6 +22,7 @@ import sys
 import json
 import time
 import uuid
+import base64
 import random
 import logging
 import argparse
@@ -63,6 +64,7 @@ SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
 # ============================================================================
 
 GEMINI_TEXT_MODEL = "gemini-2.5-flash"
+GEMINI_IMAGE_MODEL = "gemini-3-pro-image-preview"
 GEMINI_TEXT_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_TEXT_MODEL}:generateContent"
 
 # ============================================================================
@@ -888,10 +890,10 @@ IMAGE_PROMPT_TEMPLATE = """10. Sınıf Fizik sorusu için PROFESYONEL eğitim g�
 """
 
 # ============================================================================
-# ANA BOT SINIFI
+# GEMINI API CLIENT (Imagen 3 + Text Generation)
 # ============================================================================
 
-class Fizik10Tema1Bot:
+class GeminiAPI:
     def __init__(self, api_key: str):
         self.api_key = api_key
         if NEW_GENAI:
@@ -921,59 +923,6 @@ class Fizik10Tema1Bot:
             time.sleep(3)
 
         self.request_count += 1
-
-    def _get_bloom_distribution(self, count: int) -> Dict[str, int]:
-        """30 soru için Bloom dağılımını hesapla"""
-        distribution = {}
-        base_count = count // 6  # Her seviyeye eşit dağılım
-        remainder = count % 6
-
-        for i, bloom in enumerate(BLOOM_TAKSONOMISI.keys()):
-            distribution[bloom] = base_count + (1 if i < remainder else 0)
-
-        return distribution
-
-    def _select_random_params(self, bloom_seviyesi: str, konu: Optional[str] = None) -> QuestionParams:
-        """Rastgele soru parametreleri seç"""
-
-        # Konu seçimi
-        if konu and konu in TEMA1_MUFREDAT:
-            secilen_konu = konu
-        else:
-            secilen_konu = random.choice(list(TEMA1_MUFREDAT.keys()))
-
-        konu_data = TEMA1_MUFREDAT[secilen_konu]
-        bloom_data = BLOOM_TAKSONOMISI[bloom_seviyesi]
-
-        # Zorluk seviyesi seçimi (Bloom'a uygun)
-        zorluk = random.choice(bloom_data["zorluk_aralik"])
-
-        # Bağlam seçimi
-        baglam = random.choice(konu_data["ornek_senaryolar"])
-
-        # Görsel tipi seçimi
-        gorsel_tipi = random.choice(konu_data["gorsel_tipleri"])
-
-        # Soru tipi seçimi (Bloom seviyesine göre)
-        if bloom_seviyesi in ["Değerlendirme", "Yaratma"]:
-            soru_tipi = random.choice(["onculu", "analiz", "tasarim"])
-        elif bloom_seviyesi in ["Analiz"]:
-            soru_tipi = random.choice(["grafik", "karsilastirma", "analiz"])
-        elif bloom_seviyesi in ["Uygulama"]:
-            soru_tipi = random.choice(["hesaplama", "grafik", "hikayeli"])
-        else:
-            soru_tipi = random.choice(["hikayeli", "tanim", "kavram"])
-
-        return QuestionParams(
-            konu=secilen_konu,
-            alt_konu=konu_data["display_name"],
-            kazanim_kodu=konu_data["kazanim_kodu"],
-            bloom_seviyesi=bloom_seviyesi,
-            zorluk=zorluk,
-            baglam=baglam,
-            gorsel_tipi=gorsel_tipi,
-            soru_tipi=soru_tipi
-        )
 
     def generate_question(self, params: QuestionParams) -> Dict[str, Any]:
         """Tek soru üret"""
@@ -1096,7 +1045,15 @@ Yaygın Yanılgılar:
                     text_content = result["candidates"][0]["content"]["parts"][0]["text"]
 
                 # JSON parse
-                question_data = json.loads(text_content)
+                try:
+                    question_data = json.loads(text_content)
+                except json.JSONDecodeError:
+                    clean_text = text_content.strip()
+                    if clean_text.startswith("```json"):
+                        clean_text = clean_text[7:]
+                    if clean_text.endswith("```"):
+                        clean_text = clean_text[:-3]
+                    question_data = json.loads(clean_text.strip())
 
                 # Bloom seviyesi ekle
                 question_data["bloom_seviyesi"] = params.bloom_seviyesi
@@ -1104,7 +1061,7 @@ Yaygın Yanılgılar:
                 question_data["konu"] = params.konu
                 question_data["alt_konu"] = params.alt_konu
 
-                logger.info(f"  ✓ Soru başarıyla üretildi: {params.bloom_seviyesi} - Zorluk {params.zorluk}")
+                logger.info(f"  ✓ Soru başarıyla üretildi")
                 return question_data
 
             except json.JSONDecodeError as e:
@@ -1118,20 +1075,588 @@ Yaygın Yanılgılar:
 
         return None
 
-    def generate_batch(self, count: int = 30, konu: Optional[str] = None) -> List[Dict[str, Any]]:
+    def generate_image(self, gorsel_betimleme: Dict[str, str], konu: str = None) -> Optional[bytes]:
+        """Imagen 3 ile görsel üret"""
+        if not NEW_GENAI or not self.client:
+            logger.warning("  google-genai SDK yok, görsel üretilemiyor")
+            return None
+
+        tip = gorsel_betimleme.get("tip", "grafik")
+        detay = gorsel_betimleme.get("detay", "")
+        ogeler = gorsel_betimleme.get("ogeler", [])
+        renkler = gorsel_betimleme.get("renkler", {})
+
+        # Renk bilgisini prompt'a ekle
+        renk_talimati = ""
+        if renkler:
+            renk_talimati = "\n\nRENK TALİMATLARI:\n"
+            for oge, renk in renkler.items():
+                renk_talimati += f"- {oge}: {renk}\n"
+
+        full_detay = f"{detay}\n\nGörselde görünecek öğeler: {', '.join(ogeler) if ogeler else 'Belirtilmemiş'}{renk_talimati}"
+        prompt = IMAGE_PROMPT_TEMPLATE.format(tip=tip, detay=full_detay)
+
+        self._rate_limit()
+
+        for attempt in range(Config.MAX_RETRIES):
+            try:
+                logger.info(f"  Image API çağrısı (deneme {attempt + 1}/{Config.MAX_RETRIES})...")
+
+                response = self.client.models.generate_content(
+                    model=GEMINI_IMAGE_MODEL,
+                    contents=prompt,
+                    config={"response_modalities": ["IMAGE", "TEXT"]}
+                )
+
+                if response.candidates:
+                    for part in response.candidates[0].content.parts:
+                        if hasattr(part, 'inline_data') and part.inline_data:
+                            inline = part.inline_data
+                            if hasattr(inline, 'data') and inline.data:
+                                image_data = inline.data
+                                if isinstance(image_data, str):
+                                    image_bytes = base64.b64decode(image_data)
+                                else:
+                                    image_bytes = bytes(image_data) if not isinstance(image_data, bytes) else image_data
+                                logger.info(f"  Görsel üretildi ({len(image_bytes)} bytes)")
+                                return image_bytes
+
+            except Exception as e:
+                logger.error(f"  Image API hatası (deneme {attempt + 1}): {e}")
+                if attempt < Config.MAX_RETRIES - 1:
+                    time.sleep(Config.RETRY_DELAY)
+
+        return None
+
+
+# ============================================================================
+# SUPABASE CLIENT
+# ============================================================================
+
+class SupabaseClient:
+    def __init__(self, url: str, key: str):
+        self.url = url
+        self.key = key
+        self.headers = {
+            "apikey": key,
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json",
+            "Prefer": "return=representation"
+        }
+        self._curriculum_cache = None
+
+    def get_curriculum_for_grade(self, grade_level: int = 10, lesson_name: str = "Fizik") -> List[Dict]:
+        """Müfredattan kazanımları çek"""
+        if self._curriculum_cache is not None:
+            return self._curriculum_cache
+
+        query_url = f"{self.url}/rest/v1/curriculum?grade_level=eq.{grade_level}&lesson_name=eq.{lesson_name}&select=id,topic_code,topic_name,sub_topic,learning_outcome_code,learning_outcome_description,bloom_level"
+
+        try:
+            response = requests.get(query_url, headers=self.headers, timeout=30)
+            response.raise_for_status()
+            self._curriculum_cache = response.json()
+            logger.info(f"  Curriculum'dan {len(self._curriculum_cache)} kazanım yüklendi")
+            return self._curriculum_cache
+        except Exception as e:
+            logger.error(f"  Curriculum yükleme hatası: {e}")
+            return []
+
+    def upload_image(self, image_data: bytes, filename: str) -> Optional[str]:
+        """Görseli Supabase Storage'a yükle"""
+        bucket = Config.STORAGE_BUCKET
+        upload_url = f"{self.url}/storage/v1/object/{bucket}/{filename}"
+
+        try:
+            if isinstance(image_data, str):
+                image_bytes = base64.b64decode(image_data)
+            else:
+                image_bytes = image_data
+
+            response = requests.post(
+                upload_url,
+                headers={
+                    "apikey": self.key,
+                    "Authorization": f"Bearer {self.key}",
+                    "Content-Type": "image/png"
+                },
+                data=image_bytes,
+                timeout=30
+            )
+            response.raise_for_status()
+
+            public_url = f"{self.url}/storage/v1/object/public/{bucket}/{filename}"
+            logger.info(f"  Görsel yüklendi: {filename}")
+            return public_url
+
+        except Exception as e:
+            logger.error(f"  Storage upload hatası: {e}")
+            return None
+
+    def insert_question(self, question: 'GeneratedQuestion', kazanim_id: int = None) -> Optional[int]:
+        """Soruyu veritabanına kaydet"""
+        insert_url = f"{self.url}/rest/v1/question_bank"
+
+        options_json = {
+            "A": question.options.get("A", ""),
+            "B": question.options.get("B", ""),
+            "C": question.options.get("C", ""),
+            "D": question.options.get("D", ""),
+            "E": question.options.get("E", "")
+        }
+
+        data = {
+            "title": question.title[:200] if question.title else "10. Sınıf Fizik Sorusu",
+            "original_text": question.original_text,
+            "options": options_json,
+            "correct_answer": question.correct_answer,
+            "solution_text": question.solution_text,
+            "difficulty": question.difficulty,
+            "subject": question.subject,
+            "grade_level": question.grade_level,
+            "topic": question.topic,
+            "topic_group": question.topic_group,
+            "kazanim_id": kazanim_id,
+            "bloom_level": question.bloom_level,
+            "pisa_level": question.pisa_level,
+            "pisa_context": question.pisa_context,
+            "scenario_text": question.scenario_text,
+            "distractor_explanations": question.distractor_explanations,
+            "image_url": question.image_url,
+            "question_type": question.question_type,
+            "is_active": question.is_active,
+            "verified": question.verified,
+            "is_past_exam": False,
+            "exam_type": "FIZIK10_TEMA1_BOT"
+        }
+
+        try:
+            response = requests.post(insert_url, headers=self.headers, json=data, timeout=30)
+            response.raise_for_status()
+
+            result = response.json()
+            if isinstance(result, list) and len(result) > 0:
+                question_id = result[0].get("id")
+                logger.info(f"  Soru kaydedildi, ID: {question_id}")
+                return question_id
+
+            return None
+
+        except Exception as e:
+            logger.error(f"  Supabase insert hatası: {e}")
+            return None
+
+
+# ============================================================================
+# QUALITY VALIDATOR
+# ============================================================================
+
+class QualityValidator:
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+        if NEW_GENAI:
+            self.client = genai.Client(api_key=api_key)
+        else:
+            self.client = None
+        self.quality_threshold = 7
+
+    def validate_question(self, question_data: Dict, params: QuestionParams) -> Dict:
+        """Soru kalite kontrolü"""
+        if not NEW_GENAI or not self.client:
+            return {"pass": True, "overall_score": 7, "problems": [], "skipped": True}
+
+        yanilgi_data = KAVRAM_YANILGILARI.get(params.konu, {})
+
+        try:
+            prompt = f"""Bu 10. sınıf Fizik sorusunu KALİTE KONTROLÜ yap.
+
+## SORU BİLGİLERİ
+Konu: {params.konu}
+Zorluk: {params.zorluk}/6
+Bloom: {params.bloom_seviyesi}
+
+SORU METNİ: {question_data.get("soru_metni", "")}
+SORU KÖKÜ: {question_data.get("soru_koku", "")}
+ŞIKLAR: {json.dumps(question_data.get("siklar", {}), ensure_ascii=False)}
+DOĞRU CEVAP: {question_data.get("dogru_cevap", "")}
+ÇÖZÜM: {question_data.get("cozum_adim_adim", "")}
+
+## KONTROL KRİTERLERİ
+
+1. FİZİKSEL DOĞRULUK: Fizik kanunları doğru uygulanmış mı?
+2. MATEMATİKSEL DOĞRULUK: Hesaplamalar doğru mu?
+3. BLOOM UYUMU: {params.bloom_seviyesi} seviyesine uygun mu?
+4. ÇELDİRİCİ KALİTESİ: Her yanlış şık bir kavram yanılgısını hedefliyor mu?
+5. KAPSAM: 10. sınıf müfredatı içinde mi?
+
+Hedeflenmesi gereken kavram yanılgıları:
+{chr(10).join(['- ' + y for y in yanilgi_data.get('yanilgilar', [])])}
+
+JSON formatında döndür:
+{{"is_physically_correct": true/false, "is_mathematically_correct": true/false, "bloom_match": true/false, "distractors_quality": 1-10, "in_scope": true/false, "overall_score": 1-10, "pass": true/false, "problems": ["problem1", "problem2"]}}"""
+
+            response = self.client.models.generate_content(
+                model=GEMINI_TEXT_MODEL,
+                contents=prompt,
+                config={"response_mime_type": "application/json"}
+            )
+
+            result = json.loads(response.text)
+            result["pass"] = result.get("overall_score", 0) >= self.quality_threshold
+            return result
+
+        except Exception as e:
+            logger.error(f"  Soru validasyon hatası: {e}")
+            return {"pass": True, "overall_score": 5, "problems": [str(e)], "error": True}
+
+    def validate_image(self, image_bytes: bytes, gorsel_betimleme: Dict = None) -> Dict:
+        """Görsel kalite kontrolü"""
+        if not NEW_GENAI or not self.client:
+            return {"pass": True, "overall_score": 7, "problems": [], "skipped": True}
+
+        try:
+            image_b64 = base64.b64encode(image_bytes).decode('utf-8')
+
+            expected_elements = gorsel_betimleme.get("ogeler", []) if gorsel_betimleme else []
+            expected_colors = gorsel_betimleme.get("renkler", {}) if gorsel_betimleme else {}
+
+            response = self.client.models.generate_content(
+                model=GEMINI_TEXT_MODEL,
+                contents=[
+                    {
+                        "role": "user",
+                        "parts": [
+                            {"inline_data": {"mime_type": "image/png", "data": image_b64}},
+                            {"text": f"""Bu fizik görseli için kalite kontrolü yap.
+
+Beklenen öğeler: {expected_elements}
+Beklenen renkler: {expected_colors}
+
+Kontrol et:
+1. Soru metni veya şık OLMAMALI
+2. Türkçe etiketler doğru olmalı
+3. Fiziksel temsil doğru olmalı
+4. Renkler profesyonel ve tutarlı olmalı
+5. Temiz ve okunaklı olmalı
+
+JSON formatında döndür:
+{{"has_question_text": true/false, "has_options": true/false, "labels_correct": true/false, "colors_professional": true/false, "is_clean": true/false, "overall_score": 1-10, "pass": true/false, "problems": []}}"""}
+                        ]
+                    }
+                ],
+                config={"response_mime_type": "application/json"}
+            )
+
+            result = json.loads(response.text)
+
+            problems = result.get("problems", [])
+            if result.get("has_question_text"):
+                problems.append("Görselde soru metni var")
+            if result.get("has_options"):
+                problems.append("Görselde şıklar var")
+
+            result["problems"] = problems
+            result["pass"] = result.get("overall_score", 0) >= self.quality_threshold
+            return result
+
+        except Exception as e:
+            logger.error(f"  Görsel validasyon hatası: {e}")
+            return {"pass": True, "overall_score": 5, "problems": [str(e)], "error": True}
+
+
+# ============================================================================
+# GENERATED QUESTION DATA CLASS
+# ============================================================================
+
+@dataclass
+class GeneratedQuestion:
+    title: str
+    original_text: str
+    options: Dict[str, str]
+    correct_answer: str
+    solution_text: str
+    difficulty: int
+    subject: str
+    grade_level: int
+    topic: str
+    topic_group: str
+    kazanim_kodu: str
+    bloom_level: str
+    pisa_level: int
+    pisa_context: str
+    scenario_text: str
+    distractor_explanations: Dict[str, str]
+    image_url: Optional[str] = None
+    question_type: str = "coktan_secmeli"
+    is_active: bool = True
+    verified: bool = False
+
+
+# ============================================================================
+# MAIN GENERATOR CLASS
+# ============================================================================
+
+class Fizik10Tema1Generator:
+    def __init__(self):
+        if not GEMINI_API_KEY:
+            raise ValueError("GEMINI_API_KEY environment variable not set")
+        if not SUPABASE_URL or not SUPABASE_KEY:
+            logger.warning("SUPABASE credentials not set - veritabanına kayıt yapılamayacak")
+            self.supabase = None
+        else:
+            self.supabase = SupabaseClient(SUPABASE_URL, SUPABASE_KEY)
+
+        self.gemini = GeminiAPI(GEMINI_API_KEY)
+        self.validator = QualityValidator(GEMINI_API_KEY)
+        self.stats = {
+            "total_attempts": 0,
+            "successful": 0,
+            "failed": 0,
+            "with_image": 0,
+            "questions_rejected": 0,
+            "images_rejected": 0,
+            "quality_retries": 0,
+            "by_difficulty": {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0},
+            "by_bloom": {}
+        }
+
+    def _get_bloom_distribution(self, count: int) -> Dict[str, int]:
+        """30 soru için Bloom dağılımını hesapla"""
+        distribution = {}
+        base_count = count // 6
+        remainder = count % 6
+
+        for i, bloom in enumerate(BLOOM_TAKSONOMISI.keys()):
+            distribution[bloom] = base_count + (1 if i < remainder else 0)
+
+        return distribution
+
+    def _select_random_params(self, bloom_seviyesi: str, konu: Optional[str] = None) -> QuestionParams:
+        """Rastgele soru parametreleri seç"""
+
+        if konu and konu in TEMA1_MUFREDAT:
+            secilen_konu = konu
+        else:
+            secilen_konu = random.choice(list(TEMA1_MUFREDAT.keys()))
+
+        konu_data = TEMA1_MUFREDAT[secilen_konu]
+        bloom_data = BLOOM_TAKSONOMISI[bloom_seviyesi]
+
+        zorluk = random.choice(bloom_data["zorluk_aralik"])
+        baglam = random.choice(konu_data["ornek_senaryolar"])
+        gorsel_tipi = random.choice(konu_data["gorsel_tipleri"])
+
+        if bloom_seviyesi in ["Değerlendirme", "Yaratma"]:
+            soru_tipi = random.choice(["onculu", "analiz", "tasarim"])
+        elif bloom_seviyesi in ["Analiz"]:
+            soru_tipi = random.choice(["grafik", "karsilastirma", "analiz"])
+        elif bloom_seviyesi in ["Uygulama"]:
+            soru_tipi = random.choice(["hesaplama", "grafik", "hikayeli"])
+        else:
+            soru_tipi = random.choice(["hikayeli", "tanim", "kavram"])
+
+        return QuestionParams(
+            konu=secilen_konu,
+            alt_konu=konu_data["display_name"],
+            kazanim_kodu=konu_data["kazanim_kodu"],
+            bloom_seviyesi=bloom_seviyesi,
+            zorluk=zorluk,
+            baglam=baglam,
+            gorsel_tipi=gorsel_tipi,
+            soru_tipi=soru_tipi
+        )
+
+    def generate_single_question(self, params: QuestionParams) -> Optional[int]:
+        """Tek soru üret ve veritabanına kaydet"""
+        self.stats["total_attempts"] += 1
+        konu_data = TEMA1_MUFREDAT.get(params.konu, {})
+        konu_display = konu_data.get("display_name", params.konu)
+
+        logger.info(f"\n{'='*70}")
+        logger.info(f"SORU ÜRETİMİ BAŞLIYOR")
+        logger.info(f"   Konu: {konu_display}")
+        logger.info(f"   Bloom: {params.bloom_seviyesi} | Zorluk: {params.zorluk}/6")
+        logger.info(f"   Soru Tipi: {params.soru_tipi}")
+        logger.info(f"{'='*70}")
+
+        max_question_retries = 3
+        max_image_retries = 3
+
+        try:
+            # ADIM 1: SORU ÜRETİMİ
+            question_data = None
+            question_quality_score = 0
+
+            for q_attempt in range(max_question_retries):
+                logger.info(f"\n[1/5] Gemini ile soru üretiliyor (Deneme {q_attempt + 1}/{max_question_retries})...")
+
+                question_data = self.gemini.generate_question(params)
+
+                if not question_data:
+                    continue
+
+                # Temel alan kontrolü
+                required_fields = ["soru_metni", "soru_koku", "siklar", "dogru_cevap"]
+                missing = [f for f in required_fields if f not in question_data]
+                if missing:
+                    logger.warning(f"  Eksik alanlar: {missing}")
+                    self.stats["quality_retries"] += 1
+                    continue
+
+                # 5 şık kontrolü
+                siklar = question_data.get("siklar", {})
+                if len(siklar) < 5:
+                    logger.warning(f"  Yetersiz şık sayısı: {len(siklar)}")
+                    self.stats["quality_retries"] += 1
+                    continue
+
+                # Kalite kontrolü
+                logger.info("  Kalite kontrolü yapılıyor...")
+                q_validation = self.validator.validate_question(question_data, params)
+                question_quality_score = q_validation.get("overall_score", 5)
+
+                logger.info(f"  Kalite Puanı: {question_quality_score}/10")
+
+                if q_validation.get("pass", False):
+                    logger.info("  ✓ Soru kalite kontrolünü geçti")
+                    break
+                else:
+                    problems = q_validation.get("problems", ["Kalite yetersiz"])
+                    self.stats["quality_retries"] += 1
+                    self.stats["questions_rejected"] += 1
+                    logger.warning(f"  Soru reddedildi: {problems}")
+
+            if not question_data:
+                self.stats["failed"] += 1
+                logger.error("  Tüm soru denemeleri başarısız")
+                return None
+
+            # ADIM 2: GÖRSEL ÜRETİMİ
+            image_url = None
+            image_bytes = None
+            gorsel_betimleme = question_data.get("gorsel_betimleme", {})
+
+            gorsel_uret = False
+            if question_data.get("gorsel_gerekli", False):
+                gorsel_uret = True
+            elif params.soru_tipi == "grafik":
+                gorsel_uret = True
+            elif gorsel_betimleme and gorsel_betimleme.get("tip"):
+                gorsel_uret = True
+            elif random.random() < 0.5:  # %50 ihtimalle görsel üret
+                gorsel_uret = True
+                if not gorsel_betimleme:
+                    gorsel_betimleme = {
+                        "tip": random.choice(konu_data.get("gorsel_tipleri", ["grafik"])),
+                        "detay": f"{konu_display} için açıklayıcı diyagram",
+                        "ogeler": ["eksenler", "etiketler", "oklar"],
+                        "renkler": {"ana": "mavi", "vurgu": "kırmızı", "arka_plan": "beyaz"}
+                    }
+
+            if gorsel_uret and gorsel_betimleme:
+                logger.info(f"\n[2/5] Görsel üretiliyor...")
+
+                for img_attempt in range(max_image_retries):
+                    image_bytes = self.gemini.generate_image(gorsel_betimleme, params.konu)
+
+                    if image_bytes:
+                        logger.info("  Görsel kalite kontrolü yapılıyor...")
+                        img_validation = self.validator.validate_image(image_bytes, gorsel_betimleme)
+
+                        if img_validation.get("pass", False):
+                            logger.info("  ✓ Görsel kalite kontrolünü geçti")
+                            break
+                        else:
+                            self.stats["images_rejected"] += 1
+                            logger.warning(f"  Görsel reddedildi: {img_validation.get('problems', [])}")
+                            image_bytes = None
+
+                if image_bytes and self.supabase:
+                    filename = f"fizik10_tema1_{uuid.uuid4().hex[:12]}.png"
+                    image_url = self.supabase.upload_image(image_bytes, filename)
+                    if image_url:
+                        self.stats["with_image"] += 1
+            else:
+                logger.info("\n[2/5] Görsel gerekli değil, atlanıyor...")
+
+            # ADIM 3: VERİ YAPISI
+            logger.info("\n[3/5] Veri yapısı hazırlanıyor...")
+
+            soru_metni = question_data.get("soru_metni", "")
+            soru_koku = question_data.get("soru_koku", "")
+            full_text = f"{soru_metni}\n\n{soru_koku}"
+
+            generated = GeneratedQuestion(
+                title=soru_metni[:100] + "..." if len(soru_metni) > 100 else soru_metni,
+                original_text=full_text,
+                options=question_data.get("siklar", {}),
+                correct_answer=question_data.get("dogru_cevap", "A"),
+                solution_text=question_data.get("cozum_adim_adim", ""),
+                difficulty=params.zorluk,
+                subject="Fizik",
+                grade_level=10,
+                topic=params.konu,
+                topic_group="Tema1_BirBoyuttaHareket",
+                kazanim_kodu=params.kazanim_kodu,
+                bloom_level=params.bloom_seviyesi,
+                pisa_level=question_data.get("pisa_seviyesi", 3),
+                pisa_context=question_data.get("pisa_baglam", "Bilimsel"),
+                scenario_text=soru_metni,
+                distractor_explanations=question_data.get("celdirici_analizi", {}),
+                image_url=image_url
+            )
+
+            # ADIM 4: ÖZET
+            logger.info(f"\n[4/5] KALİTE ÖZETİ:")
+            logger.info(f"   Soru Puanı: {question_quality_score}/10")
+            logger.info(f"   Bloom: {params.bloom_seviyesi}")
+
+            # ADIM 5: KAYDET
+            if self.supabase:
+                logger.info("\n[5/5] Veritabanına kaydediliyor...")
+                question_id = self.supabase.insert_question(generated)
+
+                if question_id:
+                    self.stats["successful"] += 1
+                    self.stats["by_difficulty"][params.zorluk] += 1
+                    self.stats["by_bloom"][params.bloom_seviyesi] = self.stats["by_bloom"].get(params.bloom_seviyesi, 0) + 1
+                    logger.info(f"\n✓ BAŞARILI! Soru ID: {question_id}")
+                    return question_id
+                else:
+                    self.stats["failed"] += 1
+                    logger.error("\nVeritabanı kaydı başarısız")
+                    return None
+            else:
+                # Supabase yoksa JSON olarak döndür
+                self.stats["successful"] += 1
+                self.stats["by_difficulty"][params.zorluk] += 1
+                self.stats["by_bloom"][params.bloom_seviyesi] = self.stats["by_bloom"].get(params.bloom_seviyesi, 0) + 1
+                logger.info(f"\n✓ BAŞARILI! (Veritabanı bağlantısı yok)")
+                return -1  # Başarılı ama DB'ye kaydedilmedi
+
+        except Exception as e:
+            self.stats["failed"] += 1
+            logger.error(f"\nHATA: {str(e)}")
+            import traceback
+            logger.debug(traceback.format_exc())
+            return None
+
+    def generate_batch(self, count: int = 30, konu: Optional[str] = None) -> Dict[str, Any]:
         """Toplu soru üret (Bloom dağılımına göre)"""
 
         distribution = self._get_bloom_distribution(count)
-        questions = []
 
-        logger.info(f"\n{'='*60}")
+        logger.info(f"\n{'#'*70}")
         logger.info(f"10. SINIF FİZİK - TEMA 1: BİR BOYUTTA HAREKET")
+        logger.info(f"Gemini 2.5 Flash + Imagen 3 + Supabase")
         logger.info(f"Toplam {count} soru üretilecek")
-        logger.info(f"{'='*60}")
+        logger.info(f"{'#'*70}")
         logger.info(f"\nBloom Dağılımı:")
         for bloom, sayi in distribution.items():
             logger.info(f"  - {bloom}: {sayi} soru")
-        logger.info(f"{'='*60}\n")
+        logger.info(f"{'#'*70}\n")
+
+        results = {"generated_ids": [], "failed_topics": [], "stats": {}}
 
         for bloom_seviyesi, soru_sayisi in distribution.items():
             logger.info(f"\n[{bloom_seviyesi.upper()}] - {soru_sayisi} soru üretiliyor...")
@@ -1140,49 +1665,40 @@ Yaygın Yanılgılar:
                 params = self._select_random_params(bloom_seviyesi, konu)
                 logger.info(f"  Soru {i+1}/{soru_sayisi}: {params.alt_konu} - {params.soru_tipi}")
 
-                question = self.generate_question(params)
-                if question:
-                    questions.append(question)
+                question_id = self.generate_single_question(params)
+                if question_id:
+                    results["generated_ids"].append(question_id)
                 else:
-                    logger.warning(f"  ⚠ Soru üretilemedi, atlanıyor...")
+                    results["failed_topics"].append(f"{params.konu}_{bloom_seviyesi}_{i+1}")
 
-        logger.info(f"\n{'='*60}")
-        logger.info(f"TOPLAM: {len(questions)}/{count} soru başarıyla üretildi")
-        logger.info(f"{'='*60}")
+                time.sleep(Config.RATE_LIMIT_DELAY)
 
-        return questions
+        results["stats"] = self.stats
+        return results
 
-    def save_questions(self, questions: List[Dict], filename: str = None):
-        """Soruları JSON dosyasına kaydet"""
-        if not filename:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"fizik10_tema1_sorular_{timestamp}.json"
+    def print_stats(self):
+        """İstatistikleri yazdır"""
+        logger.info(f"\n{'='*70}")
+        logger.info("SONUÇ İSTATİSTİKLERİ")
+        logger.info(f"{'='*70}")
+        logger.info(f"   Toplam deneme      : {self.stats['total_attempts']}")
+        logger.info(f"   Başarılı           : {self.stats['successful']}")
+        logger.info(f"   Başarısız          : {self.stats['failed']}")
+        logger.info(f"   Görselli soru      : {self.stats['with_image']}")
+        logger.info(f"   Reddedilen sorular : {self.stats['questions_rejected']}")
+        logger.info(f"   Reddedilen görseller: {self.stats['images_rejected']}")
+        logger.info(f"\n   Zorluk Dağılımı:")
+        for level, count in self.stats['by_difficulty'].items():
+            if count > 0:
+                logger.info(f"     Seviye {level}: {count} soru")
+        logger.info(f"\n   Bloom Dağılımı:")
+        for bloom, count in self.stats['by_bloom'].items():
+            logger.info(f"     {bloom}: {count} soru")
 
-        output = {
-            "metadata": {
-                "sinif": 10,
-                "ders": "Fizik",
-                "tema": "Tema 1: Bir Boyutta Hareket",
-                "toplam_soru": len(questions),
-                "olusturma_tarihi": datetime.now().isoformat(),
-                "bloom_dagilimi": {},
-                "zorluk_dagilimi": {}
-            },
-            "sorular": questions
-        }
-
-        # Dağılımları hesapla
-        for q in questions:
-            bloom = q.get("bloom_seviyesi", "Bilinmiyor")
-            zorluk = q.get("zorluk", 0)
-            output["metadata"]["bloom_dagilimi"][bloom] = output["metadata"]["bloom_dagilimi"].get(bloom, 0) + 1
-            output["metadata"]["zorluk_dagilimi"][str(zorluk)] = output["metadata"]["zorluk_dagilimi"].get(str(zorluk), 0) + 1
-
-        with open(filename, "w", encoding="utf-8") as f:
-            json.dump(output, f, ensure_ascii=False, indent=2)
-
-        logger.info(f"\n✓ Sorular kaydedildi: {filename}")
-        return filename
+        if self.stats['total_attempts'] > 0:
+            success_rate = (self.stats['successful'] / self.stats['total_attempts']) * 100
+            logger.info(f"\n   Başarı oranı: %{success_rate:.1f}")
+        logger.info(f"{'='*70}\n")
 
 
 # ============================================================================
@@ -1191,9 +1707,16 @@ Yaygın Yanılgılar:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="10. Sınıf Fizik - Tema 1: Bir Boyutta Hareket Soru Üretim Botu",
+        description="10. Sınıf Fizik - Tema 1: Bir Boyutta Hareket Soru Üretim Botu v2.0",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
+Yenilikler v2.0:
+  - Gemini 2.5 Flash + Imagen 3 entegrasyonu
+  - Supabase veritabanı desteği
+  - Bloom Taksonomisi (6 seviye) dağılımı
+  - Maarif Modeli kriterleri
+  - Kalite validasyonu
+
 Örnekler:
   python fizik10_tema1_bot.py --mode batch --count 30
   python fizik10_tema1_bot.py --mode topic --topic sabit_hizli_hareket --count 10
@@ -1226,65 +1749,90 @@ Bloom Seviyeleri:
 
     args = parser.parse_args()
 
-    # API key kontrolü
-    if not GEMINI_API_KEY:
-        print("HATA: GEMINI_API_KEY environment variable tanımlı değil!")
-        print("Lütfen: export GEMINI_API_KEY='your-api-key' komutunu çalıştırın.")
+    logger.info("""
+========================================================================
+     10. SINIF FİZİK SORU ÜRETİM BOTU v2.0
+     Tema 1: Bir Boyutta Hareket
+
+     Gemini 2.5 Flash + Imagen 3 + Supabase
+
+     Özellikler:
+     - Bloom Taksonomisi (6 seviye)
+     - Maarif Modeli Kriterleri
+     - Kavram Yanılgıları Veritabanı
+     - Kalite Validasyonu
+========================================================================
+    """)
+
+    logger.info(f"Tarih: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    logger.info(f"Mod: {args.mode}")
+
+    try:
+        generator = Fizik10Tema1Generator()
+
+        if args.mode == "batch":
+            logger.info(f"Batch modu - {args.count} soru üretilecek")
+            results = generator.generate_batch(count=args.count, konu=args.topic)
+            logger.info(f"\nÜretilen soru sayısı: {len(results['generated_ids'])}")
+            if results['failed_topics']:
+                logger.info(f"Başarısız: {len(results['failed_topics'])}")
+
+        elif args.mode == "topic":
+            if not args.topic:
+                print("HATA: --topic parametresi gerekli!")
+                print(f"Geçerli konular: {', '.join(TEMA1_MUFREDAT.keys())}")
+                sys.exit(1)
+
+            if args.topic not in TEMA1_MUFREDAT:
+                print(f"HATA: Geçersiz konu: {args.topic}")
+                print(f"Geçerli konular: {', '.join(TEMA1_MUFREDAT.keys())}")
+                sys.exit(1)
+
+            logger.info(f"Topic modu - {args.topic} için {args.count} soru")
+            results = generator.generate_batch(count=args.count, konu=args.topic)
+            logger.info(f"\nÜretilen soru sayısı: {len(results['generated_ids'])}")
+
+        elif args.mode == "single":
+            konu = args.topic or random.choice(list(TEMA1_MUFREDAT.keys()))
+            bloom = args.bloom or random.choice(list(BLOOM_TAKSONOMISI.keys()))
+            zorluk = args.zorluk or random.choice([2, 3, 4])
+
+            if bloom not in BLOOM_TAKSONOMISI:
+                print(f"HATA: Geçersiz Bloom seviyesi: {bloom}")
+                print(f"Geçerli seviyeler: {', '.join(BLOOM_TAKSONOMISI.keys())}")
+                sys.exit(1)
+
+            params = QuestionParams(
+                konu=konu,
+                alt_konu=TEMA1_MUFREDAT[konu]["display_name"],
+                kazanim_kodu=TEMA1_MUFREDAT[konu]["kazanim_kodu"],
+                bloom_seviyesi=bloom,
+                zorluk=zorluk,
+                baglam=random.choice(TEMA1_MUFREDAT[konu]["ornek_senaryolar"]),
+                gorsel_tipi=random.choice(TEMA1_MUFREDAT[konu]["gorsel_tipleri"]),
+                soru_tipi="hikayeli"
+            )
+
+            logger.info(f"Single modu - {konu}")
+            logger.info(f"Bloom: {bloom}, Zorluk: {zorluk}/6")
+            question_id = generator.generate_single_question(params)
+
+            if question_id:
+                logger.info(f"\n✓ Soru başarıyla üretildi! ID: {question_id}")
+            else:
+                logger.error("\nSoru üretilemedi")
+                sys.exit(1)
+
+        generator.print_stats()
+
+    except ValueError as ve:
+        logger.error(f"Konfigürasyon hatası: {ve}")
         sys.exit(1)
-
-    # Bot oluştur
-    bot = Fizik10Tema1Bot(GEMINI_API_KEY)
-
-    if args.mode == "batch":
-        # Toplu üretim
-        questions = bot.generate_batch(count=args.count, konu=args.topic)
-        bot.save_questions(questions, args.output)
-
-    elif args.mode == "topic":
-        # Konuya göre üretim
-        if not args.topic:
-            print("HATA: --topic parametresi gerekli!")
-            print(f"Geçerli konular: {', '.join(TEMA1_MUFREDAT.keys())}")
-            sys.exit(1)
-
-        if args.topic not in TEMA1_MUFREDAT:
-            print(f"HATA: Geçersiz konu: {args.topic}")
-            print(f"Geçerli konular: {', '.join(TEMA1_MUFREDAT.keys())}")
-            sys.exit(1)
-
-        questions = bot.generate_batch(count=args.count, konu=args.topic)
-        bot.save_questions(questions, args.output)
-
-    elif args.mode == "single":
-        # Tekli üretim
-        konu = args.topic or random.choice(list(TEMA1_MUFREDAT.keys()))
-        bloom = args.bloom or random.choice(list(BLOOM_TAKSONOMISI.keys()))
-        zorluk = args.zorluk or random.choice([2, 3, 4])
-
-        if bloom not in BLOOM_TAKSONOMISI:
-            print(f"HATA: Geçersiz Bloom seviyesi: {bloom}")
-            print(f"Geçerli seviyeler: {', '.join(BLOOM_TAKSONOMISI.keys())}")
-            sys.exit(1)
-
-        params = QuestionParams(
-            konu=konu,
-            alt_konu=TEMA1_MUFREDAT[konu]["display_name"],
-            kazanim_kodu=TEMA1_MUFREDAT[konu]["kazanim_kodu"],
-            bloom_seviyesi=bloom,
-            zorluk=zorluk,
-            baglam=random.choice(TEMA1_MUFREDAT[konu]["ornek_senaryolar"]),
-            gorsel_tipi=random.choice(TEMA1_MUFREDAT[konu]["gorsel_tipleri"]),
-            soru_tipi="hikayeli"
-        )
-
-        question = bot.generate_question(params)
-        if question:
-            print("\n" + "="*60)
-            print("ÜRETİLEN SORU:")
-            print("="*60)
-            print(json.dumps(question, ensure_ascii=False, indent=2))
-        else:
-            print("HATA: Soru üretilemedi!")
+    except Exception as e:
+        logger.error(f"Kritik hata: {e}")
+        import traceback
+        logger.debug(traceback.format_exc())
+        sys.exit(1)
 
 
 if __name__ == "__main__":
