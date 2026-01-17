@@ -1321,6 +1321,25 @@ class QualityValidator:
         try:
             prompt = f"""Bu 10. sınıf Fizik sorusunu KALİTE KONTROLÜ yap.
 
+## !!! ÖNEMLİ: TÜRKİYE YÜZYILI MAARİF MODELİ MÜFREDATI !!!
+
+Bu soru TÜRKİYE YÜZYILI MAARİF MODELİ (2024-2025) müfredatına göre hazırlanmıştır.
+ESKİ MEB müfredatı ile KARŞILAŞTIRMA YAPMA!
+
+### MAARİF MODELİ 10. SINIF FİZİK MÜFREDATI:
+- **TEMA 1: BİR BOYUTTA HAREKET** ← BU SORU BURADAN
+  * Sabit Hızlı Hareket (konum, yer değiştirme, hız, sürat, grafikler)
+  * Sabit İvmeli Hareket (ivme, kinematik denklemler, grafikler)
+  * Serbest Düşme (g ivmesi, ilk hızsız düşme)
+  * İki Boyutta Hareket (yatay atış, eğik atış)
+- TEMA 2: Kuvvet ve Hareket
+- TEMA 3: Enerji
+
+### ESKİ MÜFREDAT (KULLANMA!):
+❌ Eski MEB'de 10. sınıf: Elektrik, Optik, Dalgalar idi
+❌ Bu artık GEÇERLİ DEĞİL!
+❌ Maarif Modeli'nde hareket konuları 10. sınıfa alındı
+
 ## SORU BİLGİLERİ
 Konu: {params.konu}
 Zorluk: {params.zorluk}/6
@@ -1337,8 +1356,8 @@ DOĞRU CEVAP: {question_data.get("dogru_cevap", "")}
 1. FİZİKSEL DOĞRULUK: Fizik kanunları doğru uygulanmış mı?
 2. MATEMATİKSEL DOĞRULUK: Hesaplamalar doğru mu?
 3. BLOOM UYUMU: {params.bloom_seviyesi} seviyesine uygun mu?
-4. ÇELDİRİCİ KALİTESİ: Her yanlış şık bir kavram yanılgısını hedefliyor mu?
-5. KAPSAM: 10. sınıf müfredatı içinde mi?
+4. ÇELDİRİCİ KALİTESİ: Çeldiriciler makul ve ayırt edici mi?
+5. KAPSAM: Maarif Modeli 10. sınıf Tema 1 içinde mi? (EVET, hareket konuları 10. sınıfta!)
 
 Hedeflenmesi gereken kavram yanılgıları:
 {chr(10).join(['- ' + y for y in yanilgi_data.get('yanilgilar', [])])}
