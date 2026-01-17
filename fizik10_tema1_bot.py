@@ -1559,7 +1559,67 @@ III. DOĞRU - Serbest düşmede a = g
 # GÖRSEL PROMPT ŞABLONU
 # ============================================================================
 
-IMAGE_PROMPT_TEMPLATE = """10. Sınıf Fizik sorusu için GERÇEKÇİ, 3D, CANLI eğitim görseli oluştur.
+# 2D TEKNİK GRAFİK ŞABLONU (x-t, v-t, a-t grafikleri için)
+IMAGE_PROMPT_TEMPLATE_2D_GRAPH = """10. Sınıf Fizik sorusu için TEKNİK 2D GRAFİK çiz.
+
+## GÖRSEL TİPİ: {tip}
+
+## DETAYLI BETİMLEME:
+{detay}
+
+## !!! 2D TEKNİK GRAFİK STİLİ - ÇOK ÖNEMLİ !!!
+
+### GRAFİK ÖZELLİKLERİ:
+- SADECE matematiksel/teknik grafik çizimi
+- Temiz, profesyonel koordinat sistemi
+- Düzgün, okunabilir eksen etiketleri
+- Grid çizgileri (ince, gri)
+- Beyaz veya açık gri arka plan
+
+### EKSEN STİLİ:
+- X ekseni: Yatay, siyah ok ucu, "t (s)" etiketi sağ alt
+- Y ekseni: Dikey, siyah ok ucu, "x (m)" veya "v (m/s)" veya "a (m/s²)" etiketi sol üst
+- Eksen kalınlığı: 2px, siyah
+- Eksen numaraları: 0, 1, 2, 3, 4, 5... şeklinde düzgün aralıklı
+
+### GRAFİK EĞRİSİ:
+- Pembe/Magenta renk (#FF00FF veya #E91E63) - kitap standardı
+- VEYA Mavi renk (#2196F3) - alternatif
+- Eğri kalınlığı: 2-3px, düzgün çizim
+- Doğrusal (düz çizgi) veya parabolik (eğri) uygun şekilde
+
+### GRAFİK TİPLERİ:
+1. **Sabit hızlı hareket x-t**: Düz eğik çizgi (pozitif veya negatif eğim)
+2. **Sabit hızlı hareket v-t**: Yatay düz çizgi
+3. **İvmeli hareket x-t**: Parabol eğrisi
+4. **İvmeli hareket v-t**: Eğik düz çizgi
+5. **İvmeli hareket a-t**: Yatay düz çizgi
+6. **Serbest düşme h-t**: Aşağı açık parabol
+
+### RENK PALETİ (KİTAP STANDARDI):
+- Arka plan: Beyaz (#FFFFFF)
+- Eksenler: Siyah (#000000)
+- Grid: Açık gri (#E0E0E0)
+- Grafik eğrisi: Pembe/Magenta (#E91E63) veya Mavi (#2196F3)
+- Etiketler: Siyah, küçük punto
+
+### KALİTE:
+- Temiz, profesyonel çizim
+- Matematiksel doğruluk
+- Ders kitabı kalitesinde
+- Keskin, net çizgiler
+
+## YASAKLAR:
+❌ 3D efektler, gölgeler
+❌ Gradient dolgular
+❌ Fotoğraf veya gerçekçi nesneler
+❌ Süslü, dekoratif öğeler
+❌ Soru metni veya şıklar
+❌ Çözüm veya formüller
+"""
+
+# 3D GERÇEKÇİ GÖRSEL ŞABLONU (Senaryo görselleri için)
+IMAGE_PROMPT_TEMPLATE_3D = """10. Sınıf Fizik sorusu için GERÇEKÇİ, 3D, CANLI eğitim görseli oluştur.
 
 ## GÖRSEL TİPİ: {tip}
 
@@ -1588,6 +1648,8 @@ IMAGE_PROMPT_TEMPLATE = """10. Sınıf Fizik sorusu için GERÇEKÇİ, 3D, CANLI
   * Araç → Modern araba, yol, çevre
   * Top → Gerçekçi top, hareket yörüngesi
   * Asansör → Modern asansör kabini, içi görünen
+  * Metro → Modern metro vagonu, istasyon
+  * Drone → Gerçekçi quadcopter, gökyüzü
 
 ### RENK PALETİ (CANLI):
 - Ana renkler: Canlı mavi (#0066FF), Turuncu (#FF6600), Yeşil (#00CC00)
@@ -1601,14 +1663,7 @@ IMAGE_PROMPT_TEMPLATE = """10. Sınıf Fizik sorusu için GERÇEKÇİ, 3D, CANLI
 - Yörünge: Kesikli çizgi, hareket yönü belirgin
 - Ölçümler: Şık etiketler, modern font
 
-### GRAFİK STİLİ (Grafik tipi sorularda):
-- 3D görünümlü eksenler
-- Gradient dolgulu eğriler
-- Glow efektli data noktaları
-- Modern, minimalist grid
-- Drop shadow efektli etiketler
-
-## KALİTE:
+### KALİTE:
 - 4K çözünürlük kalitesi
 - Anti-aliased, pürüzsüz kenarlar
 - Profesyonel eğitim materyali görünümü
@@ -1619,9 +1674,10 @@ IMAGE_PROMPT_TEMPLATE = """10. Sınıf Fizik sorusu için GERÇEKÇİ, 3D, CANLI
 ❌ A), B), C), D), E) şıkları
 ❌ Çözüm adımları veya formüller
 ❌ Cevabı veren bilgi
-❌ Düz, sıkıcı 2D çizimler
-❌ Clipart tarzı basit görseller
 """
+
+# Geriye uyumluluk için eski template (varsayılan 3D)
+IMAGE_PROMPT_TEMPLATE = IMAGE_PROMPT_TEMPLATE_3D
 
 # ============================================================================
 # GEMINI API CLIENT (Imagen 3 + Text Generation)
@@ -1876,7 +1932,24 @@ III. Ciritin düşey hız bileşeni hareket boyunca değişir."
 """
 
         full_detay = f"{detay}\n\nGörselde görünecek öğeler: {', '.join(ogeler) if ogeler else 'Belirtilmemiş'}{renk_talimati}{soru_baglami}"
-        prompt = IMAGE_PROMPT_TEMPLATE.format(tip=tip, detay=full_detay)
+
+        # Görsel tipine göre uygun şablon seç
+        # 2D Grafik tipleri: x-t, v-t, a-t, h-t grafikleri
+        grafik_tipleri_2d = [
+            "x-t_grafigi", "v-t_grafigi", "a-t_grafigi", "h-t_grafigi",
+            "grafik", "konum_zaman", "hiz_zaman", "ivme_zaman",
+            "x_t_grafigi", "v_t_grafigi", "a_t_grafigi", "h_t_grafigi"
+        ]
+
+        tip_lower = tip.lower().replace("-", "_").replace(" ", "_")
+        if tip_lower in grafik_tipleri_2d or "grafik" in tip_lower or "_t_" in tip_lower:
+            # 2D teknik grafik şablonu kullan
+            prompt = IMAGE_PROMPT_TEMPLATE_2D_GRAPH.format(tip=tip, detay=full_detay)
+            logger.info(f"  Görsel tipi: 2D TEKNİK GRAFİK ({tip})")
+        else:
+            # 3D gerçekçi görsel şablonu kullan
+            prompt = IMAGE_PROMPT_TEMPLATE_3D.format(tip=tip, detay=full_detay)
+            logger.info(f"  Görsel tipi: 3D GERÇEKÇİ ({tip})")
 
         self._rate_limit()
 
