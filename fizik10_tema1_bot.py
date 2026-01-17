@@ -1809,6 +1809,19 @@ III. Ciritin düşey hız bileşeni hareket boyunca değişir."
                         clean_text = clean_text[:-3]
                     question_data = json.loads(clean_text.strip())
 
+                # API bazen list döndürüyor, dict bekliyoruz
+                if isinstance(question_data, list):
+                    if len(question_data) > 0:
+                        question_data = question_data[0]
+                    else:
+                        logger.warning("  API boş liste döndürdü")
+                        continue
+
+                # Dict değilse hata
+                if not isinstance(question_data, dict):
+                    logger.warning(f"  API beklenmeyen format döndürdü: {type(question_data)}")
+                    continue
+
                 # Bloom seviyesi ekle
                 question_data["bloom_seviyesi"] = params.bloom_seviyesi
                 question_data["bloom_seviye_no"] = bloom_data.get("seviye", 3)
