@@ -546,6 +546,622 @@ STANDART_IFADELER = {
 }
 
 # ============================================================================
+# ZENGİN SENARYO VERİTABANI - BAĞLAM TEMELLİ
+# ============================================================================
+# Bloom seviyelerine göre: basit (1-2), orta (3-4), karmaşık/çoklu bağlam (5-6)
+
+SENARYO_VERITABANI = {
+    # =========================================================================
+    # SABİT HIZLI HAREKET SENARYOLARI
+    # =========================================================================
+    "sabit_hizli_hareket": {
+        # --- KİŞİSEL VE GÜNLÜK YAŞAM ---
+        "kisisel_gunluk": [
+            # Ev ve Aile
+            "Robot süpürgenin salonda duvarlar arasında düz hatta ilerlemesi",
+            "Elektrik süpürgesinin kablosu ile sınırlı alanda ileri-geri hareketi",
+            "Buzdolabı buzluk çekmecesinin açılıp kapanma hareketi",
+            "Otomatik panjurun sabit hızla inmesi ve çıkması",
+            "Garaj kapısının motorla sabit hızda açılması",
+            # Alışveriş
+            "Market kasasındaki bant üzerinde ürünlerin sabit hızla ilerlemesi",
+            "AVM'deki yürüyen merdivenin sabit hızla yolcu taşıması",
+            "Kargo taşıma bandında paketlerin ayrıştırılması",
+            "E-ticaret deposunda raf robotlarının koridor boyunca hareketi",
+            # Ulaşım ve Seyahat
+            "Otobüs, tramvay veya metronun duraklar arası sabit hızla ilerlemesi",
+            "Havalimanında yürüyen bant üzerinde yolcuların terminale taşınması",
+            "Feribot veya vapur ile iki iskele arasında yolculuk",
+            "Hızlı trenin düz hat üzerinde sabit hızla ilerlemesi",
+            "Teleferik kabininin iki istasyon arasında sabit hızla gidişi",
+            "Köprü üzerinde sabit hızla geçen araçların trafik akışı",
+            # Beslenme ve Yemek
+            "Suşi restoranında döner bant üzerinde tabaklarının hareketi",
+            "Unlu mamul fabrikasında hamur bantının sabit hızla ilerlemesi",
+            "Şişeleme tesisinde dolum bandı üzerinde şişelerin hareketi",
+            # Kutlama ve Etkinlik
+            "Konser alanında sahne platformunun yatay kayması",
+            "Düğün salonunda döner sahnenin eşit hızla dönüşü",
+            "Sirkte ip üzerinde yürüyen akrobatın sabit hızlı ilerleyişi",
+        ],
+        # --- MESLEKİ VE İŞ DÜNYASI ---
+        "mesleki_is": [
+            # Mühendislik
+            "CNC tezgahında kesici ucun iş parçası üzerinde düz hatta ilerlemesi",
+            "3D yazıcı kafasının X ekseni boyunca sabit hızla hareketi",
+            "Lazer kesim makinesinin metal levha üzerinde düz kesim yapması",
+            "Köprülü vincin fabrika tavanında raylar üzerinde hareketi",
+            "İnşaat asansörünün (manlift) dikey olarak sabit hızla yükselmesi",
+            # Üretim ve Sanayi
+            "Otomobil montaj hattında araç karoserlerin bantla taşınması",
+            "Tekstil fabrikasında kumaş topunun sarım makinesinde ilerlemesi",
+            "Cam fabrikasında fırından çıkan cam levhanın soğutma bandında hareketi",
+            "Matbaada kağıt rulosunun baskı silindiri altından geçişi",
+            "Çimento fabrikasında konveyör bant üzerinde malzeme taşınması",
+            # Tarım ve Hayvancılık
+            "Sulama sisteminde yağmurlama borusunun tarla boyunca ilerlemesi",
+            "Meyve bahçesinde hasat robotunun sıra aralarında düz hatta gidişi",
+            "Sera içinde bitki taşıyıcı arabanın ray üzerinde hareketi",
+            "Çiftlikte yem dağıtım vagonunun ahır boyunca ilerlemesi",
+            # Ekonomi ve Finans
+            "Bankada kasa sayım makinesi bandında banknotların hareketi",
+            "Para kasasında belge taşıyıcının pnömatik tüpte gönderilmesi",
+            # İstatistik ve Veri
+            "Veri merkezinde sunucu rafları arasında hareket eden bakım robotu",
+            "Kütüphanede otomatik kitap taşıma sisteminin raflar arası hareketi",
+        ],
+        # --- BİLİM VE DOĞA ---
+        "bilim_doga": [
+            # Deney ve Laboratuvar
+            "Fizik laboratuvarında hava yastıklı ray üzerinde arabanın hareketi",
+            "Atwood düzeneğinde eşit kütleli cisimlerin sabit hızla inmesi/çıkması",
+            "Sıvı içinde son hıza ulaşmış kürenin sabit hızla düşüşü",
+            "Eğik düzlemde sürtünmeli ortamda limit hıza ulaşan cisim",
+            # Çevre ve Ekoloji
+            "Nehirde sabit akıntı hızıyla sürüklenen dal parçası",
+            "Rüzgarda sabit hızla ilerleyen bulut kümesi",
+            "Okyanus akıntısında yüzen buz dağının hareketi",
+            "Göçmen kuş sürüsünün sabit hızda uçuşu",
+            # Uzay ve Astronomi
+            "Uluslararası Uzay İstasyonu'nun yörüngede sabit hızla hareketi",
+            "Voyager uzay sondasının yıldızlararası boşlukta sabit hızla ilerlemesi",
+            "Güneş sistemi dışına çıkan New Horizons'ın sabit hızlı yolculuğu",
+            "Ay yüzeyinde tekerlekli aracın (rover) sabit hızla sürüşü",
+            # Sağlık ve Tıp
+            "MR cihazında hasta yatağının tüp içine sabit hızla girmesi",
+            "Kan örneği taşıyan pnömatik tüp sisteminin hastane içi hareketi",
+            "Ameliyathanede cerrahi robotun sabit hızla pozisyon alması",
+            # Hayvanlar ve Doğa
+            "Penguen kolonisinin buz üzerinde düz hatta yürüyüşü",
+            "Karınca sırasının yuva ile yiyecek arasında sabit hızla gidişi",
+            "Somon balıklarının nehirde sabit akıntıya karşı yüzüşü",
+        ],
+        # --- SOSYAL VE KÜLTÜREL ---
+        "sosyal_kulturel": [
+            # Tarih ve Medeniyet
+            "Mısır piramitlerinde taş blokların rampada sabit hızla çekilmesi",
+            "Antik Roma'da su kemerlerinde suyun sabit akış hızı",
+            "Osmanlı döneminde at arabası kervanının düz yolda ilerlemesi",
+            # Sanat ve Estetik
+            "Film çekiminde kamera dolly'sinin ray üzerinde sabit hızla kayması",
+            "Tiyatro sahnesinde platform dekorun yatay hareketi",
+            "Restorasyon çalışmasında iskele platformunun sabit hızla yükselmesi",
+            # Coğrafya ve Yerleşim
+            "Boğaz köprüsünden geçen araç akışının sabit hız analizi",
+            "Şehirlerarası otobanda trafik akış hızı ölçümü",
+            "Kanal gemisinin dar su yolunda sabit hızla ilerlemesi",
+        ],
+        # --- TEKNOLOJİ VE EĞLENCE ---
+        "teknoloji_eglence": [
+            # Dijital ve İnternet
+            "Veri paketinin fiber optik kablo içinde sabit hızla ilerlemesi",
+            "Otonom aracın şerit takip modunda sabit hızla sürüşü",
+            "Drone'un GPS koordinatları arasında düz hatta uçuşu",
+            # Oyun ve Strateji
+            "Video oyununda karakterin koşu animasyonunun sabit hız analizi",
+            "Satranç saatinin mekanik kol hareketinin hız ölçümü",
+            "Langırt masasında topun sabit hızla yanlara çarpması",
+            # Spor ve Yarışma
+            "Yüzme yarışında serbest stilde yüzücünün kulvar boyunca hareketi",
+            "Atletizmde 100 metre finalinde koşucuların hız analizi",
+            "Bisiklet yarışında pelotonda sabit tempo ile pedal çevirme",
+            "Maraton koşucusunun sabit pace ile 42 km koşması",
+            "Kürek yarışında takımın sabit vuruş temposuyla ilerlemesi",
+            # Medya ve Habercilik
+            "Canlı yayın aracının geçit töreninde sabit hızla ilerlemesi",
+            "Haber drone'unun olay yeri üzerinde sabit hızla kayması",
+            # Eğlence ve Hobi
+            "Lunaparkta tren tünelinin sabit hızlı bölümü",
+            "Model tren setinde vagonların ray üzerinde hareketi",
+            "RC arabanın düz pistte sabit hızla yarışması",
+            "Bowling topunun pistekte kayarak ilerlemesi",
+        ],
+        # --- ÇOKLU BAĞLAM (ÜST DÜZEY BLOOM: ANALİZ, DEĞERLENDİRME, YARATMA) ---
+        "coklu_baglam_ust_duzey": [
+            # Analiz seviyesi - iki bağlamın karşılaştırması
+            "Şehir içi metronun ve şehirlerarası hızlı trenin aynı mesafeyi kat etme sürelerinin karşılaştırılması",
+            "AVM yürüyen merdiveninde yürüyen kişi ile duran kişinin kata ulaşma süreleri",
+            "Aynı nehirde akıntı yönünde ve akıntıya karşı giden iki teknenin hız analizi",
+            "Fabrikada iki farklı hızdaki konveyör banttan geçen ürünlerin zamanlama analizi",
+            "Havalimanında farklı terminallere giden iki yürüyen bandın verimlilik karşılaştırması",
+            # Analiz seviyesi - veri setleri
+            "Üç farklı kargo şirketinin aynı güzergahta teslimat sürelerinin grafik analizi",
+            "Atletizm yarışında beş koşucunun konum-zaman verilerinin karşılaştırılması",
+            "Şehirdeki üç farklı toplu taşıma hattının (metro, tramvay, otobüs) hız verimlilik analizi",
+            # Değerlendirme seviyesi - karar verme
+            "Deprem bölgesine yardım ulaştırmada kara, hava ve deniz yolu alternatiflerinin değerlendirilmesi (sabit hız varsayımıyla)",
+            "Hasta nakli için ambulans ve helikopterin farklı mesafelerde avantaj/dezavantaj analizi",
+            "Lojistik şirketinin iki depo arasında kamyon ve dron teslimat sistemlerinin değerlendirilmesi",
+            "E-ticaret siparişinde kargo, kurye ve mağazadan teslim seçeneklerinin süre analizi",
+            # Değerlendirme seviyesi - hata bulma
+            "Trafik kazası bilirkişi raporunda araç hızlarının tutarlılık kontrolü",
+            "Spor müsabakasında hakem kararına itiraz: koşucu hız verileri analizi",
+            "Üretim hattında bant hızı ayarının kalite kontrol sonuçlarına etkisinin değerlendirilmesi",
+            # Yaratma seviyesi - tasarım ve optimizasyon
+            "Yeni açılacak metro hattı için istasyon aralıklarının ve tren hızının optimize edilmesi",
+            "Akıllı fabrika için robotların en verimli hareket rotalarının tasarlanması",
+            "Şehir içi elektrikli scooter paylaşım sistemi için hız limiti ve güzergah planlaması",
+            "Havalimanı terminal içi ulaşım sistemi (yürüyen bant, shuttle) entegrasyonu tasarımı",
+            "Hastane içi pnömatik tüp sistemi ile robot taşıyıcı entegrasyonunun planlanması",
+            # Yaratma seviyesi - senaryo geliştirme
+            "Mars'ta kurulacak koloni için yüzey araçlarının hareket sistemi önerisi",
+            "Denizaltı kablosu döşeme gemisinin rotası ve hız planlaması",
+            "Olimpiyat stadyumunda seyirci tahliye sisteminin modellenmesi",
+        ],
+    },
+
+    # =========================================================================
+    # İVMELİ HAREKET SENARYOLARI
+    # =========================================================================
+    "ivmeli_hareket": {
+        # --- KİŞİSEL VE GÜNLÜK YAŞAM ---
+        "kisisel_gunluk": [
+            # Ev ve Aile
+            "Asansörün zemin kattan çıkışı ve üst katta durması (hızlanma-yavaşlama)",
+            "Elektrikli bisikletin evden çıkışta ivmelenmesi",
+            "Garaj kapısının açılırken hızlanıp durmadan önce yavaşlaması",
+            "Çamaşır makinesinin sıkma programında hızlanması",
+            # Alışveriş
+            "Market arabasını itmeye başlarken hızlanma ve durma",
+            "Alışveriş merkezinde araç otoparkında park yeri ararken hızlan-yavaşla",
+            # Ulaşım ve Seyahat
+            "Otobüsün duraktan kalkışı ve bir sonraki durakta durması",
+            "Trenin istasyona yaklaşırken frenleme süreci",
+            "Uçağın kalkışta pisttte hızlanması",
+            "Metro vagonunun tünelde hızlanıp istasyonda yavaşlaması",
+            "Taksi şoförünün trafikte gaz-fren kullanımı",
+            "Araç sürüş dersinde kalkış, hızlanma ve park freni uygulaması",
+            "Gemi yanaşırken motorların tersine çalıştırılması ile yavaşlama",
+            # Kutlama ve Etkinlik
+            "Lunaparkta roller coaster vagonunun ilk rampa sonrası hızlanması",
+            "Go-kart pistinde yarışçının viraj öncesi frenleme süreci",
+        ],
+        # --- MESLEKİ VE İŞ DÜNYASI ---
+        "mesleki_is": [
+            # Mühendislik
+            "Vinç kancasının yükü kaldırırken hızlanması ve indirirken yavaşlaması",
+            "Endüstriyel robot kolunun montaj noktasında hassas durması",
+            "CNC tezgahında kesici ucun hızlanma ve yavaşlama profili",
+            "Asansör sisteminde motor ivme kontrolü ve konfor analizi",
+            # Üretim ve Sanayi
+            "Üretim bandının vardiya başında hızlanıp vardiya sonunda yavaşlaması",
+            "Forklift operatörünün raf önünde hassas durma manevraları",
+            "Enjeksiyon kalıplama makinesinin basınç-hız döngüsü",
+            "Konveyör sisteminde ürün yığılmasını önlemek için hız ayarı",
+            # Tarım ve Hayvancılık
+            "Traktörün tarlada pulluk çekerken hızlanma profili",
+            "Biçerdöverin hasat sırasında mahsul yoğunluğuna göre hız ayarı",
+            "Sulama sisteminde pompa başlatıldığında su hızlanması",
+            # Ekonomi ve Finans
+            "Hisse senedi fiyatının ani haberlere tepkisi (analoji: fiyat değişim hızının ivmesi)",
+        ],
+        # --- BİLİM VE DOĞA ---
+        "bilim_doga": [
+            # Deney ve Laboratuvar
+            "Eğik düzlemde arabanın aşağı doğru sabit ivme ile hızlanması",
+            "Dinamik arabalı deney düzeneğinde ağırlık etkisiyle ivmelenme",
+            "Hava yastıklı rayda farklı eğimlerde ivme ölçümü",
+            "Atwood makinesinde farklı kütlelerle ivme değişimi",
+            # Çevre ve Ekoloji
+            "Kar kütlesinin yamaçtan aşağı hızlanarak çığ oluşturması",
+            "Volkanik lav akışının eğimli yamaçta hızlanması",
+            "Nehir suyunun baraj kapaklarından bırakıldığında hızlanması",
+            # Uzay ve Astronomi
+            "Roketin fırlatılma anında Dünya çekimini yenerek ivmelenmesi",
+            "Uzay aracının Mars'a iniş sırasında retro-roketlerle yavaşlaması",
+            "Kuyruklu yıldızın Güneş'e yaklaşırken hızlanması",
+            "Kara deliğe yaklaşan maddenin ivmelenmesi",
+            # Sağlık ve Tıp
+            "Defibrilatör şokuyla kalp kasının ani kasılması",
+            "İlaç enjeksiyonu sonrası kandaki etken madde konsantrasyonunun değişimi (hız analojisi)",
+            "Fizik tedavide kas güçlendirme cihazının ivmeli hareket uygulaması",
+            # Hayvanlar ve Doğa
+            "Çitanın avını kovalarken maksimum hızlanma kapasitesi",
+            "Şahinin pike yaparak avına dalışı",
+            "Kanguru sıçramasının zıplama anındaki ivmesi",
+            "Yunus balığının su yüzeyinden atlama ivmesi",
+        ],
+        # --- SOSYAL VE KÜLTÜREL ---
+        "sosyal_kulturel": [
+            # Tarih ve Medeniyet
+            "Savaş arabalarının (chariot) savaş alanında manevraları",
+            "Osmanlı mancınıklarının taş fırlatma ivmesi",
+            "İlk buhar lokomotiflerinin istasyon kalkış performansı",
+            "Sanayi devriminde fabrika makinelerinin hız artış süreçleri",
+            # Sanat ve Estetik
+            "Film sahnesinde araba takip çekiminde kameranın ivmelenmesi",
+            "Dans performansında dansçının ani hızlanma ve yavaşlaması",
+            "Orkestra şefinin tempo değişimlerindeki hız artış/azalışı",
+            # Coğrafya ve Yerleşim
+            "Dağ yolunda aracın rampa çıkışında ivme kaybı",
+            "Deniz seviyesinden yüksek rakıma çıkan aracın performans değişimi",
+        ],
+        # --- TEKNOLOJİ VE EĞLENCE ---
+        "teknoloji_eglence": [
+            # Dijital ve İnternet
+            "Elektrikli aracın tam ivme modunda 0-100 km/h performansı",
+            "Tesla'nın 'Ludicrous Mode' ile hızlanma rekoru",
+            "Otonom aracın ani engel algıladığında frenleme tepkisi",
+            "Drone'un yerden kalkışta motorların güç artışıyla ivmelenmesi",
+            # Oyun ve Strateji
+            "Yarış simülasyonunda aracın gaz-fren tepkilerinin gerçekçiliği",
+            "Platform oyununda karakterin zıplama ve düşme ivmesi",
+            # Spor ve Yarışma
+            "100 metre koşucusunun start bloklarından çıkış ivmesi",
+            "Yüzücünün duvarda dönüş (flip turn) sonrası itme ivmesi",
+            "Halter sporcusunun kaldırma hareketinde ivme profili",
+            "Basketbolcunun şut çekerken topun ivmelenmesi",
+            "Formula 1 aracının pit stop çıkışında hızlanması",
+            "MotoGP yarışçısının viraj çıkışında gaz açma ivmesi",
+            "Kayakçının slalom yarışında viraj arası hızlanması",
+            "Buz patencisinin spin öncesi hızlanması",
+            # Medya ve Habercilik
+            "Canlı yayın aracının olay yerine acil ulaşımda hızlanması",
+            # Eğlence ve Hobi
+            "Lunaparkta 'serbest düşüş' kulesi vagonunun elektromanyetik fren ile durması",
+            "Drag yarışında araçların pist performansı",
+            "RC araba yarışında motorların kalkış ivmesi",
+        ],
+        # --- ÇOKLU BAĞLAM (ÜST DÜZEY BLOOM) ---
+        "coklu_baglam_ust_duzey": [
+            # Analiz seviyesi - karşılaştırma
+            "Farklı markaların elektrikli araçlarının (Tesla, BYD, Togg) 0-100 hızlanma performans karşılaştırması",
+            "Metro, tramvay ve otobüsün aynı duraklar arası hızlanma-yavaşlama profillerinin analizi",
+            "Üç farklı asansör sisteminin (hidrolik, dişli, halat) konfor ve ivme karşılaştırması",
+            "Atletizmde farklı mesafelerdeki (100m, 200m, 400m) koşucularda ivme stratejisi farkları",
+            # Analiz seviyesi - çoklu değişken
+            "Otomobil test sürüşünde farklı yol koşullarında (kuru, ıslak, buzlu) frenleme ivmesi farkları",
+            "Yük ağırlığına göre kamyonun rampa çıkışında ivme değişimi grafiği",
+            "Farklı pistonlu motorlarda (2L, 3L, 4L) tork ve ivme ilişkisi",
+            # Değerlendirme seviyesi - karar verme
+            "Acil servis aracı (ambulans vs helikopter) seçiminde ivme ve hız kriterlerinin değerlendirilmesi",
+            "Fabrika üretim hattı yenilenmesinde eski ve yeni sistem ivme profillerinin maliyet-fayda analizi",
+            "Şehir içi toplu taşıma filosu seçiminde (elektrikli otobüs vs tramvay) ivme konfor değerlendirmesi",
+            "Sporcunun antrenman programı için farklı ivme profilli egzersizlerin değerlendirilmesi",
+            # Değerlendirme seviyesi - hata analizi
+            "Trafik kazası rekonstrüksiyonunda fren izlerinden ivme ve hız hesaplamasının tutarlılık kontrolü",
+            "Üretim hattındaki arızada konveyör ivme sensörü verilerinin analizi",
+            "Asansör arızasında ivme sınır değerlerinin aşılıp aşılmadığının değerlendirilmesi",
+            # Yaratma seviyesi - tasarım
+            "Yeni nesil yüksek hızlı tren için istasyona giriş fren profilinin tasarlanması",
+            "Engelli bireyler için asansör konfor ivme limitlerinin optimize edilmesi",
+            "Otonom araç için trafik akışını bozmayan optimum fren profili tasarımı",
+            "Uzay turizmi kapsülü için kabul edilebilir g-kuvveti limitleriyle iniş senaryosu",
+            "Elektrikli otobüs filosu için enerji verimliliği ve yolcu konforu dengesinde ivme profili",
+            # Yaratma seviyesi - interdisipliner
+            "Sismik deprem erken uyarı sisteminde bina tahliyesi için optimum asansör ivme profili",
+            "Ay'da kurulacak madencilik tesisi için yük araçlarının düşük yer çekiminde ivme profili",
+            "Spor bilimi ve mühendislik işbirliğiyle atlet performans optimizasyonu için ivme sensörü entegrasyonu",
+        ],
+    },
+
+    # =========================================================================
+    # SERBEST DÜŞME SENARYOLARI
+    # =========================================================================
+    "serbest_dusme": {
+        # --- KİŞİSEL VE GÜNLÜK YAŞAM ---
+        "kisisel_gunluk": [
+            # Ev ve Aile
+            "Balkonda saksının kazayla devrilip düşmesi",
+            "Apartman boşluğuna düşen anahtarın yere ulaşma süresi",
+            "Çatıdan düşen kar birikintisi veya buz sarkıtı",
+            "Masadan yere düşen bardağın kırılma anı",
+            # Alışveriş
+            "Alışveriş merkezinde atriumdan sergileme nesnesinin düşme analizi",
+            "Market rafından düşen konserve kutusunun hız hesabı",
+            # Ulaşım ve Seyahat
+            "Köprüden suya düşen nesnenin serbest düşme süresi",
+            "Uçaktan atılan insansız yük parasütünün açılma öncesi düşüşü",
+            # Kutlama ve Etkinlik
+            "Havai fişek gösterisinde yanmamış füzenin düşüşü",
+            "Balon patladığında içindeki konfetilerin yere düşmesi",
+            "Nikah töreninde atılan pirincin düşüş süresi",
+        ],
+        # --- MESLEKİ VE İŞ DÜNYASI ---
+        "mesleki_is": [
+            # Mühendislik
+            "İnşaat alanında güvenlik ağı test düzeneği için cisim düşürme testi",
+            "Köprü ayağı yükseklik ölçümü için taş düşürme yöntemi",
+            "Derin maden kuyusunda derinlik ölçümü için taş atma süresi",
+            "Bina yıkımında enkaz parçalarının düşüş analizi",
+            # Üretim ve Sanayi
+            "Kalite kontrol için üretilen camın düşme dayanıklılık testi",
+            "Telefon kılıfı üreticisinin düşme testi prosedürü",
+            "Koruyucu kask düşme testi standartları",
+            "Ambalaj tasarımında ürün düşme simülasyonu",
+            # Tarım ve Hayvancılık
+            "Olgun meyvenin daldan kopup yere düşmesi",
+            "Arıcılıkta bal çerçevesinin düşme riski analizi",
+        ],
+        # --- BİLİM VE DOĞA ---
+        "bilim_doga": [
+            # Deney ve Laboratuvar
+            "Galileo'nun Pisa Kulesi deneyinin modern tekrarı",
+            "Vakum tüpünde tüy ve çekiç deneyinin (Apollo 15) analizi",
+            "Düşme hızı ölçümü için fotodiyot kapı düzeneği",
+            "Akıllı telefon ivmeölçer ile serbest düşme deneyinin yapılması",
+            # Çevre ve Ekoloji
+            "Şelale suyunun düşme analizi ve enerji potansiyeli",
+            "Dolu tanelerinin buluttan yere düşme dinamiği",
+            "Volkanik bombaların püskürme sonrası düşüşü",
+            "Meteorun atmosfere girişi öncesi uzayda serbest düşüşü",
+            # Uzay ve Astronomi
+            "ISS'de mikro-yerçekimi ortamında 'düşme' kavramının tartışılması",
+            "Ay'da astronotun düşürdüğü aletin yere ulaşma süresi",
+            "Mars'ta drone helikopterin irtifa kaybı analizi",
+            "Farklı gezegenlerde aynı cismin düşme süreleri karşılaştırması",
+            "Kara delik yakınında serbest düşme ve zaman genişlemesi",
+            # Sağlık ve Tıp
+            "Yaşlılarda düşme riski analizi ve tepki süresi hesabı",
+            "Spor yaralanmalarında düşme yüksekliği ve yaralanma şiddeti ilişkisi",
+            "Paraşütsüz düşen kişinin terminal hıza ulaşma süreci",
+            # Hayvanlar ve Doğa
+            "Kedilerin düşerken dönerek ayaklarının üzerine düşmesi",
+            "Örümceğin ağından sarkarak 'güvenli düşme' stratejisi",
+            "Sincabın ağaçtan düşerken kuyruğunu kullanması",
+            "Uçan sincapların süzülerek düşme mekaniği",
+        ],
+        # --- SOSYAL VE KÜLTÜREL ---
+        "sosyal_kulturel": [
+            # Tarih ve Medeniyet
+            "Antik Yunan'da Aristoteles ve Galileo'nun düşme teorileri",
+            "Newton'un elma düşme hikayesi ve yerçekimi keşfi",
+            "Ortaçağ kale savunmasında kaya düşürme stratejisi",
+            # Sanat ve Estetik
+            "Slow-motion videolarda düşen nesnelerin estetik görüntüsü",
+            "Fotoğrafçılıkta 'düşen damla' anının yakalanması",
+            "Bale ve dans performansında düşme-yükselme dinamikleri",
+            # Edebiyat ve Dil
+            "Alice Harikalar Diyarında'nda tavşan deliğine düşme sahnesi (fiziksel analiz)",
+            "İkarus efsanesinde kanatların erimesi ve düşme",
+        ],
+        # --- TEKNOLOJİ VE EĞLENCE ---
+        "teknoloji_eglence": [
+            # Dijital ve İnternet
+            "Drone'un batarya bitiminde acil iniş (serbest düşme + fren) modu",
+            "Uzay turizmi şirketlerinin serbest düşme deneyimi paketleri",
+            "Smartphone düşme tespit sensörlerinin çalışma prensibi",
+            # Spor ve Yarışma
+            "Bungee jumping sporcusunun düşüş hesabı",
+            "Base jumping'de açılma yüksekliğinin belirlenmesi",
+            "Serbest dalışta (cliff diving) yükseklik ve suya giriş hızı",
+            "Tramplen atletinin zıplama sonrası düşüş süresi",
+            "Artistik patinajda sıçrama ve düşüş analizi",
+            "Trampolin jimnastikçisinin havada kalma süresi",
+            # Eğlence ve Hobi
+            "Lunaparkta serbest düşüş kulesinde adrenalin deneyimi",
+            "İç mekan skydiving (dikey rüzgar tüneli) simülasyonu",
+            "Oyuncak paraşütün düşme ve yavaşlama analizi",
+        ],
+        # --- ÇOKLU BAĞLAM (ÜST DÜZEY BLOOM) ---
+        "coklu_baglam_ust_duzey": [
+            # Analiz seviyesi
+            "Dünya, Ay ve Mars'ta aynı cismin düşme sürelerinin karşılaştırmalı analizi",
+            "Farklı yüksekliklerden (10m, 20m, 50m) düşen cisimlerin çarpma hızı dağılımı",
+            "Vakum ortamı ve havadaki serbest düşme verilerinin karşılaştırılması",
+            "Paraşütçünün açılma öncesi ve sonrası düşme dinamiklerinin grafik analizi",
+            # Analiz seviyesi - interdisipliner
+            "Kuş ve uçan sincap düşme stratejilerinin fiziksel karşılaştırması",
+            "Dolu, yağmur ve kar tanelerinin düşme dinamiklerinin analizi",
+            "Farklı spor dallarında (bungee, base jump, tramplen) düşme fiziklerinin karşılaştırması",
+            # Değerlendirme seviyesi
+            "Bina yangınında atlama kararının fiziksel analizi ve risk değerlendirmesi",
+            "Serbest düşüş kulesinin (lunapark) güvenlik standartlarının değerlendirilmesi",
+            "Paraşüt açılma yüksekliği kararının risk-fayda analizi",
+            "Drone teslimat sisteminde batarya bitimi senaryolarının güvenlik değerlendirmesi",
+            # Değerlendirme seviyesi - hata analizi
+            "Tarihi serbest düşme deneylerinde yapılan ölçüm hatalarının analizi",
+            "Asansör fren sistemi arızası senaryosunda güvenlik değerlendirmesi",
+            "Paraşüt kazası soruşturmasında fiziksel verilerin tutarlılık kontrolü",
+            # Yaratma seviyesi - tasarım
+            "Yüksek binalar için acil tahliye 'kontrollü düşme' sisteminin tasarlanması",
+            "Mars'a iniş için rover fren sistemi tasarımı",
+            "Ay madenciliği için düşük g ortamında malzeme taşıma sistemi tasarımı",
+            "Uzay çöpü toplama için 'yakalama ve düşürme' sisteminin planlanması",
+            # Yaratma seviyesi - deney tasarımı
+            "Farklı şekilli cisimlerin düşme dinamiklerini test eden deney düzeneği tasarımı",
+            "Yerel yer çekimi ivmesini hassas ölçen düşme deneyi protokolü",
+            "Okullar için düşük maliyetli serbest düşme deney seti tasarımı",
+        ],
+    },
+
+    # =========================================================================
+    # İKİ BOYUTTA HAREKET SENARYOLARI
+    # =========================================================================
+    "iki_boyutta_hareket": {
+        # --- KİŞİSEL VE GÜNLÜK YAŞAM ---
+        "kisisel_gunluk": [
+            # Ev ve Aile
+            "Bahçede çocuğun top fırlatıp yakalaması",
+            "Balkonda sulama yaparken suyun yörüngesi",
+            "Meyve ağacından düşen elmanın rüzgarda eğik hareketi",
+            # Alışveriş
+            "AVM fountain'ındaki su jetlerinin parabolik yörüngesi",
+            # Ulaşım ve Seyahat
+            "Köprüden nehre atılan şişenin yörüngesi",
+            "Gemi güvertesinden denize atılan canyelek",
+            # Kutlama ve Etkinlik
+            "Havai fişeklerin patlama sonrası parçalarının yörüngesi",
+            "Şampiyon takımın havaya fırlatılan kupayı yakalaması",
+            "Düğünde atılan buket ve davetlilerin yakalama yarışı",
+        ],
+        # --- MESLEKİ VE İŞ DÜNYASI ---
+        "mesleki_is": [
+            # Mühendislik
+            "İtfaiye hortumundan yüksek kata su püskürtme açısı",
+            "Fıskiyeli park havuzunda su jeti menzil hesabı",
+            "Üflemeli kurutucuda malzemelerin hareket yörüngesi",
+            "Tarım drone'unun ilaç püskürtme menzili",
+            # Üretim ve Sanayi
+            "Kaynak robotunun erimiş metal damlalarının düşme yörüngesi",
+            "Döküm fabrikasında eritilmiş metalin kalıba akış yörüngesi",
+            "Boya tabancasından çıkan sprey damlalarının yörüngesi",
+            # Tarım ve Hayvancılık
+            "Gübre serpme makinesinin atış menzili optimizasyonu",
+            "Sulama springlerinin su dağılım örüntüsü",
+            "Tohum ekme makinesinin tohum fırlatma açısı",
+        ],
+        # --- BİLİM VE DOĞA ---
+        "bilim_doga": [
+            # Deney ve Laboratuvar
+            "Yatay atış düzeneğinde merminin yere düşme noktası",
+            "Eğik atış platformuyla farklı açılarda menzil ölçümü",
+            "Projektil fiziği için yapılan dinamik deney",
+            "Video analizi ile top atışının görsel takibi",
+            # Çevre ve Ekoloji
+            "Yanardağ püskürmesinde lav bombasının yörüngesi",
+            "Geyzer suyunun havaya fışkırıp düşme yörüngesi",
+            "Şelale suyunun uçurumdan düşerken yatay kayması",
+            "Rüzgarda taşınan tohumların yayılma menzili",
+            # Uzay ve Astronomi
+            "Ay yüzeyinde golf topu vuruşunun menzili (düşük yer çekimi)",
+            "Mars'ta helikopter drone'un hareket yörüngesi",
+            "Uzay istasyonundan fırlatılan nesnenin yörüngesi",
+            "Kuyruklu yıldız kuyruğunun parçacık yörüngesi",
+            # Sağlık ve Tıp
+            "Fizik tedavide top fırlatma egzersizinde açı-menzil ilişkisi",
+            "Cerrahi robotun iğne fırlatma açısının hesaplanması",
+            # Hayvanlar ve Doğa
+            "Yunus balığının su yüzeyinden atlayıp tekrar dalışı",
+            "Çekirgenin zıplayarak kaçma menzili",
+            "Okçu balığının avına su fışkırtması",
+            "Atış böceğinin kimyasal sıvı püskürtmesi",
+            "Yılanların sıçrayarak saldırı menzili",
+        ],
+        # --- SOSYAL VE KÜLTÜREL ---
+        "sosyal_kulturel": [
+            # Tarih ve Medeniyet
+            "Ortaçağ mancınıklarının kale duvarına taş fırlatması",
+            "Roma lejyonlarının pilum (mızrak) atış menzili",
+            "Antik Yunan olimpiyatlarında disk ve cirit atma",
+            "Osmanlı okçuluğunda menzil rekorları",
+            "Trebuchet (karşı ağırlıklı mancınık) mekaniği",
+            # Sanat ve Estetik
+            "Sirkte ateş hokkabazının meşale yörüngeleri",
+            "Çeşme heykeltıraşlığında su jeti estetiği",
+            "Fotoğrafçılıkta hareket bulanıklığı ile eğik atış yakalama",
+            # Edebiyat ve Dil
+            "Robin Hood'un ok atışının fiziksel analizi",
+            "Kahraman filmlerinde 'imkansız atış' sahnelerinin gerçekçilik değerlendirmesi",
+        ],
+        # --- TEKNOLOJİ VE EĞLENCE ---
+        "teknoloji_eglence": [
+            # Dijital ve İnternet
+            "Video oyunlarında mermi fiziği (ballistic) modellemesi",
+            "VR oyunlarında top fırlatma gerçekçiliği",
+            "Fizik motoru simülasyonlarında projectile accuracy",
+            # Oyun ve Strateji
+            "Angry Birds oyununda kuş atış açısı optimizasyonu",
+            "Basketbol oyununda şut eğrisi hesaplaması",
+            "Bilardo oyununda topların çarpışma sonrası yörüngeleri",
+            # Spor ve Yarışma
+            "Basketbolda serbest atış açısı ve yörünge analizi",
+            "Futbolda frikik ve kafa vuruşu yörüngeleri",
+            "Tenis servisinde topun ağ üzerinden geçiş açısı",
+            "Voleybolda smaç vuruşunun yörüngesi",
+            "Golf vuruşunda farklı sopaların atış açıları",
+            "Beyzbolda pitcher atışlarının analizi",
+            "Cirit atma sporcusunun optimum atış açısı",
+            "Gülle atışında maksimum menzil açısı",
+            "Disk atışında açı-menzil ilişkisi",
+            "Okçulukta rüzgar kompanzasyonu ve ok yörüngesi",
+            "Su topuyla havuz oyununda atış stratejisi",
+            # Medya ve Habercilik
+            "Spor yayınlarında yavaşlatılmış top yörüngesi analizi",
+            "Askeri haberlerde füze yörüngesi grafikleri",
+            # Eğlence ve Hobi
+            "Su roketi yarışmasında optimum açı ve basınç",
+            "Sapan (mancınık) ile hedef atışı yarışması",
+            "Kağıt uçak yarışmasında menzil optimizasyonu",
+            "Dart oyununda atış açısı stratejisi",
+            "Frizbi atışında açı ve hız kombinasyonları",
+        ],
+        # --- ÇOKLU BAĞLAM (ÜST DÜZEY BLOOM) ---
+        "coklu_baglam_ust_duzey": [
+            # Analiz seviyesi - karşılaştırma
+            "Basketbol, voleybol ve tenis toplarının atış karakteristiklerinin karşılaştırması",
+            "Farklı açılarda atılan topların (30°, 45°, 60°) menzil ve maksimum yükseklik karşılaştırması",
+            "Dünya ve Ay'da aynı hız-açı kombinasyonuyla atılan cismin yörünge karşılaştırması",
+            "Cirit, disk ve gülle atışlarının olimpik açı-menzil verilerinin analizi",
+            # Analiz seviyesi - çoklu değişken
+            "Futbolda frikik atışında hız, açı ve spin'in birleşik etkisi",
+            "Su roketi yarışmasında su miktarı, basınç ve açının menzile etkisi",
+            "Mancınık tasarımında kol uzunluğu, karşı ağırlık ve açının analizi",
+            "Golf topunun farklı havalarda (sıcak, soğuk, nemli) aerodinamik davranışı",
+            # Değerlendirme seviyesi - karar verme
+            "İtfaiye operasyonunda su menzili için pompa basıncı ve açı optimizasyonu kararı",
+            "Tarım drone'unda ilaçlama için uçuş yüksekliği ve püskürtme açısı seçimi",
+            "Sporcunun müsabaka stratejisinde farklı atış açıları arasında seçim",
+            "Askeri analizde mancınık menzili ve hedef mesafesine göre strateji değerlendirmesi",
+            # Değerlendirme seviyesi - hata/tutarlılık analizi
+            "Bilirkişi raporunda mermi yörüngesi hesaplamalarının tutarlılık kontrolü",
+            "Spor müsabakasında cirit atış mesafesi itirazının fiziksel analizi",
+            "Su roketi yarışmasında kazanan takımın verilerinin doğrulanması",
+            # Yaratma seviyesi - tasarım
+            "Şehir meydanı için gösterişli su fıskiyesi sisteminin tasarlanması",
+            "Tarım için optimum ilaçlama menzilinde drone rota planlaması",
+            "Fizik festivali için eğlenceli ve öğretici atış oyunu tasarımı",
+            "Yangın söndürme drone'u için su atış sistemi tasarımı",
+            # Yaratma seviyesi - deney ve proje
+            "Okul bilim fuarı için su roketi projesi tasarımı ve optimizasyonu",
+            "Mancınık yarışması için farklı malzeme ve boyutlarda prototip tasarımı",
+            "Basketbol serbest atış robotu için atış mekanizması tasarımı",
+            "Mars keşif aracı için örnek toplama fırlatma mekanizması önerisi",
+            # Yaratma seviyesi - interdisipliner
+            "Biyomimetik yaklaşımla okçu balık su fışkırtma mekanizmasından esinlenen robot tasarımı",
+            "Antik mancınık teknolojilerinin modern mühendislik prensipleriyle optimize edilmesi",
+            "Spor ve mühendislik fakültelerinin ortak atış optimizasyonu araştırma projesi",
+        ],
+    },
+}
+
+# Senaryo seçim fonksiyonu
+def get_senaryo(konu: str, bloom_seviyesi: str, coklu_baglam: bool = False) -> str:
+    """Konu ve Bloom seviyesine uygun senaryo seç"""
+    import random
+
+    if konu not in SENARYO_VERITABANI:
+        return "Fizik problemi senaryosu"
+
+    konu_senaryolari = SENARYO_VERITABANI[konu]
+
+    # Üst düzey Bloom veya çoklu bağlam istenmişse
+    bloom_ust_duzey = bloom_seviyesi in ["Analiz", "Değerlendirme", "Yaratma"]
+
+    if bloom_ust_duzey or coklu_baglam:
+        # %60 ihtimalle çoklu bağlam senaryo seç
+        if random.random() < 0.6 and "coklu_baglam_ust_duzey" in konu_senaryolari:
+            return random.choice(konu_senaryolari["coklu_baglam_ust_duzey"])
+
+    # Rastgele bir kategori seç
+    kategoriler = [k for k in konu_senaryolari.keys() if k != "coklu_baglam_ust_duzey"]
+    if kategoriler:
+        kategori = random.choice(kategoriler)
+        return random.choice(konu_senaryolari[kategori])
+
+    return "Fizik problemi senaryosu"
+
+# ============================================================================
 # TRİGONOMETRİK DEĞERLER (HESAPLAMA KOLAYLIĞI)
 # ============================================================================
 
@@ -663,6 +1279,69 @@ SYSTEM_PROMPT_TEMA1 = """Sen, Türkiye Yüzyılı Maarif Modeli konusunda uzmanl
 4. **GEREKSİZ BİLGİ YOK**: Dikkat dağıtıcı detaylardan arındırılmış
 5. **GÖRSEL OKURYAZARLIK**: Grafik/tablo işlevsel olmalı
 6. **SEÇENEK DENGESİ**: Şıklar benzer uzunlukta olmalı
+
+## !!! ZENGİN SENARYO KULLANIMI - ÇOK ÖNEMLİ !!!
+
+### SENARYO ÇEŞİTLİLİĞİ - 6 ANA BAĞLAM KATEGORİSİ:
+
+Her soruda farklı ve yaratıcı bir senaryo kullan. Aşağıdaki kategorilerden rastgele seç:
+
+**1. Kişisel ve Günlük Yaşam:**
+   - Ev ve Aile: Robot süpürge, asansör, garaj kapısı, buzdolabı
+   - Alışveriş: Market kasası bandı, AVM yürüyen merdiven, kargo taşıma
+   - Ulaşım: Metro, tramvay, teleferik, feribot, havalimanı yürüyen bant
+   - Beslenme: Suşi restoranı döner bant, şişeleme tesisi
+   - Kutlama: Havai fişek, lunapark, sirk gösterisi
+
+**2. Mesleki ve İş Dünyası:**
+   - Mühendislik: CNC tezgah, 3D yazıcı, lazer kesim, köprülü vinç
+   - Üretim: Otomobil montaj hattı, tekstil fabrikası, matbaa
+   - Tarım: Sulama sistemi, hasat robotu, traktör
+   - Finans: Kasa sayım makinesi (analoji olarak)
+
+**3. Bilim ve Doğa:**
+   - Laboratuvar: Hava yastıklı ray, Atwood düzeneği, eğik düzlem
+   - Ekoloji: Nehir akıntısı, rüzgar, göçmen kuşlar, çığ
+   - Uzay: ISS, Voyager, Mars rover, Ay yüzeyi
+   - Tıp: MR cihazı, pnömatik tüp sistemi, fizik tedavi
+   - Hayvanlar: Penguen, çita, şahin, yunus balığı
+
+**4. Sosyal ve Kültürel:**
+   - Tarih: Piramit inşası, Roma su kemerleri, Osmanlı kervanı
+   - Sanat: Film çekimi, tiyatro, orkestra
+   - Coğrafya: Boğaz köprüsü, kanal gemisi
+
+**5. Teknoloji ve Eğlence:**
+   - Dijital: Otonom araç, drone, fiber optik
+   - Oyun: Video oyunu fiziği, bilardo
+   - Spor: Yüzme, atletizm, bisiklet, Formula 1, kürek
+   - Hobi: Model tren, RC araba, bowling
+
+**6. ÜST DÜZEY BLOOM İÇİN ÇOKLU BAĞLAM SENARYOLARIı (Analiz, Değerlendirme, Yaratma):**
+   Bu seviyelerde birden fazla bağlamın iç içe geçtiği karmaşık senaryolar kullan:
+
+   - **Karşılaştırma**: İki farklı sistemin kıyaslanması
+     Örnek: "Şehir içi metro ve şehirlerarası hızlı trenin aynı mesafeyi kat etme süreleri"
+
+   - **Karar Verme**: Alternatifler arasında seçim gerektiren durumlar
+     Örnek: "Deprem bölgesine yardım için kara/hava/deniz yolu değerlendirmesi"
+
+   - **Hata Analizi**: Verilerin tutarlılığını değerlendirme
+     Örnek: "Trafik kazası bilirkişi raporunda hız verilerinin kontrolü"
+
+   - **Tasarım**: Yeni sistem veya çözüm önerisi
+     Örnek: "Yeni metro hattı için istasyon aralıkları ve hız optimizasyonu"
+
+   - **İnterdisipliner**: Farklı alanların kesişimi
+     Örnek: "Spor bilimi + mühendislik: Atlet performans optimizasyonu"
+
+### SENARYO KURALLARI:
+✓ Her soru MUTLAKA özgün ve yaratıcı bir senaryo içermeli
+✓ Aynı senaryo tekrar kullanılmamalı
+✓ Senaryo fiziğe doğal olarak entegre olmalı
+✓ Öğrenci senaryoyu anlayıp fizik problemine dönüştürebilmeli
+✓ Üst düzey Bloom sorularında çoklu bağlam (karşılaştırma, karar verme) tercih et
+✓ Senaryolar Türkiye bağlamına uygun olmalı (TOGG, YHT, İstanbul metro vb.)
 
 ## 5 ŞIK ZORUNLU - STANDART FORMAT
 
@@ -1552,7 +2231,11 @@ class Fizik10Tema1Generator:
         bloom_data = BLOOM_TAKSONOMISI[bloom_seviyesi]
 
         zorluk = random.choice(bloom_data["zorluk_aralik"])
-        baglam = random.choice(konu_data["ornek_senaryolar"])
+
+        # Zengin senaryo veritabanından senaryo seç
+        # Üst düzey Bloom için çoklu bağlam senaryoları tercih et
+        baglam = get_senaryo(secilen_konu, bloom_seviyesi, coklu_baglam=(bloom_seviyesi in ["Analiz", "Değerlendirme", "Yaratma"]))
+
         gorsel_tipi = random.choice(konu_data["gorsel_tipleri"])
 
         if bloom_seviyesi in ["Değerlendirme", "Yaratma"]:
@@ -1934,13 +2617,16 @@ Bloom Seviyeleri:
                 print(f"Geçerli seviyeler: {', '.join(BLOOM_TAKSONOMISI.keys())}")
                 sys.exit(1)
 
+            # Zengin senaryo veritabanından senaryo seç
+            baglam = get_senaryo(konu, bloom, coklu_baglam=(bloom in ["Analiz", "Değerlendirme", "Yaratma"]))
+
             params = QuestionParams(
                 konu=konu,
                 alt_konu=TEMA1_MUFREDAT[konu]["display_name"],
                 kazanim_kodu=TEMA1_MUFREDAT[konu]["kazanim_kodu"],
                 bloom_seviyesi=bloom,
                 zorluk=zorluk,
-                baglam=random.choice(TEMA1_MUFREDAT[konu]["ornek_senaryolar"]),
+                baglam=baglam,
                 gorsel_tipi=random.choice(TEMA1_MUFREDAT[konu]["gorsel_tipleri"]),
                 soru_tipi="hikayeli"
             )
