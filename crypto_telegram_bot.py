@@ -52,8 +52,8 @@ class Config:
     TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN', '')
     TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID', '')
 
-    # Binance API (ucretsiz, API key gerektirmez)
-    BINANCE_BASE_URL = "https://api.binance.com/api/v3"
+    # CoinGecko API (ucretsiz, API key gerektirmez, bolgesel kisitlama yok)
+    COINGECKO_BASE_URL = "https://api.coingecko.com/api/v3"
 
     # Analiz edilecek coinler
     SYMBOLS = ['BTCUSDT', 'ETHUSDT']
@@ -150,21 +150,28 @@ class AnalysisResult:
     key_levels: Dict[str, float]
 
 
-# ============== BINANCE API ==============
+# ============== COINGECKO API ==============
 
-class BinanceAPI:
-    """Binance API istemcisi"""
+class CoinGeckoAPI:
+    """CoinGecko API istemcisi - Ucretsiz, API key gerektirmez"""
 
     def __init__(self):
-        self.base_url = Config.BINANCE_BASE_URL
+        self.base_url = "https://api.coingecko.com/api/v3"
+        # CoinGecko coin ID'leri
+        self.coin_ids = {
+            'BTCUSDT': 'bitcoin',
+            'ETHUSDT': 'ethereum'
+        }
 
     def get_klines(self, symbol: str, interval: str = '4h', limit: int = 200) -> pd.DataFrame:
-        """OHLCV verilerini cek"""
-        url = f"{self.base_url}/klines"
+        """OHLCV verilerini cek - CoinGecko OHLC endpoint"""
+        coin_id = self.coin_ids.get(symbol, symbol.lower().replace('usdt', ''))
+
+        # CoinGecko OHLC endpoint - days=30 4 saatlik mumlar verir
+        url = f"{self.base_url}/coins/{coin_id}/ohlc"
         params = {
-            'symbol': symbol,
-            'interval': interval,
-            'limit': limit
+            'vs_currency': 'usd',
+            'days': '30'  # 30 gun = 4 saatlik mumlar
         }
 
         try:
@@ -172,37 +179,83 @@ class BinanceAPI:
             response.raise_for_status()
             data = response.json()
 
-            df = pd.DataFrame(data, columns=[
-                'timestamp', 'open', 'high', 'low', 'close', 'volume',
-                'close_time', 'quote_volume', 'trades', 'taker_buy_base',
-                'taker_buy_quote', 'ignore'
-            ])
+            # CoinGecko format: [[timestamp, open, high, low, close], ...]
+            df = pd.DataFrame(data, columns=['timestamp', 'open', 'high', 'low', 'close'])
 
             # Veri tiplerini duzelt
-            for col in ['open', 'high', 'low', 'close', 'volume']:
+            for col in ['open', 'high', 'low', 'close']:
                 df[col] = df[col].astype(float)
 
             df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
             df.set_index('timestamp', inplace=True)
 
+            # Hacim verisi icin ayri endpoint (market_chart)
+            df['volume'] = self._get_volume_data(coin_id, len(df))
+
+            logger.info(f"CoinGecko'dan {len(df)} mum verisi alindi: {symbol}")
             return df
 
         except Exception as e:
-            logger.error(f"Binance API hatasi ({symbol}): {e}")
+            logger.error(f"CoinGecko API hatasi ({symbol}): {e}")
             raise
 
-    def get_24h_ticker(self, symbol: str) -> Dict:
-        """24 saatlik fiyat degisimi"""
-        url = f"{self.base_url}/ticker/24hr"
-        params = {'symbol': symbol}
+    def _get_volume_data(self, coin_id: str, length: int) -> pd.Series:
+        """Hacim verilerini cek"""
+        url = f"{self.base_url}/coins/{coin_id}/market_chart"
+        params = {
+            'vs_currency': 'usd',
+            'days': '30'
+        }
 
         try:
             response = requests.get(url, params=params, timeout=30)
             response.raise_for_status()
-            return response.json()
+            data = response.json()
+
+            volumes = [v[1] for v in data.get('total_volumes', [])]
+
+            # OHLC ile ayni uzunluga getir
+            if len(volumes) > length:
+                # Her N. eleman al
+                step = len(volumes) // length
+                volumes = volumes[::step][:length]
+            elif len(volumes) < length:
+                # Eksik olanlari son degerle doldur
+                volumes.extend([volumes[-1]] * (length - len(volumes)))
+
+            return pd.Series(volumes[:length])
+
+        except Exception as e:
+            logger.warning(f"Hacim verisi alinamadi: {e}")
+            return pd.Series([0] * length)
+
+    def get_24h_ticker(self, symbol: str) -> Dict:
+        """24 saatlik fiyat degisimi"""
+        coin_id = self.coin_ids.get(symbol, symbol.lower().replace('usdt', ''))
+
+        url = f"{self.base_url}/simple/price"
+        params = {
+            'ids': coin_id,
+            'vs_currencies': 'usd',
+            'include_24hr_change': 'true',
+            'include_24hr_vol': 'true'
+        }
+
+        try:
+            response = requests.get(url, params=params, timeout=30)
+            response.raise_for_status()
+            data = response.json()
+
+            coin_data = data.get(coin_id, {})
+            return {
+                'priceChangePercent': coin_data.get('usd_24h_change', 0),
+                'lastPrice': coin_data.get('usd', 0),
+                'volume': coin_data.get('usd_24h_vol', 0)
+            }
+
         except Exception as e:
             logger.error(f"24h ticker hatasi ({symbol}): {e}")
-            return {}
+            return {'priceChangePercent': 0}
 
 
 # ============== TEKNIK ANALIZ ==============
@@ -696,7 +749,7 @@ class CryptoAnalysisBot:
     """Ana bot sinifi"""
 
     def __init__(self):
-        self.api = BinanceAPI()
+        self.api = CoinGeckoAPI()
         self.scheduler = None
 
     async def analyze_symbol(self, symbol: str) -> Optional[AnalysisResult]:
