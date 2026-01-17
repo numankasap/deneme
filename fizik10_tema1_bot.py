@@ -668,13 +668,32 @@ SYSTEM_PROMPT_TEMA1 = """Sen, Türkiye Yüzyılı Maarif Modeli konusunda uzmanl
 
 Her soruda mutlaka 5 şık (A, B, C, D, E) olmalıdır.
 
-## ÖNCÜLLÜ SORU FORMATI
+## ÖNCÜLLÜ SORU FORMATI - KRİTİK!
 
-Öncüllü sorularda:
-1. Önce senaryo anlatılır
+!!! ÖNCÜLLÜ SORULARDA I, II, III İFADELERİ MUTLAKA "soru_metni" İÇİNDE OLMALI !!!
+
+Öncüllü soru yapısı:
+1. Senaryo anlatılır
 2. "Buna göre, ... ile ilgili aşağıdaki ifadelerden hangileri doğrudur?" yazılır
-3. I, II, III öncülleri ayrı satırlarda yazılır
+3. ARDINDAN MUTLAKA şu format kullanılır (soru_metni içinde):
+
+I. [Birinci ifade - tam cümle]
+II. [İkinci ifade - tam cümle]
+III. [Üçüncü ifade - tam cümle]
+
 4. Şıklar: A) Yalnız I, B) Yalnız II, C) I ve II, D) II ve III, E) I, II ve III
+
+DOĞRU ÖRNEK (soru_metni):
+"Bir sporcu cirit fırlatıyor. Hava direnci ihmal ediliyor.
+
+Buna göre, ciritin hareketi ile ilgili aşağıdaki ifadelerden hangileri doğrudur?
+
+I. Ciritin yatay hız bileşeni hareket boyunca sabittir.
+II. Cirit maksimum yükseklikte iken toplam hızı sıfırdır.
+III. Ciritin düşey hız bileşeni hareket boyunca değişir."
+
+❌ YASAK: I, II, III öncüllerini yazmadan "Yalnız I" şeklinde şık kullanmak!
+❌ YASAK: Öncülleri soru_metni dışında bırakmak!
 
 ## MATEMATİKSEL DEĞERLER
 
@@ -1027,13 +1046,33 @@ Yaygın Yanılgılar:
 6. g = 10 m/s² kullan (aksi belirtilmedikçe)
 7. KAPSAM DIŞI konulara GİRME!
 
-{"### ÖNCÜLLÜ SORU FORMATI" if params.soru_tipi == "onculu" else ""}
+{"### !!! ÖNCÜLLÜ SORU FORMATI - KRİTİK !!!" if params.soru_tipi == "onculu" else ""}
 {'''
-Öncüllü soruda:
-1. Önce senaryo anlat
-2. "Buna göre, ... ile ilgili aşağıdaki ifadelerden hangileri doğrudur?" yaz
-3. I, II, III öncüllerini AYRI SATIRLARDA yaz
-4. Şıklar: A) Yalnız I, B) Yalnız II, C) I ve II, D) II ve III, E) I, II ve III
+!!! ÖNCÜLLER "soru_metni" İÇİNDE MUTLAKA OLMALI !!!
+
+Öncüllü soruda soru_metni şu yapıda olmalı:
+
+"[Senaryo açıklaması]
+
+Buna göre, [konu] ile ilgili aşağıdaki ifadelerden hangileri doğrudur?
+
+I. [Birinci ifade - tam cümle olarak yazılmalı]
+II. [İkinci ifade - tam cümle olarak yazılmalı]
+III. [Üçüncü ifade - tam cümle olarak yazılmalı]"
+
+Şıklar: A) Yalnız I, B) Yalnız II, C) I ve II, D) II ve III, E) I, II ve III
+
+❌ YASAK: I, II, III yazmadan şıklarda "Yalnız I" kullanmak!
+❌ YASAK: Öncülleri soru_metni dışında tutmak!
+
+ÖRNEK soru_metni:
+"Bir sporcu cirit fırlatıyor. Hava direnci ihmal ediliyor.
+
+Buna göre, ciritin hareketi ile ilgili aşağıdaki ifadelerden hangileri doğrudur?
+
+I. Ciritin yatay hız bileşeni hareket boyunca sabittir.
+II. Cirit maksimum yükseklikte iken toplam hızı sıfırdır.
+III. Ciritin düşey hız bileşeni hareket boyunca değişir."
 ''' if params.soru_tipi == "onculu" else ""}
 """
 
@@ -1579,6 +1618,28 @@ class Fizik10Tema1Generator:
                     logger.warning(f"  Yetersiz şık sayısı: {len(siklar)}")
                     self.stats["quality_retries"] += 1
                     continue
+
+                # ÖNCÜLLÜ SORU VALİDASYONU
+                # Seçeneklerde "Yalnız I", "I ve II" vb. varsa soru metninde I., II., III. olmalı
+                soru_metni_check = question_data.get("soru_metni", "")
+                siklar_text = " ".join(str(v) for v in siklar.values()).lower()
+
+                oncul_patterns = ["yalnız i", "i ve ii", "ii ve iii", "i ve iii", "i, ii ve iii"]
+                has_oncul_options = any(pattern in siklar_text for pattern in oncul_patterns)
+
+                if has_oncul_options:
+                    # Soru metninde I., II., III. ifadeleri aranır
+                    has_oncul_statements = (
+                        ("I." in soru_metni_check or "I-" in soru_metni_check or "\nI " in soru_metni_check) and
+                        ("II." in soru_metni_check or "II-" in soru_metni_check or "\nII " in soru_metni_check) and
+                        ("III." in soru_metni_check or "III-" in soru_metni_check or "\nIII " in soru_metni_check)
+                    )
+
+                    if not has_oncul_statements:
+                        logger.warning(f"  ❌ ÖNCÜL HATASI: Şıklarda 'Yalnız I' vb. var ama soru metninde I, II, III ifadeleri yok!")
+                        logger.warning(f"     Soru metni kontrol ediliyor: I={('I.' in soru_metni_check)}, II={('II.' in soru_metni_check)}, III={('III.' in soru_metni_check)}")
+                        self.stats["quality_retries"] += 1
+                        continue
 
                 # Kalite kontrolü
                 logger.info("  Kalite kontrolü yapılıyor...")
