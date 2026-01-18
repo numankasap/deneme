@@ -55,7 +55,7 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
 
-GEMINI_TEXT_MODEL = "gemini-3-flash"
+GEMINI_TEXT_MODEL = "gemini-3-flash-preview"
 GEMINI_IMAGE_MODEL = "gemini-2.5-flash-image-preview"
 
 class Config:
