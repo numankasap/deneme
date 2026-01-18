@@ -12,6 +12,16 @@ on:
           - karisik
           - kazanim
           - baglam
+      tip:
+        description: 'Soru tipi'
+        required: false
+        default: 'karisik'
+        type: choice
+        options:
+          - karisik
+          - hesaplama
+          - grafik
+          - onculu
       adet:
         description: 'Soru sayisi'
         required: false
@@ -38,7 +48,7 @@ on:
           - FIZ.10.1.3.b
           - FIZ.10.1.3.c
       bloom:
-        description: 'Bloom seviyesi (baglam modu icin)'
+        description: 'Bloom seviyesi'
         required: false
         default: 'Uygulama'
         type: choice
@@ -93,13 +103,14 @@ jobs:
         run: |
           echo "=== Manual Run - Sabit Ivmeli Hareket Botu ==="
           echo "Mod: ${{ github.event.inputs.mod }}"
+          echo "Tip: ${{ github.event.inputs.tip }}"
           echo "Adet: ${{ github.event.inputs.adet }}"
           echo "Gorsel: ${{ github.event.inputs.gorsel }}"
           echo "Kazanim: ${{ github.event.inputs.kazanim }}"
           echo "Bloom: ${{ github.event.inputs.bloom }}"
 
           # Build command
-          CMD="python fizik10_sabit_ivmeli_bot.py --mod ${{ github.event.inputs.mod }} --adet ${{ github.event.inputs.adet }}"
+          CMD="python fizik10_sabit_ivmeli_bot.py --mod ${{ github.event.inputs.mod }} --adet ${{ github.event.inputs.adet }} --tip ${{ github.event.inputs.tip }}"
 
           # Add gorsel flag if enabled
           if [ "${{ github.event.inputs.gorsel }}" == "evet" ]; then
@@ -111,8 +122,8 @@ jobs:
             CMD="$CMD --kazanim ${{ github.event.inputs.kazanim }}"
           fi
 
-          # Add bloom for baglam mode
-          if [ "${{ github.event.inputs.mod }}" == "baglam" ]; then
+          # Add bloom
+          if [ "${{ github.event.inputs.bloom }}" != "Uygulama" ]; then
             CMD="$CMD --bloom ${{ github.event.inputs.bloom }}"
           fi
 
@@ -123,19 +134,21 @@ jobs:
         if: github.event_name == 'schedule'
         run: |
           echo "=== Scheduled Run - Sabit Ivmeli Hareket Botu ==="
-          echo "Karisik mod: Kazanim + Baglam temelli sorular"
+          echo "Dengeli dagilim: Hesaplama + Grafik + Onculu"
           echo "Maarif Modeli kriterleri aktif"
           echo "Bloom Taksonomisi dagilimi aktif"
 
-          # Pazartesi, Carsamba, Cuma sabah: Kazanim temelli
-          # Sali, Persembe, Cumartesi aksam: Baglam temelli
           HOUR=$(date +%H)
+          DAY=$(date +%u)
+
+          # Pazartesi, Carsamba, Cuma sabah: Hesaplama agirlikli
+          # Sali, Persembe, Cumartesi aksam: Baglam + onculu agirlikli
           if [ "$HOUR" -lt 12 ]; then
-            echo "Sabah calismasi: Kazanim temelli sorular"
-            python fizik10_sabit_ivmeli_bot.py --mod kazanim --adet 15
+            echo "Sabah calismasi: Kazanim temelli, hesaplama agirlikli"
+            python fizik10_sabit_ivmeli_bot.py --mod kazanim --adet 15 --tip hesaplama --gorsel
           else
-            echo "Aksam calismasi: Baglam temelli sorular"
-            python fizik10_sabit_ivmeli_bot.py --mod baglam --adet 15
+            echo "Aksam calismasi: Baglam temelli, karisik tip"
+            python fizik10_sabit_ivmeli_bot.py --mod baglam --adet 15 --tip karisik --gorsel
           fi
 
       - name: Summary
@@ -145,6 +158,7 @@ jobs:
           echo "Bot: Sabit Ivmeli Hareket Ozel Botu"
           echo "Konu: Bir Boyutta Sabit Ivmeli Hareket"
           echo "Kazanimlar: FIZ.10.1.2.a-b, FIZ.10.1.3.a-c"
+          echo "Soru Tipleri: hesaplama, grafik, onculu"
           echo "Workflow: ${{ github.workflow }}"
           echo "Run ID: ${{ github.run_id }}"
           echo "Event: ${{ github.event_name }}"

@@ -503,6 +503,19 @@ SYSTEM_PROMPT_KAZANIM = """Sen, Türkiye Yüzyılı Maarif Modeli'ne göre 10. s
 - Kolay hesaplanan değerler kullan (5, 10, 20, 25, 50, 100)
 - Her soruda 5 şık (A, B, C, D, E) olmalı
 
+### HESAPLAMA SORUSU FORMATI (soru_tipi: hesaplama, grafik_hesaplama, formul_uygulama):
+- Şıklarda SAYISAL DEĞERLER olmalı (ör: "24 m", "12 m/s", "3 m/s²")
+- Verilen değerlerle formül uygulama gerektirmeli
+- Adım adım çözüm gösterilmeli
+- Örnek şıklar: A) 12 m  B) 24 m  C) 36 m  D) 48 m  E) 60 m
+- 2D grafik içerebilir (v-t, x-t, a-t)
+
+### GRAFİK SORUSU FORMATI (soru_tipi: grafik_okuma, grafik_donusumu, grafik_cizim):
+- 2D teknik grafik gerektirmeli
+- Grafikten değer okuma veya grafik yorumlama
+- Bir grafikten diğerine dönüşüm (v-t → a-t, v-t → x-t)
+- gorsel_gerekli: true, gorsel_betimleme.tip: "v-t_grafigi" veya "x-t_grafigi"
+
 ### ÖNCÜLLÜ SORU FORMATI:
 Öncüllü sorularda I, II, III ifadeleri MUTLAKA soru_metni içinde olmalı:
 
@@ -991,6 +1004,7 @@ class SabitIvmeliHareketGenerator:
         # Command line flags
         self.gorsel_enabled = False
         self.kazanim_filtre = None
+        self.soru_tipi_filtre = "karisik"
 
         self.stats = {
             "total": 0,
@@ -998,7 +1012,10 @@ class SabitIvmeliHareketGenerator:
             "failed": 0,
             "kazanim": 0,
             "baglam": 0,
-            "with_image": 0
+            "with_image": 0,
+            "hesaplama": 0,
+            "grafik": 0,
+            "onculu": 0
         }
 
     def _get_senaryo(self, bloom_seviyesi: str) -> Tuple[str, str]:
@@ -1023,24 +1040,49 @@ class SabitIvmeliHareketGenerator:
     def _get_soru_tipi(self, mod: str, bloom_seviyesi: str) -> str:
         """Mod ve Bloom'a göre soru tipi seç"""
 
+        # Soru tipi filtresi varsa öncelikli uygula
+        if self.soru_tipi_filtre == "hesaplama":
+            # Hesaplama ağırlıklı - sayısal şıklar
+            if mod == "kazanim":
+                return random.choice(["hesaplama", "grafik_hesaplama", "formul_uygulama"])
+            else:
+                return random.choice(["senaryo_hesaplama", "senaryo_grafik_hesaplama"])
+
+        elif self.soru_tipi_filtre == "grafik":
+            # 2D grafik ağırlıklı
+            if mod == "kazanim":
+                return random.choice(["grafik_okuma", "grafik_donusumu", "grafik_cizim"])
+            else:
+                return random.choice(["senaryo_grafik", "senaryo_grafik_analiz"])
+
+        elif self.soru_tipi_filtre == "onculu":
+            # Öncüllü sorular - I, II, III
+            return "onculu"
+
+        # Karisik mod - dengeli dağılım
         if mod == "kazanim":
             if bloom_seviyesi in ["Hatırlama", "Anlama"]:
-                return random.choice(["kavram", "grafik_okuma", "tanim"])
+                # Alt seviye: kavram + basit hesaplama
+                return random.choice(["kavram", "grafik_okuma", "basit_hesaplama"])
             elif bloom_seviyesi == "Uygulama":
-                return random.choice(["hesaplama", "grafik_okuma"])
+                # Orta seviye: hesaplama ağırlıklı
+                return random.choice(["hesaplama", "grafik_hesaplama", "formul_uygulama", "grafik_okuma"])
             elif bloom_seviyesi == "Analiz":
-                return random.choice(["grafik_donusumu", "analiz"])
+                # Analiz: grafik dönüşümü + hesaplama
+                return random.choice(["grafik_donusumu", "analiz_hesaplama", "coklu_grafik"])
             else:
-                return random.choice(["onculu", "analiz", "grafik_donusumu"])
+                # Üst seviye: öncüllü + karmaşık analiz (ama dengeli)
+                return random.choice(["onculu", "analiz", "grafik_donusumu", "hesaplama"])
         else:  # baglam
             if bloom_seviyesi in ["Hatırlama", "Anlama"]:
-                return random.choice(["senaryo_kavram", "senaryo_grafik"])
+                return random.choice(["senaryo_kavram", "senaryo_grafik", "senaryo_basit_hesaplama"])
             elif bloom_seviyesi == "Uygulama":
-                return random.choice(["senaryo_hesaplama", "senaryo_grafik"])
+                return random.choice(["senaryo_hesaplama", "senaryo_grafik", "senaryo_formul"])
             elif bloom_seviyesi == "Analiz":
-                return random.choice(["karsilastirma", "senaryo_analiz"])
+                return random.choice(["karsilastirma", "senaryo_analiz", "senaryo_grafik_hesaplama"])
             else:
-                return random.choice(["onculu", "karar_verme", "tasarim"])
+                # Üst seviye bağlam: öncüllü ağırlıklı ama dengeli
+                return random.choice(["onculu", "karar_verme", "tasarim", "senaryo_hesaplama"])
 
     def generate_single(self, mod: str, bloom_seviyesi: str = None) -> Optional[int]:
         """Tek soru üret"""
@@ -1162,11 +1204,25 @@ class SabitIvmeliHareketGenerator:
             if question_id:
                 self.stats["successful"] += 1
                 self.stats[mod] += 1
+                # Soru tipi istatistiği
+                if "hesaplama" in soru_tipi or "formul" in soru_tipi:
+                    self.stats["hesaplama"] += 1
+                elif "grafik" in soru_tipi:
+                    self.stats["grafik"] += 1
+                elif "onculu" in soru_tipi:
+                    self.stats["onculu"] += 1
                 logger.info(f"\n✓ BAŞARILI! ID: {question_id}")
                 return question_id
         else:
             self.stats["successful"] += 1
             self.stats[mod] += 1
+            # Soru tipi istatistiği
+            if "hesaplama" in soru_tipi or "formul" in soru_tipi:
+                self.stats["hesaplama"] += 1
+            elif "grafik" in soru_tipi:
+                self.stats["grafik"] += 1
+            elif "onculu" in soru_tipi:
+                self.stats["onculu"] += 1
             logger.info(f"\n✓ BAŞARILI! (DB bağlantısı yok)")
             return -1
 
@@ -1226,6 +1282,10 @@ class SabitIvmeliHareketGenerator:
         logger.info(f"Başarısız: {self.stats['failed']}")
         logger.info(f"Kazanım Temelli: {self.stats['kazanim']}")
         logger.info(f"Bağlam Temelli: {self.stats['baglam']}")
+        logger.info(f"--- Soru Tipleri ---")
+        logger.info(f"Hesaplama: {self.stats['hesaplama']}")
+        logger.info(f"Grafik: {self.stats['grafik']}")
+        logger.info(f"Öncüllü: {self.stats['onculu']}")
         logger.info(f"Görselli: {self.stats['with_image']}")
         logger.info(f"Başarı Oranı: {(self.stats['successful']/max(1, self.stats['total'])*100):.1f}%")
         logger.info(f"{'='*60}")
@@ -1245,6 +1305,8 @@ def main():
                        help="Görsel üretimini aktifleştir")
     parser.add_argument("--kazanim", type=str,
                        help="Belirli kazanım filtresi (ör: FIZ.10.1.2.a)")
+    parser.add_argument("--tip", choices=["hesaplama", "grafik", "onculu", "karisik"], default="karisik",
+                       help="Soru tipi: hesaplama (sayısal), grafik (2D), onculu (I-II-III), karisik (varsayılan)")
 
     args = parser.parse_args()
 
@@ -1256,6 +1318,9 @@ def main():
 
         # Kazanım filtresi
         generator.kazanim_filtre = args.kazanim
+
+        # Soru tipi filtresi
+        generator.soru_tipi_filtre = args.tip
 
         if args.bloom:
             # Tek Bloom seviyesi
