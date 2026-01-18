@@ -67,8 +67,8 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           SINIF_SEVIYESI: ${{ github.event.inputs.sinif_seviyesi || '' }}
-          SORU_PER_KAZANIM: ${{ github.event.inputs.soru_per_kazanim || '5' }}
-          MAX_ISLEM_PER_RUN: ${{ github.event.inputs.kazanim_sayisi || '10' }}
+          SORU_PER_KAZANIM: ${{ github.event.inputs.soru_per_kazanim || '1' }}
+          MAX_ISLEM_PER_RUN: ${{ github.event.inputs.kazanim_sayisi || '50' }}
           GORSEL_URETIM_AKTIF: ${{ github.event.inputs.gorsel_uretim || 'true' }}
         run: |
           python curriculum_pisa_bot.py
