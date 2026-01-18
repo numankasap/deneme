@@ -55,8 +55,8 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
 
-GEMINI_TEXT_MODEL = "gemini-2.5-flash"
-GEMINI_IMAGE_MODEL = "gemini-2.0-flash-exp-image-generation"
+GEMINI_TEXT_MODEL = "gemini-3-flash"
+GEMINI_IMAGE_MODEL = "gemini-2.5-flash-image-preview"
 
 class Config:
     MAX_RETRIES = 3
