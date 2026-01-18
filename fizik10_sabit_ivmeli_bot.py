@@ -907,13 +907,22 @@ class SupabaseClient:
 
         return None
 
-    def insert_question(self, question: GeneratedQuestion) -> Optional[int]:
+    def insert_question(self, question: GeneratedQuestion, kazanim_id: int = None) -> Optional[int]:
         """Soruyu veritabanına kaydet"""
         try:
+            # Options formatı - orijinal bot ile uyumlu
+            options_json = {
+                "A": question.options.get("A", ""),
+                "B": question.options.get("B", ""),
+                "C": question.options.get("C", ""),
+                "D": question.options.get("D", ""),
+                "E": question.options.get("E", "")
+            }
+
             data = {
-                "title": question.title[:200],
+                "title": question.title[:200] if question.title else "10. Sınıf Fizik Sorusu",
                 "original_text": question.original_text,
-                "options": question.options,
+                "options": options_json,
                 "correct_answer": question.correct_answer,
                 "solution_text": question.solution_text,
                 "difficulty": question.difficulty,
@@ -921,17 +930,19 @@ class SupabaseClient:
                 "grade_level": question.grade_level,
                 "topic": question.topic,
                 "topic_group": question.topic_group,
-                "kazanim_kodu": question.kazanim_kodu,
+                "kazanim_id": kazanim_id,
                 "bloom_level": question.bloom_level,
                 "scenario_text": question.scenario_text,
                 "distractor_explanations": question.distractor_explanations,
                 "image_url": question.image_url,
-                "question_mode": question.question_mode,
+                "question_type": question.question_mode,
+                "is_active": True,
+                "verified": False,
                 "created_at": datetime.utcnow().isoformat()
             }
 
             response = requests.post(
-                f"{self.url}/rest/v1/questions",
+                f"{self.url}/rest/v1/question_bank",
                 headers=self.headers,
                 json=data,
                 timeout=30
