@@ -881,7 +881,8 @@ class SupabaseClient:
         self.headers = {
             "apikey": key,
             "Authorization": f"Bearer {key}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "Prefer": "return=representation"
         }
 
     def upload_image(self, image_bytes: bytes, filename: str) -> Optional[str]:
@@ -938,7 +939,13 @@ class SupabaseClient:
 
             if response.status_code == 201:
                 result = response.json()
-                return result[0].get("id") if result else None
+                if result and len(result) > 0:
+                    return result[0].get("id")
+                else:
+                    logger.warning(f"  DB: Boş yanıt döndü")
+                    return None
+            else:
+                logger.error(f"  DB Hatası: {response.status_code} - {response.text[:200]}")
 
         except Exception as e:
             logger.error(f"Veritabanı hatası: {e}")
