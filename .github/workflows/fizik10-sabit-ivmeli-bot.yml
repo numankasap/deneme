@@ -57,7 +57,7 @@ on:
           - Anlama
           - Uygulama
           - Analiz
-          - Degerlendirme
+          - Değerlendirme
           - Yaratma
 
   schedule:
