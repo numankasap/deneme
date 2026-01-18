@@ -957,6 +957,10 @@ class SabitIvmeliHareketGenerator:
         self.gemini = GeminiAPI(GEMINI_API_KEY)
         self.supabase = SupabaseClient(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL and SUPABASE_KEY else None
 
+        # Command line flags
+        self.gorsel_enabled = False
+        self.kazanim_filtre = None
+
         self.stats = {
             "total": 0,
             "successful": 0,
@@ -1018,8 +1022,11 @@ class SabitIvmeliHareketGenerator:
         bloom_info = BLOOM_TAKSONOMISI[bloom_seviyesi]
         zorluk = random.choice(bloom_info["zorluk"])
 
-        # Kazanım seç
-        kazanim_kodu = random.choice(list(KONU_BILGISI["kazanimlar"].keys()))
+        # Kazanım seç (filtre varsa kullan)
+        if self.kazanim_filtre and self.kazanim_filtre in KONU_BILGISI["kazanimlar"]:
+            kazanim_kodu = self.kazanim_filtre
+        else:
+            kazanim_kodu = random.choice(list(KONU_BILGISI["kazanimlar"].keys()))
 
         # Senaryo seç (bağlam modu için)
         senaryo, senaryo_kat = "", ""
@@ -1086,7 +1093,9 @@ class SabitIvmeliHareketGenerator:
         # Görsel üret
         image_url = None
         gorsel = question_data.get("gorsel_betimleme", {})
-        if question_data.get("gorsel_gerekli") and gorsel:
+        # --gorsel flag'i veya soru görsel gerektiriyorsa üret
+        should_generate_image = self.gorsel_enabled or question_data.get("gorsel_gerekli")
+        if should_generate_image and gorsel:
             logger.info("  Görsel üretiliyor...")
             image_bytes = self.gemini.generate_image(gorsel, question_data.get("soru_metni", ""))
 
@@ -1198,13 +1207,24 @@ def main():
     parser = argparse.ArgumentParser(description="Sabit İvmeli Hareket Soru Bankası Botu")
     parser.add_argument("--mod", choices=["kazanim", "baglam", "karisik"], default="karisik",
                        help="Soru modu: kazanim, baglam veya karisik (varsayılan)")
-    parser.add_argument("--count", type=int, default=20, help="Üretilecek soru sayısı")
+    parser.add_argument("--count", "--adet", type=int, default=20, dest="count",
+                       help="Üretilecek soru sayısı")
     parser.add_argument("--bloom", type=str, help="Belirli Bloom seviyesi")
+    parser.add_argument("--gorsel", action="store_true",
+                       help="Görsel üretimini aktifleştir")
+    parser.add_argument("--kazanim", type=str,
+                       help="Belirli kazanım filtresi (ör: FIZ.10.1.2.a)")
 
     args = parser.parse_args()
 
     try:
         generator = SabitIvmeliHareketGenerator()
+
+        # Görsel üretimi global flag
+        generator.gorsel_enabled = args.gorsel
+
+        # Kazanım filtresi
+        generator.kazanim_filtre = args.kazanim
 
         if args.bloom:
             # Tek Bloom seviyesi
