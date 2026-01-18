@@ -1042,6 +1042,7 @@ class SabitIvmeliHareketGenerator:
             "failed": 0,
             "kazanim": 0,
             "baglam": 0,
+            "karisik": 0,
             "with_image": 0,
             "hesaplama": 0,
             "grafik": 0,
@@ -1319,6 +1320,7 @@ class SabitIvmeliHareketGenerator:
         logger.info(f"Başarısız: {self.stats['failed']}")
         logger.info(f"Kazanım Temelli: {self.stats['kazanim']}")
         logger.info(f"Bağlam Temelli: {self.stats['baglam']}")
+        logger.info(f"Karışık: {self.stats['karisik']}")
         logger.info(f"--- Soru Tipleri ---")
         logger.info(f"Hesaplama: {self.stats['hesaplama']}")
         logger.info(f"Grafik: {self.stats['grafik']}")
