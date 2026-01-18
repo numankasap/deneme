@@ -225,158 +225,188 @@ KAVRAM_YANILGILARI = {
 # ============================================================================
 
 SENARYO_VERITABANI = {
-    # === ULAŞIM VE ARAÇLAR ===
-    "ulasim_araclar": [
-        # Kara taşıtları
-        "Otomobilin trafik ışığında duruştan kalkışı ve hızlanması",
-        "Sürücünün frene basarak aracı durdurması",
-        "Otobüsün duraktan kalkışı ve bir sonraki durakta durması",
-        "Metro vagonunun istasyondan hızlanarak çıkışı",
-        "YHT'nin Eskişehir istasyonundan kalkış ivmesi",
-        "Tramvayın duraklara yaklaşırken frenleme süreci",
-        "Elektrikli aracın (TOGG) 0-100 km/h hızlanma performansı",
-        "Taksi şoförünün trafikte gaz-fren kullanım döngüsü",
-        "Motosikletli teslimat görevlisinin kasis öncesi yavaşlaması",
-        "Kamyonun rampa çıkışında hız kaybı",
-        "Otobüsün otobanda şerit değiştirirken hızlanması",
-        "Araç sürüş sınavında kalkış-durma manevrası",
-        # Raylı sistemler
-        "Marmaray'ın tüp geçitte hızlanma-yavaşlama profili",
-        "Teleferik kabininin istasyondan çıkışta ivmelenmesi",
-        "Füniküler hattında vagonun yokuş çıkışı",
-        # Havacılık
-        "Uçağın kalkış pistinde hızlanması",
-        "Uçağın iniş pistinde frenleme süreci",
-        "Helikopterin dikey kalkışta ivmelenmesi",
+    # === 🚗 ULAŞIM VE SEYAHAT ===
+    "ulasim_seyahat": [
+        "Otomobilin trafik ışığında kalkışı", "Metro vagonunun istasyondan çıkışı",
+        "YHT'nin Ankara-İstanbul hattında hızlanması", "Uçağın kalkış pistinde ivmelenmesi",
+        "Teleferik kabininin istasyondan çıkışı", "Deniz otobüsünün limandan ayrılışı",
+        "Elektrikli scooter'ın gazına basıldığında hızlanması",
+        "Okul servisinin öğrenci indirme noktasında frenlenmesi",
+        "Havalimanı shuttle otobüsünün terminal önünde durması",
+        "Kruvaziyer gemisinin limana yanaşırken frenlenmesi",
     ],
-
-    # === SPOR VE PERFORMANS ===
-    "spor_performans": [
-        # Atletizm
-        "100 metre koşucusunun start bloklarından çıkış ivmesi",
-        "Maratonçunun bitiş çizgisine doğru sprint atması",
-        "400 metre koşucusunun viraj çıkışında hızlanması",
-        "Atlama sporcusunun sıçrama öncesi koşu ivmesi",
-        # Su sporları
-        "Yüzücünün duvarda dönüş sonrası itme ivmesi",
-        "Kürek takımının start anındaki ivmelenme performansı",
-        "Kano sporcusunun bitiş sprintinde hızlanması",
-        "Su kayakçısının tekne tarafından çekilirken ivmesi",
-        # Kış sporları
-        "Kayakçının slalom parkurunda viraj arası hızlanması",
-        "Buz patencisinin spin öncesi ivmelenmesi",
-        "Bobsled takımının start ivmesi",
-        "Atlama kulesi sporcusunun düşüş ivmesi",
-        # Motor sporları
-        "Formula 1 aracının pit stop çıkışı hızlanması",
-        "Ralli aracının toprak zeminde frenleme mesafesi",
-        "Drag yarışçısının 400 metrede hızlanma profili",
-        "MotoGP yarışçısının viraj çıkışında gaz açması",
-        # Diğer sporlar
-        "Bisikletçinin yokuş aşağı ivmelenmesi",
-        "Golf topunun vuruş anında ivmesi",
-        "Tenis topunun servis atışında raketten çıkış ivmesi",
-        "Okçunun ok bırakma anındaki ok ivmesi",
+    # === 🏠 EV VE AİLE ===
+    "ev_aile": [
+        "Bebeğin yürüteçte ilk adımlarını atarken hızlanması",
+        "Çocuğun parkta salıncaktan atlama anındaki ivmesi",
+        "Yaşlı bireyin asansöre binerken hissettiği ivme konforu",
+        "Evcil köpeğin top kovalarken ani hızlanması",
+        "Bebek arabasının yokuş aşağı kontrolsüz hızlanması",
+        "Garaj kapısının motorla açılırken ivmelenmesi",
+        "Robot süpürgenin engelden dönerken yavaşlaması",
+        "Akıllı perde motorunun açılış hızlanması",
     ],
-
-    # === TEKNOLOJİ VE MÜHENDİSLİK ===
-    "teknoloji_muhendislik": [
-        # Asansör sistemleri
-        "Asansörün zemin kattan çıkış ivmesi",
-        "Asansörün üst katta durmak için frenleme süreci",
-        "Yük asansörünün ağır yükle kalkış performansı",
-        "Panoramik asansörün konfor ivme limitleri",
-        # Endüstriyel
-        "Vinç kancasının yükü kaldırırken hızlanması",
-        "Forklift operatörünün raf önünde hassas durması",
-        "Konveyör bandının vardiya başında hızlanması",
-        "Robot kolunun montaj noktasına yaklaşırken yavaşlaması",
-        "CNC tezgahında kesici ucun hızlanma profili",
-        "3D yazıcı kafasının eksen boyunca ivmelenmesi",
-        # Ulaşım mühendisliği
-        "Trafik ışığı yeşil dalga sisteminde araç akışı optimizasyonu",
-        "Otoyol giriş rampasında hızlanma şeridi tasarımı",
-        "Metro istasyonu yaklaşım frenleme mesafesi hesabı",
-        "Havalimanı pisti uzunluğu ve kalkış ivmesi ilişkisi",
-        # Sensör teknolojileri
-        "İvme sensörünün telefonda ekran yönelimi algılaması",
-        "Araç hava yastığı tetikleme ivme eşiği",
-        "Fitness bilekliğinde adım sayarken ivme ölçümü",
-        "Oyun kumandasında hareket algılama",
-    ],
-
-    # === GÜNLÜK YAŞAM ===
-    "gunluk_yasam": [
-        # Ev ve çevre
-        "Garaj kapısının motorla açılırken hızlanıp durmadan önce yavaşlaması",
-        "Elektrikli süpürgenin açılış anında motor ivmesi",
-        "Çamaşır makinesi tamburunun sıkma programında hızlanması",
-        "Bulaşık makinesi döner kolunun başlangıç ivmesi",
-        # Alışveriş ve ticaret
-        "Market arabasını itmeye başlarken hızlanma",
-        "AVM'de yürüyen merdivenin başlangıç-bitiş ivmeleri",
+    # === 🛒 ALIŞVERİŞ ===
+    "alisveris": [
+        "AVM'de market arabasını itmeye başlarken hızlanma",
+        "Yürüyen merdivenin başlangıç ve bitiş ivmeleri",
         "Kargo paketinin taşıma bandında hızlanması",
-        "Alışveriş merkezinde otopark bariyerinin açılışı",
-        # Eğlence
-        "Lunaparkta hız treni vagonunun rampa sonrası ivmesi",
-        "Dönme dolabın başlangıç ivmesi",
-        "Go-kart pistinde viraj öncesi frenleme",
-        "Bowling topunun atış anındaki ivmesi",
+        "Online sipariş drone teslimatının iniş frenlenmesi",
+        "E-ticaret deposunda robot taşıyıcının hareketi",
+        "Otopark bariyerinin araç geçişinde açılma ivmesi",
     ],
-
-    # === BİLİM VE DOĞA ===
-    "bilim_doga": [
-        # Laboratuvar deneyleri
-        "Eğik düzlemde arabanın sabit ivme ile kayması",
-        "Dinamik araba düzeneğinde ağırlık etkisiyle ivmelenme",
-        "Hava yastıklı rayda farklı eğimlerde ivme ölçümü",
-        "Atwood makinesinde farklı kütlelerle ivme değişimi",
+    # === 🍽️ BESLENME VE MUTFAK ===
+    "beslenme_mutfak": [
+        "Blender'ın düğmeye basıldığında motor hızlanması",
+        "Döner kebap motorunun et şişini döndürme ivmesi",
+        "Kahve makinesinin su pompasının hızlanması",
+        "Restoranda garsonun tepsi taşırken ani durması",
+        "Pizza hamuru açma makinesinin başlangıç ivmesi",
+    ],
+    # === 🎉 KUTLAMA VE ETKİNLİK ===
+    "kutlama_etkinlik": [
+        "Düğün konvoyunda gelin arabasının kalkış ivmesi",
+        "Havai fişeğin fırlatma anındaki ivmelenmesi",
+        "Festival alanında lunapark treninin ivmesi",
+        "Konser alanına koşan hayranların kalabalık ivmesi",
+        "Mezuniyet töreninde kepler atarken elin ivmesi",
+    ],
+    # === 🏗️ MÜHENDİSLİK VE İNŞAAT ===
+    "muhendislik_insaat": [
+        "İnşaat vinçinin beton kovası kaldırma ivmesi",
+        "Kepçenin toprağı kaldırırken ivmelenmesi",
+        "Tünel açma makinesinin (TBM) ilerleme ivmesi",
+        "Asma köprü üzerinden geçen kamyonun ivmesi",
+        "Rüzgar türbini kanatlarının dönüş başlangıç ivmesi",
+    ],
+    # === 🏭 ÜRETİM VE SANAYİ ===
+    "uretim_sanayi": [
+        "Otomotiv fabrikasında montaj hattı robotu ivmesi",
+        "Tekstil fabrikasında dokuma tezgahı mekiği ivmesi",
+        "Çelik fabrikasında hadde makinesi ivmesi",
+        "İlaç üretiminde tablet presleme makinesi ivmesi",
+        "Elektronik üretimde lehim robotunun ivmesi",
+    ],
+    # === 🌾 TARIM VE HAYVANCILIK ===
+    "tarim_hayvancilik": [
+        "Traktörün tarla sürerken hızlanma profili",
+        "Biçerdöverin hasat sırasında ivmelenmesi",
+        "Tarım drone'unun ilaçlama için alçalma ivmesi",
+        "At yarışında jokeyin starttan çıkış ivmesi",
+        "Süt sağım makinesinin pompa ivmesi",
+    ],
+    # === 🌌 UZAY VE ASTRONOMİ ===
+    "uzay_astronomi": [
+        "Roketin fırlatma anındaki ivmelenmesi",
+        "Mars gezgin aracının yüzeyde hızlanması",
+        "SpaceX roketinin dikey iniş frenlenmesi",
+        "Uzay istasyonuna yaklaşan kapsülün frenlenmesi",
+        "Uydunun orbit düzeltme manevrası ivmesi",
+    ],
+    # === 🏥 SAĞLIK VE TIP ===
+    "saglik_tip": [
+        "Ambulansın acil çağrıya hızlanması",
+        "MR cihazının hasta masası hareketi ivmesi",
+        "Ameliyat robotunun hassas hareket ivmesi",
+        "Tekerlekli sandalyenin rampa inişinde ivmesi",
+        "Helikopter ambulansının hasta nakli ivmesi",
+    ],
+    # === 🌿 ÇEVRE VE EKOLOJİ ===
+    "cevre_ekoloji": [
+        "Elektrikli araçların sıfır emisyonlu hızlanması",
+        "Rüzgar enerjisi türbininin başlangıç ivmesi",
+        "Orman yangını söndürme helikopterinin ivmesi",
+        "Elektrikli bisiklet paylaşım sisteminde ivme",
+        "Güneş paneli takip sisteminin dönüş ivmesi",
+    ],
+    # === 🎮 OYUN VE STRATEJİ ===
+    "oyun_strateji": [
+        "Yarış oyununda nitro boost ivmelenmesi",
+        "Drone yarışında engel geçişi ivmesi",
+        "Pinball topunun fırlatıcıdan çıkış ivmesi",
+        "Bilardo topunun isteka darbesi ivmesi",
+        "Bowling topunun pist boyunca ivmesi",
+    ],
+    # === 🎬 MEDYA VE SANAT ===
+    "medya_sanat": [
+        "Film setinde kamera dolly hareketinin ivmesi",
+        "Konser sahnesinde döner platformun ivmesi",
+        "Bale dansçısının piruet dönüş ivmesi",
+        "Sinema koltuğu 4D efekti ivme simülasyonu",
+        "Sirk trapezinde akrobatın sallanma ivmesi",
+    ],
+    # === 📱 DİJİTAL TEKNOLOJİ ===
+    "dijital_teknoloji": [
+        "Akıllı telefon ivmeölçerinin adım sayımı",
+        "Fitness bilekliğinde koşu ivmesi algılama",
+        "Otonom robotun engelden kaçınma ivmesi",
+        "VR gözlüğünde baş hareketi ivme algılama",
+        "Hoverboard'un ileri-geri hareket ivmesi",
+    ],
+    # === 🏛️ TARİH VE KEŞİF ===
+    "tarih_kesif": [
+        "Antik mancınığın taş fırlatma ivmesi",
+        "Wright kardeşlerin ilk uçuş ivmesi",
+        "Apollo 11'in Ay'a iniş ivmesi",
+        "Osmanlı donanmasında kürekli gemi ivmesi",
+        "Sanayi devrimi buharlı treninin kalkış ivmesi",
+    ],
+    # === ⚽ SPOR VE PERFORMANS ===
+    "spor_performans": [
+        "100 metre koşucusunun start bloklarından çıkışı",
+        "Yüzücünün duvarda dönüş sonrası itme ivmesi",
+        "Formula 1 aracının pit stop çıkışı hızlanması",
+        "Kayakçının slalom parkurunda ivmesi",
+        "Basketbolcunun potaya dribling yaparken hızlanması",
+        "Futbolcunun penaltı koşusu başlama ivmesi",
+    ],
+    # === 🔬 BİLİM VE LABORATUVAR ===
+    "bilim_laboratuvar": [
+        "Eğik düzlemde dinamik arabanın kayması",
+        "Atwood makinesinde kütlelerle ivme değişimi",
         "Fotokapı sensörleriyle ivme ölçüm deneyi",
         "Akıllı telefon ivmeölçeri ile deney yapma",
-        # Doğa olayları
-        "Çığ başlangıcında kar kütlesinin ivmelenmesi",
-        "Volkanik lav akışının eğimli yamaçta hızlanması",
-        "Nehir suyunun baraj kapaklarından salınırken ivmesi",
-        "Toprak kaymasının başlangıç ivmesi",
-        # Hayvanlar
-        "Çitanın avını kovalarken maksimum ivme kapasitesi",
+        "Hava yastıklı rayda sürtünmesiz ivme ölçümü",
+    ],
+    # === 🦁 HAYVANLAR VE DOĞA ===
+    "hayvanlar_doga": [
+        "Çitanın avını kovalarken maksimum ivmesi",
         "Şahinin pike yaparak ivmelenmesi",
+        "Yunusun su yüzeyinden sıçrama ivmesi",
         "Kanguru sıçramasında bacak itme ivmesi",
-        "At yarışında start ivmesi",
+        "Penguen'in buzda kayarak hızlanması",
     ],
-
-    # === ÇOKLU BAĞLAM - ANALİZ SEVİYESİ ===
+    # === 🎢 EĞLENCE VE HOBİ ===
+    "eglence_hobi": [
+        "Lunaparkta hız treni vagonunun rampa ivmesi",
+        "Go-kart pistinde viraj öncesi frenleme",
+        "Model roketin fırlatma ivmesi",
+        "Dalış tahtasından atlama ivmesi",
+        "Bungee jumping'de geri sıçrama ivmesi",
+    ],
+    # === ÇOKLU BAĞLAM - ANALİZ ===
     "coklu_baglam_analiz": [
-        "Farklı markaların elektrikli araçlarının 0-100 hızlanma karşılaştırması",
-        "Metro, tramvay ve otobüsün aynı güzergahta ivme profillerinin analizi",
-        "Üç farklı asansör sisteminin konfor ivme değerlerinin karşılaştırması",
+        "Elektrikli ve benzinli araçların 0-100 hızlanma karşılaştırması",
+        "Metro, tramvay ve otobüsün aynı güzergahta ivme profilleri",
+        "Kuru, ıslak ve buzlu zeminde frenleme ivmesi değişimi",
+        "Farklı drone modellerinin kalkış ivmesi karşılaştırması",
         "100m, 200m, 400m koşucularının ivme stratejisi farkları",
-        "Kuru, ıslak ve buzlu zeminde aracın frenleme ivmesi değişimi",
-        "Boş ve yüklü kamyonun aynı rampa çıkışında ivme farkı",
-        "Benzinli, dizel ve elektrikli araçların hızlanma performans grafiklerinin karşılaştırması",
-        "Kürek, kano ve dragon boat sporlarında takım ivme profillerinin analizi",
     ],
-
-    # === ÇOKLU BAĞLAM - DEĞERLENDİRME SEVİYESİ ===
+    # === ÇOKLU BAĞLAM - DEĞERLENDİRME ===
     "coklu_baglam_degerlendirme": [
-        "Trafik kazası rekonstrüksiyonunda fren izlerinden ivme hesabı ve tutarlılık kontrolü",
-        "Asansör güvenlik testinde ivme limitlerinin aşılıp aşılmadığının değerlendirilmesi",
-        "Sporcunun antrenman verilerinde ivme profilinin performansa etkisinin değerlendirilmesi",
-        "Sürücü tepki süresi ve fren mesafesi verilerinin güvenlik değerlendirmesi",
-        "Üretim hattında konveyör ivme ayarının ürün kalitesine etkisinin analizi",
-        "Farklı ivme değerlerine sahip asansörlerde yolcu konforu değerlendirmesi",
-        "Ambulans ve helikopterin acil durum ulaşımında ivme-hız avantaj analizi",
+        "Trafik kazası rekonstrüksiyonunda fren izlerinden ivme hesabı",
+        "Asansör güvenlik testinde ivme limitlerinin değerlendirilmesi",
+        "Lunapark güvenlik denetiminde ivme limit kontrolü",
+        "Otonom araç fren sisteminin güvenlik değerlendirmesi",
+        "Sporcunun antrenman verilerinde ivme performans analizi",
     ],
-
-    # === ÇOKLU BAĞLAM - YARATMA SEVİYESİ ===
+    # === ÇOKLU BAĞLAM - YARATMA ===
     "coklu_baglam_yaratma": [
-        "Yeni metro hattı için istasyona yaklaşma fren profilinin tasarlanması",
-        "Engelli bireyler için asansör konfor ivme limitlerinin optimize edilmesi",
-        "Otonom araç için trafik akışını bozmayan fren profili tasarımı",
-        "Elektrikli otobüs filosu için enerji verimliliği-ivme dengesi optimizasyonu",
-        "Spor salonları için güvenli ivme limitli fitness ekipmanı tasarımı",
-        "Yaşlı ve çocuklar için güvenli lunapark treni ivme profili tasarımı",
-        "Deprem tahliyesi için bina asansörlerinin acil mod ivme profili",
+        "Yeni metro hattı için istasyon yaklaşma fren profili tasarımı",
+        "Engelli bireyler için asansör konfor ivme optimizasyonu",
+        "Mars kolonisi için araç ivme sistemi tasarımı",
+        "Hyperloop için yolcu konforu ivme limitleri belirleme",
+        "Akıllı şehir için toplu taşıma ivme senkronizasyonu",
     ],
 }
 
@@ -1019,7 +1049,7 @@ class SabitIvmeliHareketGenerator:
         }
 
     def _get_senaryo(self, bloom_seviyesi: str) -> Tuple[str, str]:
-        """Bloom seviyesine uygun senaryo seç"""
+        """Bloom seviyesine uygun senaryo seç - 20+ kategori"""
 
         if bloom_seviyesi in ["Analiz", "Değerlendirme", "Yaratma"]:
             # Üst düzey için çoklu bağlam
@@ -1032,8 +1062,15 @@ class SabitIvmeliHareketGenerator:
                     kategori = "coklu_baglam_yaratma"
                 return random.choice(SENARYO_VERITABANI[kategori]), kategori
 
-        # Normal kategorilerden seç
-        kategoriler = ["ulasim_araclar", "spor_performans", "teknoloji_muhendislik", "gunluk_yasam", "bilim_doga"]
+        # 20+ kategoriden rastgele seç - çeşitlilik için
+        kategoriler = [
+            "ulasim_seyahat", "ev_aile", "alisveris", "beslenme_mutfak",
+            "kutlama_etkinlik", "muhendislik_insaat", "uretim_sanayi",
+            "tarim_hayvancilik", "uzay_astronomi", "saglik_tip",
+            "cevre_ekoloji", "oyun_strateji", "medya_sanat",
+            "dijital_teknoloji", "tarih_kesif", "spor_performans",
+            "bilim_laboratuvar", "hayvanlar_doga", "eglence_hobi"
+        ]
         kategori = random.choice(kategoriler)
         return random.choice(SENARYO_VERITABANI[kategori]), kategori
 
