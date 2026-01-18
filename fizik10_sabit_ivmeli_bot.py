@@ -932,13 +932,16 @@ class SupabaseClient:
                 "topic_group": question.topic_group,
                 "kazanim_id": kazanim_id,
                 "bloom_level": question.bloom_level,
+                "pisa_level": None,
+                "pisa_context": None,
                 "scenario_text": question.scenario_text,
                 "distractor_explanations": question.distractor_explanations,
                 "image_url": question.image_url,
                 "question_type": question.question_mode,
                 "is_active": True,
                 "verified": False,
-                "created_at": datetime.utcnow().isoformat()
+                "is_past_exam": False,
+                "exam_type": "FIZIK10_SABIT_IVMELI_BOT"
             }
 
             response = requests.post(
