@@ -626,27 +626,37 @@ YASAKLAR: 3D efekt, gölge, fotoğraf, soru metni
 IMAGE_PROMPT_3D_SCENARIO = """10. Sınıf Fizik - Sabit İvmeli Hareket için GERÇEKÇİ 3D GÖRSEL oluştur.
 
 ## GÖRSEL TİPİ: {tip}
-## DETAY: {detay}
+## DETAY VE SENARYO: {detay}
+
+### KRİTİK KURAL - SENARYO UYUMU:
+- SORU BAĞLAMI'ndaki senaryoya TAM UYGUN görsel oluştur!
+- Soruda "dinamik arabası" varsa → Laboratuvar ortamı, küçük tekerlekli deney arabası
+- Soruda "otomobil/araba" varsa → Gerçekçi bir otomobil (spor araba, sedan, SUV - çeşitlilik!)
+- Soruda "tren/metro" varsa → O zaman tren göster
+- Soruda "asansör" varsa → Asansör kabini
+- Soruda "top/cisim" varsa → Eğik düzlemde top veya küp
+- Soruda "koşucu/atlet" varsa → Koşu pisti, atlet
+- Soruda "roket/uzay" varsa → Roket fırlatma sahnesi
+- Soruda "bisiklet" varsa → Bisikletçi
+- Soruda "uçak" varsa → Pist üzerinde uçak
+- Soruda "tekne/kayık" varsa → Su üzerinde tekne
+
+### ARAÇ ÇEŞİTLİLİĞİ (her seferinde FARKLI):
+- Otomobiller: Kırmızı spor araba, mavi sedan, yeşil SUV, sarı taksi, beyaz ambulans
+- Laboratuvar: Mavi/kırmızı/yeşil dinamik arabası, ahşap eğik düzlem
+- Trenler: Yüksek hızlı tren, metro, yük treni (SADECE soruda geçerse!)
 
 ### 3D GERÇEKÇİ STİL:
 - Fotorealistik render kalitesi
 - Gerçekçi ışıklandırma ve gölgeler
 - Motion blur ile hareket hissi
-- Modern, çekici tasarım
-
-### SENARYO BAZLI NESNELER:
-- Metro/YHT → Modern tren, istasyon
-- Araç → Gerçekçi otomobil, yol
-- Asansör → Modern kabin, sayısal gösterge
-- Koşucu → Atlet, start blokları, pist
-- Kürek → Tekne, su yüzeyi, kürekçiler
 
 ### FİZİK GÖSTERİMLERİ:
 - Hız vektörü: Yeşil ok, glow efekti
 - İvme vektörü: Turuncu/kırmızı ok
-- Hareket yönü: Kesikli çizgi yörünge
+- Grafik paneli: Şeffaf overlay olarak v-t veya x-t grafiği
 
-YASAKLAR: Soru metni, şıklar, formüller
+YASAKLAR: Soru metni, şıklar, formüller, matematik sembolleri
 """
 
 # ============================================================================
