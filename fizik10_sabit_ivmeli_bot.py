@@ -645,61 +645,70 @@ III. [Üçüncü ifade]"
 
 IMAGE_PROMPT_2D_GRAPH = """10. Sınıf Fizik - Sabit İvmeli Hareket için TEKNİK 2D GRAFİK çiz.
 
-## GÖRSEL TİPİ: {tip}
-## DETAY: {detay}
+## GRAFİK TİPİ: {tip}
+## VERİLER: {detay}
 
-### GRAFİK STİLİ:
-- Temiz koordinat sistemi, beyaz arka plan
-- Siyah eksenler, ok uçlu
-- Pembe/Magenta (#E91E63) veya Mavi (#2196F3) eğri
-- Grid çizgileri (açık gri)
+### ZORUNLU STİL - DERS KİTABI KALİTESİ:
+- BEYAZ arka plan (saf beyaz #FFFFFF)
+- Temiz x-y koordinat sistemi
+- Siyah eksenler, kalın çizgi, ok uçlu (→)
+- Eksen etiketleri: t (s) x-ekseninde, v (m/s) veya x (m) veya a (m/s²) y-ekseninde
+- Grid çizgileri: açık gri, ince, kesikli
+- Değer işaretleri: eksenlerde düzgün aralıklı
 
-### GRAFİK TİPLERİ:
-- x-t: Parabolik eğri (sabit ivmeli hareket)
-- v-t: Doğrusal eğik çizgi
-- a-t: Yatay düz çizgi
+### GRAFİK ÇİZGİSİ:
+- PEMBE/MAGENTA (#E91E63) veya MAVİ (#2196F3) renkli eğri
+- Kalın, net çizgi (2-3px kalınlık)
+- v-t grafiği: Doğrusal eğik çizgi (sabit ivme)
+- x-t grafiği: Parabolik eğri (sabit ivmeli hareket)
+- a-t grafiği: Yatay düz çizgi (sabit ivme)
 
-### EKSEN ETİKETLERİ:
-- X ekseni: t (s)
-- Y ekseni: x (m) veya v (m/s) veya a (m/s²)
+### SAYISAL DEĞERLER:
+- Eksenlerde sayılar net görünsün
+- Önemli noktalar (t, 2t, 3t veya 0, 2, 4, 6 gibi)
+- Başlangıç ve bitiş değerleri
 
-YASAKLAR: 3D efekt, gölge, fotoğraf, soru metni
+### KESİNLİKLE YASAK:
+- 3D efekt, gölge, perspektif YOK
+- Araba, tren, insan figürü YOK
+- Soru metni, şıklar YOK
+- Gereksiz oklar, harfler (g, a, v vektörleri) YOK
+- Fotoğraf, render YOK
+- Sadece TEKNİK GRAFİK olacak
 """
 
-IMAGE_PROMPT_3D_SCENARIO = """10. Sınıf Fizik - Sabit İvmeli Hareket için GERÇEKÇİ 3D GÖRSEL oluştur.
+IMAGE_PROMPT_3D_SCENARIO = """10. Sınıf Fizik - Sabit İvmeli Hareket senaryosu için GERÇEKÇİ 3D GÖRSEL oluştur.
 
-## GÖRSEL TİPİ: {tip}
-## DETAY VE SENARYO: {detay}
+## SENARYO: {tip}
+## DETAY: {detay}
 
-### KRİTİK KURAL - SENARYO UYUMU:
-- SORU BAĞLAMI'ndaki senaryoya TAM UYGUN görsel oluştur!
-- Soruda "dinamik arabası" varsa → Laboratuvar ortamı, küçük tekerlekli deney arabası
-- Soruda "otomobil/araba" varsa → Gerçekçi bir otomobil (spor araba, sedan, SUV - çeşitlilik!)
-- Soruda "tren/metro" varsa → O zaman tren göster
-- Soruda "asansör" varsa → Asansör kabini
-- Soruda "top/cisim" varsa → Eğik düzlemde top veya küp
-- Soruda "koşucu/atlet" varsa → Koşu pisti, atlet
-- Soruda "roket/uzay" varsa → Roket fırlatma sahnesi
-- Soruda "bisiklet" varsa → Bisikletçi
-- Soruda "uçak" varsa → Pist üzerinde uçak
-- Soruda "tekne/kayık" varsa → Su üzerinde tekne
+### KRİTİK KURALLAR - SADECE SENARYO TASVİRİ:
+- Senaryodaki ortamı ve nesneyi GERÇEKÇİ şekilde göster
+- SADECE sahneyi tasvir et, ÇÖZÜMÜN PARÇASI OLMA
+- İPUCU VERME, sayılar ekleme
+- Soruda geçmeyen hiçbir değer gösterme
 
-### ARAÇ ÇEŞİTLİLİĞİ (her seferinde FARKLI):
-- Otomobiller: Kırmızı spor araba, mavi sedan, yeşil SUV, sarı taksi, beyaz ambulans
-- Laboratuvar: Mavi/kırmızı/yeşil dinamik arabası, ahşap eğik düzlem
-- Trenler: Yüksek hızlı tren, metro, yük treni (SADECE soruda geçerse!)
+### SENARYO UYUMU:
+- "dinamik arabası" → Laboratuvar, küçük tekerlekli deney arabası
+- "otomobil/araba" → Gerçekçi otomobil (spor araba, sedan, SUV)
+- "tren/metro" → Sadece soruda geçerse tren
+- "asansör" → Asansör kabini iç veya dış görünüm
+- "koşucu" → Atlet koşu pistinde
+- "roket" → Fırlatma rampası
+- "bisiklet/scooter" → Bisikletçi veya scooter
 
 ### 3D GERÇEKÇİ STİL:
 - Fotorealistik render kalitesi
 - Gerçekçi ışıklandırma ve gölgeler
-- Motion blur ile hareket hissi
+- Hareket hissi (motion blur)
 
-### FİZİK GÖSTERİMLERİ:
-- Hız vektörü: Yeşil ok, glow efekti
-- İvme vektörü: Turuncu/kırmızı ok
-- Grafik paneli: Şeffaf overlay olarak v-t veya x-t grafiği
-
-YASAKLAR: Soru metni, şıklar, formüller, matematik sembolleri
+### KESİNLİKLE YASAK:
+- GRAFİK ÇİZME (v-t, x-t, a-t grafiği YOK)
+- Sayısal değerler YOK (10 m/s, 5 m gibi)
+- Fizik sembolleri YOK (g, a, v okları YOK)
+- Formüller YOK
+- Soru metni, şıklar YOK
+- Çözüme ipucu verecek hiçbir şey YOK
 """
 
 # ============================================================================
@@ -877,23 +886,33 @@ III. [Üçüncü ifade]"
         return None
 
     def generate_image(self, gorsel_betimleme: Dict, soru_metni: str = "") -> Optional[bytes]:
-        """Görsel üret"""
+        """Görsel üret - Grafik soruları için 2D, Senaryo soruları için 3D"""
         if not NEW_GENAI or not self.client:
             return None
 
-        tip = gorsel_betimleme.get("tip", "grafik")
+        tip = gorsel_betimleme.get("tip", "").lower()
         detay = gorsel_betimleme.get("detay", "")
 
-        # Soru bağlamı ekle
-        if soru_metni:
-            detay += f"\n\nSORU BAĞLAMI:\n{soru_metni[:400]}"
+        # Grafik türleri - 2D TEKNİK GRAFİK kullan
+        grafik_keywords = [
+            "grafik", "v-t", "x-t", "a-t", "hız-zaman", "konum-zaman",
+            "ivme-zaman", "v_t", "x_t", "a_t", "diyagram", "koordinat"
+        ]
 
-        # Grafik mi, senaryo görseli mi?
-        if "grafik" in tip.lower() or "_t_" in tip.lower():
+        is_graph = any(kw in tip for kw in grafik_keywords)
+
+        if is_graph:
+            # 2D TEKNİK GRAFİK - Ders kitabı tarzı, araba/tren YOK
             prompt = IMAGE_PROMPT_2D_GRAPH.format(tip=tip, detay=detay)
-            logger.info(f"  Görsel tipi: 2D GRAFİK ({tip})")
+            logger.info(f"  Görsel tipi: 2D TEKNİK GRAFİK ({tip})")
         else:
-            prompt = IMAGE_PROMPT_3D_SCENARIO.format(tip=tip, detay=detay)
+            # 3D SENARYO GÖRSELİ - Grafik YOK, sadece sahne tasviri
+            # Soru bağlamından senaryoyu al ama ipucu verme
+            senaryo_detay = detay
+            if soru_metni:
+                # Sadece senaryo kısmını al, sayıları dahil etme
+                senaryo_detay = f"Senaryo ortamı: {detay}"
+            prompt = IMAGE_PROMPT_3D_SCENARIO.format(tip=tip, detay=senaryo_detay)
             logger.info(f"  Görsel tipi: 3D SENARYO ({tip})")
 
         self._rate_limit()
@@ -1046,7 +1065,9 @@ class SabitIvmeliHareketGenerator:
             "with_image": 0,
             "hesaplama": 0,
             "grafik": 0,
-            "onculu": 0
+            "onculu": 0,
+            "grafik_karsilastirma": 0,
+            "grafik_donusumu": 0
         }
 
     def _get_senaryo(self, bloom_seviyesi: str) -> Tuple[str, str]:
@@ -1087,11 +1108,17 @@ class SabitIvmeliHareketGenerator:
                 return random.choice(["senaryo_hesaplama", "senaryo_grafik_hesaplama"])
 
         elif self.soru_tipi_filtre == "grafik":
-            # 2D grafik ağırlıklı
+            # 2D grafik ağırlıklı - grafik karşılaştırma ve dönüşüm eklendi
             if mod == "kazanim":
-                return random.choice(["grafik_okuma", "grafik_donusumu", "grafik_cizim"])
+                return random.choice([
+                    "grafik_okuma", "grafik_donusumu", "grafik_cizim",
+                    "grafik_karsilastirma", "coklu_grafik_analiz", "grafik_model_iliskisi"
+                ])
             else:
-                return random.choice(["senaryo_grafik", "senaryo_grafik_analiz"])
+                return random.choice([
+                    "senaryo_grafik", "senaryo_grafik_analiz",
+                    "senaryo_grafik_karsilastirma", "senaryo_coklu_grafik"
+                ])
 
         elif self.soru_tipi_filtre == "onculu":
             # Öncüllü sorular - I, II, III
@@ -1106,21 +1133,34 @@ class SabitIvmeliHareketGenerator:
                 # Orta seviye: hesaplama ağırlıklı
                 return random.choice(["hesaplama", "grafik_hesaplama", "formul_uygulama", "grafik_okuma"])
             elif bloom_seviyesi == "Analiz":
-                # Analiz: grafik dönüşümü + hesaplama
-                return random.choice(["grafik_donusumu", "analiz_hesaplama", "coklu_grafik"])
+                # Analiz: grafik dönüşümü + karşılaştırma (FİZ.10.1.3.b ve c için güçlendirildi)
+                return random.choice([
+                    "grafik_donusumu", "grafik_karsilastirma", "coklu_grafik_analiz",
+                    "grafik_model_iliskisi", "analiz_hesaplama"
+                ])
             else:
-                # Üst seviye: öncüllü + karmaşık analiz (ama dengeli)
-                return random.choice(["onculu", "analiz", "grafik_donusumu", "hesaplama"])
+                # Üst seviye: öncüllü + karmaşık analiz + grafik karşılaştırma
+                return random.choice([
+                    "onculu", "analiz", "grafik_donusumu",
+                    "grafik_karsilastirma", "coklu_grafik_analiz", "hesaplama"
+                ])
         else:  # baglam
             if bloom_seviyesi in ["Hatırlama", "Anlama"]:
                 return random.choice(["senaryo_kavram", "senaryo_grafik", "senaryo_basit_hesaplama"])
             elif bloom_seviyesi == "Uygulama":
                 return random.choice(["senaryo_hesaplama", "senaryo_grafik", "senaryo_formul"])
             elif bloom_seviyesi == "Analiz":
-                return random.choice(["karsilastirma", "senaryo_analiz", "senaryo_grafik_hesaplama"])
+                # Bağlam + grafik karşılaştırma (FİZ.10.1.3.b ve c için güçlendirildi)
+                return random.choice([
+                    "karsilastirma", "senaryo_analiz", "senaryo_grafik_hesaplama",
+                    "senaryo_grafik_karsilastirma", "senaryo_coklu_grafik"
+                ])
             else:
-                # Üst seviye bağlam: öncüllü ağırlıklı ama dengeli
-                return random.choice(["onculu", "karar_verme", "tasarim", "senaryo_hesaplama"])
+                # Üst seviye bağlam: öncüllü + grafik karşılaştırma
+                return random.choice([
+                    "onculu", "karar_verme", "tasarim",
+                    "senaryo_grafik_karsilastirma", "senaryo_hesaplama"
+                ])
 
     def generate_single(self, mod: str, bloom_seviyesi: str = None) -> Optional[int]:
         """Tek soru üret"""
@@ -1137,7 +1177,18 @@ class SabitIvmeliHareketGenerator:
         if self.kazanim_filtre and self.kazanim_filtre in KONU_BILGISI["kazanimlar"]:
             kazanim_kodu = self.kazanim_filtre
         else:
-            kazanim_kodu = random.choice(list(KONU_BILGISI["kazanimlar"].keys()))
+            # Ağırlıklı kazanım seçimi - FİZ.10.1.3.b ve FİZ.10.1.3.c daha çok gelsin
+            # (Grafik dönüşümü ve matematiksel model soruları için)
+            kazanim_agirliklari = {
+                "FIZ.10.1.2.a": 1,   # İvme-hız ilişkisi keşfi
+                "FIZ.10.1.2.b": 1,   # İvme-hız ilişkisi genelleme
+                "FIZ.10.1.3.a": 2,   # Grafik inceleme
+                "FIZ.10.1.3.b": 4,   # Grafik dönüşümü + matematiksel model (YÜKSEK AĞIRLIK)
+                "FIZ.10.1.3.c": 4,   # Grafik-model ilişkisi ifade etme (YÜKSEK AĞIRLIK)
+            }
+            kazanimlar = list(kazanim_agirliklari.keys())
+            agirliklar = list(kazanim_agirliklari.values())
+            kazanim_kodu = random.choices(kazanimlar, weights=agirliklar, k=1)[0]
 
         # Senaryo seç (bağlam modu için)
         senaryo, senaryo_kat = "", ""
@@ -1245,9 +1296,13 @@ class SabitIvmeliHareketGenerator:
                 # Soru tipi istatistiği
                 if "hesaplama" in soru_tipi or "formul" in soru_tipi:
                     self.stats["hesaplama"] += 1
+                if "grafik_karsilastirma" in soru_tipi or "coklu_grafik" in soru_tipi:
+                    self.stats["grafik_karsilastirma"] += 1
+                elif "grafik_donusumu" in soru_tipi or "grafik_model" in soru_tipi:
+                    self.stats["grafik_donusumu"] += 1
                 elif "grafik" in soru_tipi:
                     self.stats["grafik"] += 1
-                elif "onculu" in soru_tipi:
+                if "onculu" in soru_tipi:
                     self.stats["onculu"] += 1
                 logger.info(f"\n✓ BAŞARILI! ID: {question_id}")
                 return question_id
@@ -1257,9 +1312,13 @@ class SabitIvmeliHareketGenerator:
             # Soru tipi istatistiği
             if "hesaplama" in soru_tipi or "formul" in soru_tipi:
                 self.stats["hesaplama"] += 1
+            if "grafik_karsilastirma" in soru_tipi or "coklu_grafik" in soru_tipi:
+                self.stats["grafik_karsilastirma"] += 1
+            elif "grafik_donusumu" in soru_tipi or "grafik_model" in soru_tipi:
+                self.stats["grafik_donusumu"] += 1
             elif "grafik" in soru_tipi:
                 self.stats["grafik"] += 1
-            elif "onculu" in soru_tipi:
+            if "onculu" in soru_tipi:
                 self.stats["onculu"] += 1
             logger.info(f"\n✓ BAŞARILI! (DB bağlantısı yok)")
             return -1
@@ -1324,6 +1383,8 @@ class SabitIvmeliHareketGenerator:
         logger.info(f"--- Soru Tipleri ---")
         logger.info(f"Hesaplama: {self.stats['hesaplama']}")
         logger.info(f"Grafik: {self.stats['grafik']}")
+        logger.info(f"Grafik Karşılaştırma: {self.stats['grafik_karsilastirma']}")
+        logger.info(f"Grafik Dönüşümü: {self.stats['grafik_donusumu']}")
         logger.info(f"Öncüllü: {self.stats['onculu']}")
         logger.info(f"Görselli: {self.stats['with_image']}")
         logger.info(f"Başarı Oranı: {(self.stats['successful']/max(1, self.stats['total'])*100):.1f}%")
