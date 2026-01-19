@@ -583,23 +583,104 @@ SYSTEM_PROMPT_BAGLAM = """Sen, Türkiye Yüzyılı Maarif Modeli'ne göre 10. s�
 3. **ÇELDİRİCİ MANTIĞI**: Yanlış şıklar kavram yanılgılarını hedeflemeli
 4. **GEREKSİZ BİLGİ YOK**: Dikkat dağıtıcı detaylardan arındırılmış
 
+### SORU FELSEFESİ - DÜŞÜNDÜREN SORULAR:
+Aşağıdaki soru formatlarını kullan:
+
+**1. "ARKADAŞINI İKNA ET" FORMATI:**
+Öğrencinin bir fizik kavramını başkasına açıklamasını gerektiren sorular.
+- "Arkadaşlarınızı ... konusunda ikna ediniz"
+- "Cevabınızla arkadaşlarınızı ikna etmeye çalışınız"
+
+**2. "ARKADAŞINI DÜZELT" FORMATI:**
+Yaygın kavram yanılgılarını hedefleyen sorular.
+- "Bir arkadaşınız '...' diyor. Arkadaşınızı düzeltiniz"
+- "Bu iddiaya cevabınız nasıl olurdu?"
+
+**3. "DENEY/GÖZLEM" FORMATI:**
+Yaparak öğrenmeyi teşvik eden sorular.
+- "Şunu arkadaşlarınızla deneyiniz..."
+- "Bu deneyin sonucu ne olur?"
+
+**4. "KARŞILAŞTIRMA" FORMATI:**
+İki durumu analiz ettiren sorular.
+- "A ve B durumlarından hangisi...?"
+- "Her iki durumda da ... aynı mıdır?"
+
+**5. "BİLEŞKE HIZ" PROBLEMLERİ:**
+Vektörel toplama gerektiren gerçekçi senaryolar.
+- Kayık-nehir akıntısı
+- Yağmur-koşucu
+- Uçak-rüzgar
+
+### ÖRNEK SORULAR (BU FELSEFEYİ TAKİP ET):
+
+**Örnek 1 - İkna Et (Kayık-Nehir):**
+"Bir kayık 3 m/s süratle nehirden direk karşıya geçmek üzere yönelmiştir. Eğer nehir 4 m/s süratle akıyorsa kayığın kıyıya göre 5 m/s süratle hareket edeceği iddia ediliyor.
+
+Buna göre, bu iddianın doğruluğunu kanıtlamak için aşağıdakilerden hangisi kullanılmalıdır?"
+
+**Örnek 2 - İkna Et (Yağmur-Koşucu):**
+"Yağmur damlaları 3 m/s süratle direk aşağıya doğru düşerken siz de yatay doğrultuda 4 m/s hızla koşuyorsunuz.
+
+Buna göre, yağmur damlasının size göre sürati kaç m/s'dir?"
+
+**Örnek 3 - Düzelt (Kavram Yanılgısı):**
+"Bir arkadaşınız 'Bir yarış arabası kavşaktan 200 km/h sabit hızla döndü.' diyor.
+
+Buna göre, arkadaşınızın ifadesindeki fiziksel hata aşağıdakilerden hangisidir?"
+
+**Örnek 4 - Düzelt (İvme-Yön):**
+"Bir arkadaşınız 'Eğer bir araba doğuya doğru gidiyorsa aynı anda ivmesi batıya doğru olamaz.' diyor.
+
+Buna göre, aşağıdakilerden hangisi arkadaşınızın hatasını açıklar?"
+
+**Örnek 5 - Düşünce Deneyi (Tepki Süresi):**
+"Elinize bir kâğıt para alınız ve arkadaşınızın iki parmağı paranın ortasına gelecek şekilde siz parayı serbest bıraktığınız anda harekete geçecek şekilde tutmasını isteyiniz.
+
+d = ½gt² ifadesine göre, 7 cm uzunluğundaki bir kâğıt para yaklaşık 1/9 saniyede düşecektir. Fakat bir insanın göz-parmak koordinasyonu için en az 1/7 saniye gereklidir.
+
+Buna göre, aşağıdaki ifadelerden hangisi doğrudur?"
+
+**Örnek 6 - Karşılaştırma (Eğimli Yollar):**
+"Eşit uzunluktaki A ve B yollarının sol uçlarından iki top aynı anda bırakılıyor.
+(A yolu: düz eğimli, B yolu: önce dik sonra yatay)
+
+Buna göre, hangi top yolun sonuna daha önce ulaşır?"
+
+**Örnek 7 - Kavramsal (Sürat-İvme):**
+"Süratinizin sıfır olduğu ama ivmenizin sıfır olmadığı bir duruma örnek veriniz.
+
+Buna göre, aşağıdakilerden hangisi bu duruma örnek gösterilebilir?"
+
+**Örnek 8 - Kavramsal (İvme Yönü):**
+"Bir cismin ivmesinin yönü hızına zıt olabilir mi?
+
+Buna göre, aşağıdaki durumlardan hangisinde ivme ve hız yönleri zıttır?"
+
+**Örnek 9 - Felsefi Tartışma:**
+"Bir arkadaşınız, fizik dersinde idealize edilmiş durumların (sürtünmesiz yüzey, hava direncisiz ortam) gerçek dünyada gerçekleşmediği için öğrenmenin değersiz olduğunu iddia ediyor.
+
+Buna göre, aşağıdakilerden hangisi bu iddiaya en uygun cevaptır?"
+
 ### SENARYO KATEGORİLERİ:
-1. **Ulaşım**: Metro, YHT, otomobil, uçak kalkış/iniş
+1. **Ulaşım**: Metro, YHT, otomobil, uçak kalkış/iniş, kayık-nehir
 2. **Spor**: Koşucu start ivmesi, kürek takımı, yüzücü
 3. **Teknoloji**: Asansör, ivme sensörleri, otonom araçlar
 4. **Günlük Yaşam**: Lunapark, alışveriş merkezi, ev aletleri
 5. **Bilim**: Laboratuvar deneyleri, doğa olayları
+6. **Doğa Olayları**: Yağmur damlaları, rüzgar etkileri
 
 ### ÜST DÜZEY BLOOM İÇİN ÇOKLU BAĞLAM:
-- **Analiz**: İki sistemin karşılaştırması (örn: farklı araçların ivme profilleri)
-- **Değerlendirme**: Güvenlik değerlendirmesi, hata analizi
-- **Yaratma**: Sistem tasarımı, optimizasyon
+- **Analiz**: İki sistemin karşılaştırması (örn: farklı eğimli yollar)
+- **Değerlendirme**: Kavram yanılgısı düzeltme, iddia değerlendirme
+- **Yaratma**: Deney tasarımı, örnek bulma
 
 ### MATEMATİKSEL MODELLER:
 - a = Δv/Δt
 - v = v₀ + a·t
 - x = v₀·t + (1/2)·a·t²
 - v² = v₀² + 2·a·x
+- Bileşke hız: v = √(v₁² + v₂²) (dik vektörler için)
 
 ### GRAFİK TİPLERİ:
 - x-t grafiği (parabolik)
@@ -607,9 +688,12 @@ SYSTEM_PROMPT_BAGLAM = """Sen, Türkiye Yüzyılı Maarif Modeli'ne göre 10. s�
 - a-t grafiği (yatay çizgi)
 
 ### KAVRAM YANILGILARI (ÇELDİRİCİLER İÇİN):
-- Negatif ivme = yavaşlama (YANLIŞ olabilir)
-- İvme sıfır = cisim durur (YANLIŞ)
+- Negatif ivme = yavaşlama (YANLIŞ olabilir - frenleme değil yön meselesi)
+- İvme sıfır = cisim durur (YANLIŞ - sabit hızla hareket eder)
 - v-t grafiği alanı = hız (YANLIŞ: yer değiştirme)
+- Hız ve ivme aynı yönde olmalı (YANLIŞ - zıt yönlü olabilir)
+- Sabit hız = ivmeli hareket değil (DOĞRU)
+- Kavşakta sabit süratle dönme = sabit hız (YANLIŞ - yön değişiyor)
 
 ### ÖNCÜLLÜ SORU FORMATI:
 "[Senaryo açıklaması]
@@ -1100,7 +1184,9 @@ class SabitIvmeliHareketGenerator:
             "grafik": 0,
             "onculu": 0,
             "grafik_karsilastirma": 0,
-            "grafik_donusumu": 0
+            "grafik_donusumu": 0,
+            "ikna_duzelt": 0,  # ikna_et, arkadas_duzelt, dusunce_deneyi
+            "bileske_hiz": 0   # kayık-nehir, yağmur-koşucu
         }
 
     def _get_senaryo(self, bloom_seviyesi: str) -> Tuple[str, str]:
@@ -1177,21 +1263,31 @@ class SabitIvmeliHareketGenerator:
                     "onculu", "analiz", "grafik_donusumu",
                     "grafik_karsilastirma", "coklu_grafik_analiz", "hesaplama"
                 ])
-        else:  # baglam
+        else:  # baglam - DÜŞÜNDÜREN SORU FORMATLARI
             if bloom_seviyesi in ["Hatırlama", "Anlama"]:
-                return random.choice(["senaryo_kavram", "senaryo_grafik", "senaryo_basit_hesaplama"])
+                # Alt seviye: kavramsal sorular + basit hesaplama
+                return random.choice([
+                    "senaryo_kavram", "senaryo_grafik", "senaryo_basit_hesaplama",
+                    "bileske_hiz"  # Kayık-nehir, yağmur-koşucu
+                ])
             elif bloom_seviyesi == "Uygulama":
-                return random.choice(["senaryo_hesaplama", "senaryo_grafik", "senaryo_formul"])
+                # Orta seviye: hesaplama + ikna et formatı
+                return random.choice([
+                    "senaryo_hesaplama", "senaryo_grafik", "senaryo_formul",
+                    "ikna_et", "bileske_hiz"
+                ])
             elif bloom_seviyesi == "Analiz":
-                # Bağlam + grafik karşılaştırma (FİZ.10.1.3.b ve c için güçlendirildi)
+                # Analiz: karşılaştırma + arkadaş düzelt + düşünce deneyi
                 return random.choice([
                     "karsilastirma", "senaryo_analiz", "senaryo_grafik_hesaplama",
+                    "arkadas_duzelt", "dusunce_deneyi", "ikna_et",
                     "senaryo_grafik_karsilastirma", "senaryo_coklu_grafik"
                 ])
             else:
-                # Üst seviye bağlam: öncüllü + grafik karşılaştırma
+                # Üst seviye: felsefi tartışma + kavram yanılgısı düzeltme
                 return random.choice([
                     "onculu", "karar_verme", "tasarim",
+                    "arkadas_duzelt", "dusunce_deneyi", "felsefi_tartisma",
                     "senaryo_grafik_karsilastirma", "senaryo_hesaplama"
                 ])
 
@@ -1337,6 +1433,11 @@ class SabitIvmeliHareketGenerator:
                     self.stats["grafik"] += 1
                 if "onculu" in soru_tipi:
                     self.stats["onculu"] += 1
+                # Yeni düşündüren soru tipleri
+                if any(t in soru_tipi for t in ["ikna_et", "arkadas_duzelt", "dusunce_deneyi", "felsefi"]):
+                    self.stats["ikna_duzelt"] += 1
+                if "bileske_hiz" in soru_tipi:
+                    self.stats["bileske_hiz"] += 1
                 logger.info(f"\n✓ BAŞARILI! ID: {question_id}")
                 return question_id
         else:
@@ -1353,6 +1454,11 @@ class SabitIvmeliHareketGenerator:
                 self.stats["grafik"] += 1
             if "onculu" in soru_tipi:
                 self.stats["onculu"] += 1
+            # Yeni düşündüren soru tipleri
+            if any(t in soru_tipi for t in ["ikna_et", "arkadas_duzelt", "dusunce_deneyi", "felsefi"]):
+                self.stats["ikna_duzelt"] += 1
+            if "bileske_hiz" in soru_tipi:
+                self.stats["bileske_hiz"] += 1
             logger.info(f"\n✓ BAŞARILI! (DB bağlantısı yok)")
             return -1
 
@@ -1419,6 +1525,8 @@ class SabitIvmeliHareketGenerator:
         logger.info(f"Grafik Karşılaştırma: {self.stats['grafik_karsilastirma']}")
         logger.info(f"Grafik Dönüşümü: {self.stats['grafik_donusumu']}")
         logger.info(f"Öncüllü: {self.stats['onculu']}")
+        logger.info(f"İkna Et/Düzelt/Düşünce Deneyi: {self.stats['ikna_duzelt']}")
+        logger.info(f"Bileşke Hız (Kayık-Nehir vb.): {self.stats['bileske_hiz']}")
         logger.info(f"Görselli: {self.stats['with_image']}")
         logger.info(f"Başarı Oranı: {(self.stats['successful']/max(1, self.stats['total'])*100):.1f}%")
         logger.info(f"{'='*60}")
