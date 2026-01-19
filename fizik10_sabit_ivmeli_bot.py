@@ -1065,7 +1065,9 @@ class SabitIvmeliHareketGenerator:
             "with_image": 0,
             "hesaplama": 0,
             "grafik": 0,
-            "onculu": 0
+            "onculu": 0,
+            "grafik_karsilastirma": 0,
+            "grafik_donusumu": 0
         }
 
     def _get_senaryo(self, bloom_seviyesi: str) -> Tuple[str, str]:
@@ -1106,11 +1108,17 @@ class SabitIvmeliHareketGenerator:
                 return random.choice(["senaryo_hesaplama", "senaryo_grafik_hesaplama"])
 
         elif self.soru_tipi_filtre == "grafik":
-            # 2D grafik ağırlıklı
+            # 2D grafik ağırlıklı - grafik karşılaştırma ve dönüşüm eklendi
             if mod == "kazanim":
-                return random.choice(["grafik_okuma", "grafik_donusumu", "grafik_cizim"])
+                return random.choice([
+                    "grafik_okuma", "grafik_donusumu", "grafik_cizim",
+                    "grafik_karsilastirma", "coklu_grafik_analiz", "grafik_model_iliskisi"
+                ])
             else:
-                return random.choice(["senaryo_grafik", "senaryo_grafik_analiz"])
+                return random.choice([
+                    "senaryo_grafik", "senaryo_grafik_analiz",
+                    "senaryo_grafik_karsilastirma", "senaryo_coklu_grafik"
+                ])
 
         elif self.soru_tipi_filtre == "onculu":
             # Öncüllü sorular - I, II, III
@@ -1125,21 +1133,34 @@ class SabitIvmeliHareketGenerator:
                 # Orta seviye: hesaplama ağırlıklı
                 return random.choice(["hesaplama", "grafik_hesaplama", "formul_uygulama", "grafik_okuma"])
             elif bloom_seviyesi == "Analiz":
-                # Analiz: grafik dönüşümü + hesaplama
-                return random.choice(["grafik_donusumu", "analiz_hesaplama", "coklu_grafik"])
+                # Analiz: grafik dönüşümü + karşılaştırma (FİZ.10.1.3.b ve c için güçlendirildi)
+                return random.choice([
+                    "grafik_donusumu", "grafik_karsilastirma", "coklu_grafik_analiz",
+                    "grafik_model_iliskisi", "analiz_hesaplama"
+                ])
             else:
-                # Üst seviye: öncüllü + karmaşık analiz (ama dengeli)
-                return random.choice(["onculu", "analiz", "grafik_donusumu", "hesaplama"])
+                # Üst seviye: öncüllü + karmaşık analiz + grafik karşılaştırma
+                return random.choice([
+                    "onculu", "analiz", "grafik_donusumu",
+                    "grafik_karsilastirma", "coklu_grafik_analiz", "hesaplama"
+                ])
         else:  # baglam
             if bloom_seviyesi in ["Hatırlama", "Anlama"]:
                 return random.choice(["senaryo_kavram", "senaryo_grafik", "senaryo_basit_hesaplama"])
             elif bloom_seviyesi == "Uygulama":
                 return random.choice(["senaryo_hesaplama", "senaryo_grafik", "senaryo_formul"])
             elif bloom_seviyesi == "Analiz":
-                return random.choice(["karsilastirma", "senaryo_analiz", "senaryo_grafik_hesaplama"])
+                # Bağlam + grafik karşılaştırma (FİZ.10.1.3.b ve c için güçlendirildi)
+                return random.choice([
+                    "karsilastirma", "senaryo_analiz", "senaryo_grafik_hesaplama",
+                    "senaryo_grafik_karsilastirma", "senaryo_coklu_grafik"
+                ])
             else:
-                # Üst seviye bağlam: öncüllü ağırlıklı ama dengeli
-                return random.choice(["onculu", "karar_verme", "tasarim", "senaryo_hesaplama"])
+                # Üst seviye bağlam: öncüllü + grafik karşılaştırma
+                return random.choice([
+                    "onculu", "karar_verme", "tasarim",
+                    "senaryo_grafik_karsilastirma", "senaryo_hesaplama"
+                ])
 
     def generate_single(self, mod: str, bloom_seviyesi: str = None) -> Optional[int]:
         """Tek soru üret"""
@@ -1156,7 +1177,18 @@ class SabitIvmeliHareketGenerator:
         if self.kazanim_filtre and self.kazanim_filtre in KONU_BILGISI["kazanimlar"]:
             kazanim_kodu = self.kazanim_filtre
         else:
-            kazanim_kodu = random.choice(list(KONU_BILGISI["kazanimlar"].keys()))
+            # Ağırlıklı kazanım seçimi - FİZ.10.1.3.b ve FİZ.10.1.3.c daha çok gelsin
+            # (Grafik dönüşümü ve matematiksel model soruları için)
+            kazanim_agirliklari = {
+                "FIZ.10.1.2.a": 1,   # İvme-hız ilişkisi keşfi
+                "FIZ.10.1.2.b": 1,   # İvme-hız ilişkisi genelleme
+                "FIZ.10.1.3.a": 2,   # Grafik inceleme
+                "FIZ.10.1.3.b": 4,   # Grafik dönüşümü + matematiksel model (YÜKSEK AĞIRLIK)
+                "FIZ.10.1.3.c": 4,   # Grafik-model ilişkisi ifade etme (YÜKSEK AĞIRLIK)
+            }
+            kazanimlar = list(kazanim_agirliklari.keys())
+            agirliklar = list(kazanim_agirliklari.values())
+            kazanim_kodu = random.choices(kazanimlar, weights=agirliklar, k=1)[0]
 
         # Senaryo seç (bağlam modu için)
         senaryo, senaryo_kat = "", ""
@@ -1264,9 +1296,13 @@ class SabitIvmeliHareketGenerator:
                 # Soru tipi istatistiği
                 if "hesaplama" in soru_tipi or "formul" in soru_tipi:
                     self.stats["hesaplama"] += 1
+                if "grafik_karsilastirma" in soru_tipi or "coklu_grafik" in soru_tipi:
+                    self.stats["grafik_karsilastirma"] += 1
+                elif "grafik_donusumu" in soru_tipi or "grafik_model" in soru_tipi:
+                    self.stats["grafik_donusumu"] += 1
                 elif "grafik" in soru_tipi:
                     self.stats["grafik"] += 1
-                elif "onculu" in soru_tipi:
+                if "onculu" in soru_tipi:
                     self.stats["onculu"] += 1
                 logger.info(f"\n✓ BAŞARILI! ID: {question_id}")
                 return question_id
@@ -1276,9 +1312,13 @@ class SabitIvmeliHareketGenerator:
             # Soru tipi istatistiği
             if "hesaplama" in soru_tipi or "formul" in soru_tipi:
                 self.stats["hesaplama"] += 1
+            if "grafik_karsilastirma" in soru_tipi or "coklu_grafik" in soru_tipi:
+                self.stats["grafik_karsilastirma"] += 1
+            elif "grafik_donusumu" in soru_tipi or "grafik_model" in soru_tipi:
+                self.stats["grafik_donusumu"] += 1
             elif "grafik" in soru_tipi:
                 self.stats["grafik"] += 1
-            elif "onculu" in soru_tipi:
+            if "onculu" in soru_tipi:
                 self.stats["onculu"] += 1
             logger.info(f"\n✓ BAŞARILI! (DB bağlantısı yok)")
             return -1
@@ -1343,6 +1383,8 @@ class SabitIvmeliHareketGenerator:
         logger.info(f"--- Soru Tipleri ---")
         logger.info(f"Hesaplama: {self.stats['hesaplama']}")
         logger.info(f"Grafik: {self.stats['grafik']}")
+        logger.info(f"Grafik Karşılaştırma: {self.stats['grafik_karsilastirma']}")
+        logger.info(f"Grafik Dönüşümü: {self.stats['grafik_donusumu']}")
         logger.info(f"Öncüllü: {self.stats['onculu']}")
         logger.info(f"Görselli: {self.stats['with_image']}")
         logger.info(f"Başarı Oranı: {(self.stats['successful']/max(1, self.stats['total'])*100):.1f}%")
