@@ -635,8 +635,18 @@ III. [Üçüncü ifade]"
   "kazanim_kodu": "FİZ.10.1.X.x",
   "celdirici_analizi": {"A": "...", "B": "...", "C": "...", "D": "...", "E": "..."},
   "gorsel_gerekli": true/false,
-  "gorsel_betimleme": {"tip": "...", "detay": "...", "senaryo_nesneleri": "..."}
+  "gorsel_betimleme": {
+    "tip": "SENARYO ADI (perde_motoru, asansor, metro, arac, kosucus, bisiklet, roket vb.)",
+    "detay": "SENARYONUN TAM BETİMLEMESİ - Görsel için ne çizilmeli açıkça yaz",
+    "senaryo_nesneleri": "Ana nesne ve ortam (örn: 'motorlu perde, salon, pencere' veya 'asansör kabini, kat göstergesi')",
+    "verilen_degerler": "Soruda verilen sayısal değerler (örn: 't=4s, v=0.8m/s')"
+  }
 }
+
+### GÖRSEL BETİMLEME ÖRNEKLERİ:
+- Perde sorusu: {"tip": "perde_motoru", "detay": "Modern bir odada pencere önünde motorlu perde sistemi", "senaryo_nesneleri": "perde, motor, pencere, salon", "verilen_degerler": "t=4s, v=0.8m/s"}
+- Asansör sorusu: {"tip": "asansor", "detay": "Cam asansör kabini hareket halinde", "senaryo_nesneleri": "asansör, kat göstergesi, bina", "verilen_degerler": "v₀=0, a=2m/s²"}
+- Metro sorusu: {"tip": "metro", "detay": "Metro vagonu istasyona yanaşıyor", "senaryo_nesneleri": "metro, platform, ray", "verilen_degerler": "v=20m/s, t=10s"}
 """
 
 # ============================================================================
@@ -677,38 +687,50 @@ IMAGE_PROMPT_2D_GRAPH = """10. Sınıf Fizik - Sabit İvmeli Hareket için TEKN�
 - Sadece TEKNİK GRAFİK olacak
 """
 
-IMAGE_PROMPT_3D_SCENARIO = """10. Sınıf Fizik - Sabit İvmeli Hareket senaryosu için GERÇEKÇİ 3D GÖRSEL oluştur.
+IMAGE_PROMPT_3D_SCENARIO = """10. Sınıf Fizik eğitim materyali için SENARYO GÖRSELİ oluştur.
 
 ## SENARYO: {tip}
 ## DETAY: {detay}
 
-### KRİTİK KURALLAR - SADECE SENARYO TASVİRİ:
-- Senaryodaki ortamı ve nesneyi GERÇEKÇİ şekilde göster
-- SADECE sahneyi tasvir et, ÇÖZÜMÜN PARÇASI OLMA
-- İPUCU VERME, sayılar ekleme
-- Soruda geçmeyen hiçbir değer gösterme
+### KRİTİK KURAL - SENARYOYA BİRE BİR UYUM:
+Bu görsel SADECE yukarıdaki senaryoyu tasvir etmeli. Başka hiçbir şey çizme!
 
-### SENARYO UYUMU:
-- "dinamik arabası" → Laboratuvar, küçük tekerlekli deney arabası
-- "otomobil/araba" → Gerçekçi otomobil (spor araba, sedan, SUV)
-- "tren/metro" → Sadece soruda geçerse tren
-- "asansör" → Asansör kabini iç veya dış görünüm
-- "koşucu" → Atlet koşu pistinde
-- "roket" → Fırlatma rampası
-- "bisiklet/scooter" → Bisikletçi veya scooter
+### SENARYO-GÖRSEL EŞLEŞTİRME (ZORUNLU):
+- "perde" / "perde motoru" / "akıllı ev" → Bir odada motorlu perde sistemi, pencere önünde perde
+- "asansör" → Asansör kabini (iç veya dış görünüm), kat göstergesi
+- "metro" / "tren" → Metro vagonu veya tren, platform
+- "otomobil" / "araba" / "araç" → Sadece bu kelimeler geçerse araba göster
+- "koşucu" / "atlet" / "sporcu" → Koşu pistinde atlet
+- "bisiklet" / "bisikletçi" → Bisikletçi yolda
+- "roket" / "uzay aracı" → Fırlatma rampasında roket
+- "uçak" → Havaalanı pistinde uçak
+- "kayak" / "kayakçı" → Kayak pistinde kayakçı
+- "top" / "bilye" → Eğik düzlemde veya masada top/bilye
+- "robot" / "otonom" → Robot veya otonom araç
+- "vinç" / "kaldırma" → İnşaat vinci, yük kaldırma
+- "bant" / "konveyör" → Fabrika üretim bandı
+- "merdiven" / "yürüyen merdiven" → Yürüyen merdiven (AVM, metro)
+- "tekne" / "gemi" / "kayık" → Su üzerinde tekne
+- "lunapark" / "roller coaster" → Lunapark treni
+- "laboratuvar" / "deney" → Fizik lab, deney düzeneği
+- "drone" → Uçan drone
+
+### SAYISAL ETİKETLER (İSTEĞE BAĞLI):
+- Soruda verilen BAŞLANGIÇ değerleri görselde etiket olarak görünebilir
+- Örnek: "v₀ = 0", "t = 4 s", "v = 0.8 m/s" gibi
+- Etiketler küçük, köşede, görseli bozmayacak şekilde
+- ÇÖZÜMÜ VERMEDEN sadece VERİLEN değerler
 
 ### 3D GERÇEKÇİ STİL:
-- Fotorealistik render kalitesi
-- Gerçekçi ışıklandırma ve gölgeler
-- Hareket hissi (motion blur)
+- Fotorealistik kalite
+- Temiz, profesyonel görünüm
+- Eğitim materyali tarzı
 
 ### KESİNLİKLE YASAK:
 - GRAFİK ÇİZME (v-t, x-t, a-t grafiği YOK)
-- Sayısal değerler YOK (10 m/s, 5 m gibi)
-- Fizik sembolleri YOK (g, a, v okları YOK)
-- Formüller YOK
-- Soru metni, şıklar YOK
-- Çözüme ipucu verecek hiçbir şey YOK
+- Formül yazma (a = Δv/Δt gibi)
+- Çözüm adımları
+- Senaryoda OLMAYAN nesneler
 """
 
 # ============================================================================
@@ -906,14 +928,25 @@ III. [Üçüncü ifade]"
             prompt = IMAGE_PROMPT_2D_GRAPH.format(tip=tip, detay=detay)
             logger.info(f"  Görsel tipi: 2D TEKNİK GRAFİK ({tip})")
         else:
-            # 3D SENARYO GÖRSELİ - Grafik YOK, sadece sahne tasviri
-            # Soru bağlamından senaryoyu al ama ipucu verme
-            senaryo_detay = detay
+            # 3D SENARYO GÖRSELİ - Soru metninden senaryoyu çıkar
+            senaryo_nesneleri = gorsel_betimleme.get("senaryo_nesneleri", "")
+            verilen_degerler = gorsel_betimleme.get("verilen_degerler", "")
+
+            # Soru metninin ilk cümlelerini senaryo bağlamı olarak kullan
+            senaryo_baglam = detay
             if soru_metni:
-                # Sadece senaryo kısmını al, sayıları dahil etme
-                senaryo_detay = f"Senaryo ortamı: {detay}"
-            prompt = IMAGE_PROMPT_3D_SCENARIO.format(tip=tip, detay=senaryo_detay)
-            logger.info(f"  Görsel tipi: 3D SENARYO ({tip})")
+                ilk_cumleler = soru_metni.split('.')[0:2]
+                senaryo_baglam = '. '.join(ilk_cumleler) + '.'
+
+            # Detaylı prompt oluştur
+            detay_zengin = f"""SENARYO: {senaryo_baglam}
+
+GÖRSEL İÇERİĞİ: {detay}
+ANA NESNELER: {senaryo_nesneleri}
+ETİKETLER (görsele eklenebilir): {verilen_degerler}"""
+
+            prompt = IMAGE_PROMPT_3D_SCENARIO.format(tip=tip, detay=detay_zengin)
+            logger.info(f"  Görsel tipi: 3D SENARYO ({tip}) - Nesneler: {senaryo_nesneleri}")
 
         self._rate_limit()
 
