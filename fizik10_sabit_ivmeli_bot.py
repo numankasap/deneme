@@ -645,61 +645,70 @@ III. [Üçüncü ifade]"
 
 IMAGE_PROMPT_2D_GRAPH = """10. Sınıf Fizik - Sabit İvmeli Hareket için TEKNİK 2D GRAFİK çiz.
 
-## GÖRSEL TİPİ: {tip}
-## DETAY: {detay}
+## GRAFİK TİPİ: {tip}
+## VERİLER: {detay}
 
-### GRAFİK STİLİ:
-- Temiz koordinat sistemi, beyaz arka plan
-- Siyah eksenler, ok uçlu
-- Pembe/Magenta (#E91E63) veya Mavi (#2196F3) eğri
-- Grid çizgileri (açık gri)
+### ZORUNLU STİL - DERS KİTABI KALİTESİ:
+- BEYAZ arka plan (saf beyaz #FFFFFF)
+- Temiz x-y koordinat sistemi
+- Siyah eksenler, kalın çizgi, ok uçlu (→)
+- Eksen etiketleri: t (s) x-ekseninde, v (m/s) veya x (m) veya a (m/s²) y-ekseninde
+- Grid çizgileri: açık gri, ince, kesikli
+- Değer işaretleri: eksenlerde düzgün aralıklı
 
-### GRAFİK TİPLERİ:
-- x-t: Parabolik eğri (sabit ivmeli hareket)
-- v-t: Doğrusal eğik çizgi
-- a-t: Yatay düz çizgi
+### GRAFİK ÇİZGİSİ:
+- PEMBE/MAGENTA (#E91E63) veya MAVİ (#2196F3) renkli eğri
+- Kalın, net çizgi (2-3px kalınlık)
+- v-t grafiği: Doğrusal eğik çizgi (sabit ivme)
+- x-t grafiği: Parabolik eğri (sabit ivmeli hareket)
+- a-t grafiği: Yatay düz çizgi (sabit ivme)
 
-### EKSEN ETİKETLERİ:
-- X ekseni: t (s)
-- Y ekseni: x (m) veya v (m/s) veya a (m/s²)
+### SAYISAL DEĞERLER:
+- Eksenlerde sayılar net görünsün
+- Önemli noktalar (t, 2t, 3t veya 0, 2, 4, 6 gibi)
+- Başlangıç ve bitiş değerleri
 
-YASAKLAR: 3D efekt, gölge, fotoğraf, soru metni
+### KESİNLİKLE YASAK:
+- 3D efekt, gölge, perspektif YOK
+- Araba, tren, insan figürü YOK
+- Soru metni, şıklar YOK
+- Gereksiz oklar, harfler (g, a, v vektörleri) YOK
+- Fotoğraf, render YOK
+- Sadece TEKNİK GRAFİK olacak
 """
 
-IMAGE_PROMPT_3D_SCENARIO = """10. Sınıf Fizik - Sabit İvmeli Hareket için GERÇEKÇİ 3D GÖRSEL oluştur.
+IMAGE_PROMPT_3D_SCENARIO = """10. Sınıf Fizik - Sabit İvmeli Hareket senaryosu için GERÇEKÇİ 3D GÖRSEL oluştur.
 
-## GÖRSEL TİPİ: {tip}
-## DETAY VE SENARYO: {detay}
+## SENARYO: {tip}
+## DETAY: {detay}
 
-### KRİTİK KURAL - SENARYO UYUMU:
-- SORU BAĞLAMI'ndaki senaryoya TAM UYGUN görsel oluştur!
-- Soruda "dinamik arabası" varsa → Laboratuvar ortamı, küçük tekerlekli deney arabası
-- Soruda "otomobil/araba" varsa → Gerçekçi bir otomobil (spor araba, sedan, SUV - çeşitlilik!)
-- Soruda "tren/metro" varsa → O zaman tren göster
-- Soruda "asansör" varsa → Asansör kabini
-- Soruda "top/cisim" varsa → Eğik düzlemde top veya küp
-- Soruda "koşucu/atlet" varsa → Koşu pisti, atlet
-- Soruda "roket/uzay" varsa → Roket fırlatma sahnesi
-- Soruda "bisiklet" varsa → Bisikletçi
-- Soruda "uçak" varsa → Pist üzerinde uçak
-- Soruda "tekne/kayık" varsa → Su üzerinde tekne
+### KRİTİK KURALLAR - SADECE SENARYO TASVİRİ:
+- Senaryodaki ortamı ve nesneyi GERÇEKÇİ şekilde göster
+- SADECE sahneyi tasvir et, ÇÖZÜMÜN PARÇASI OLMA
+- İPUCU VERME, sayılar ekleme
+- Soruda geçmeyen hiçbir değer gösterme
 
-### ARAÇ ÇEŞİTLİLİĞİ (her seferinde FARKLI):
-- Otomobiller: Kırmızı spor araba, mavi sedan, yeşil SUV, sarı taksi, beyaz ambulans
-- Laboratuvar: Mavi/kırmızı/yeşil dinamik arabası, ahşap eğik düzlem
-- Trenler: Yüksek hızlı tren, metro, yük treni (SADECE soruda geçerse!)
+### SENARYO UYUMU:
+- "dinamik arabası" → Laboratuvar, küçük tekerlekli deney arabası
+- "otomobil/araba" → Gerçekçi otomobil (spor araba, sedan, SUV)
+- "tren/metro" → Sadece soruda geçerse tren
+- "asansör" → Asansör kabini iç veya dış görünüm
+- "koşucu" → Atlet koşu pistinde
+- "roket" → Fırlatma rampası
+- "bisiklet/scooter" → Bisikletçi veya scooter
 
 ### 3D GERÇEKÇİ STİL:
 - Fotorealistik render kalitesi
 - Gerçekçi ışıklandırma ve gölgeler
-- Motion blur ile hareket hissi
+- Hareket hissi (motion blur)
 
-### FİZİK GÖSTERİMLERİ:
-- Hız vektörü: Yeşil ok, glow efekti
-- İvme vektörü: Turuncu/kırmızı ok
-- Grafik paneli: Şeffaf overlay olarak v-t veya x-t grafiği
-
-YASAKLAR: Soru metni, şıklar, formüller, matematik sembolleri
+### KESİNLİKLE YASAK:
+- GRAFİK ÇİZME (v-t, x-t, a-t grafiği YOK)
+- Sayısal değerler YOK (10 m/s, 5 m gibi)
+- Fizik sembolleri YOK (g, a, v okları YOK)
+- Formüller YOK
+- Soru metni, şıklar YOK
+- Çözüme ipucu verecek hiçbir şey YOK
 """
 
 # ============================================================================
@@ -877,23 +886,33 @@ III. [Üçüncü ifade]"
         return None
 
     def generate_image(self, gorsel_betimleme: Dict, soru_metni: str = "") -> Optional[bytes]:
-        """Görsel üret"""
+        """Görsel üret - Grafik soruları için 2D, Senaryo soruları için 3D"""
         if not NEW_GENAI or not self.client:
             return None
 
-        tip = gorsel_betimleme.get("tip", "grafik")
+        tip = gorsel_betimleme.get("tip", "").lower()
         detay = gorsel_betimleme.get("detay", "")
 
-        # Soru bağlamı ekle
-        if soru_metni:
-            detay += f"\n\nSORU BAĞLAMI:\n{soru_metni[:400]}"
+        # Grafik türleri - 2D TEKNİK GRAFİK kullan
+        grafik_keywords = [
+            "grafik", "v-t", "x-t", "a-t", "hız-zaman", "konum-zaman",
+            "ivme-zaman", "v_t", "x_t", "a_t", "diyagram", "koordinat"
+        ]
 
-        # Grafik mi, senaryo görseli mi?
-        if "grafik" in tip.lower() or "_t_" in tip.lower():
+        is_graph = any(kw in tip for kw in grafik_keywords)
+
+        if is_graph:
+            # 2D TEKNİK GRAFİK - Ders kitabı tarzı, araba/tren YOK
             prompt = IMAGE_PROMPT_2D_GRAPH.format(tip=tip, detay=detay)
-            logger.info(f"  Görsel tipi: 2D GRAFİK ({tip})")
+            logger.info(f"  Görsel tipi: 2D TEKNİK GRAFİK ({tip})")
         else:
-            prompt = IMAGE_PROMPT_3D_SCENARIO.format(tip=tip, detay=detay)
+            # 3D SENARYO GÖRSELİ - Grafik YOK, sadece sahne tasviri
+            # Soru bağlamından senaryoyu al ama ipucu verme
+            senaryo_detay = detay
+            if soru_metni:
+                # Sadece senaryo kısmını al, sayıları dahil etme
+                senaryo_detay = f"Senaryo ortamı: {detay}"
+            prompt = IMAGE_PROMPT_3D_SCENARIO.format(tip=tip, detay=senaryo_detay)
             logger.info(f"  Görsel tipi: 3D SENARYO ({tip})")
 
         self._rate_limit()
