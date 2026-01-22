@@ -9,7 +9,7 @@ on:
       limit:
         description: 'İşlenecek soru sayısı'
         required: false
-        default: '100'
+        default: '500'
       topic:
         description: 'Konu filtresi (opsiyonel)'
         required: false
