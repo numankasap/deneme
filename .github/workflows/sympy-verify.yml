@@ -41,7 +41,7 @@ jobs:
       
       - name: 📦 Bağımlılıkları Kur
         run: |
-          pip install -r sympy_verification/requirements.txt
+          pip install -r requirements.txt
       
       - name: 🔬 Doğrulamayı Çalıştır
         env:
