@@ -1,0 +1,79 @@
+name: SymPy Soru Doğrulama
+
+on:
+  # Her gece 03:00'te (UTC) çalıştır
+  schedule:
+    - cron: '0 3 * * *'
+  
+  # Manuel tetikleme
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: 'İşlenecek soru sayısı'
+        required: false
+        default: '100'
+      topic:
+        description: 'Konu filtresi (opsiyonel)'
+        required: false
+        default: ''
+      only_unverified:
+        description: 'Sadece doğrulanmamış sorular'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+      
+      - name: 🐍 Python Kur
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: 📦 Bağımlılıkları Kur
+        run: |
+          pip install -r sympy_verification/requirements.txt
+      
+      - name: 🔬 Doğrulamayı Çalıştır
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          cd sympy_verification
+          
+          # Parametreleri ayarla
+          LIMIT="${{ github.event.inputs.limit || '100' }}"
+          TOPIC="${{ github.event.inputs.topic || '' }}"
+          UNVERIFIED="${{ github.event.inputs.only_unverified || 'true' }}"
+          
+          # Komutu oluştur
+          CMD="python main.py --limit $LIMIT"
+          
+          if [ -n "$TOPIC" ]; then
+            CMD="$CMD --topic '$TOPIC'"
+          fi
+          
+          if [ "$UNVERIFIED" = "true" ]; then
+            CMD="$CMD --unverified"
+          fi
+          
+          echo "Çalıştırılacak komut: $CMD"
+          eval $CMD
+      
+      - name: 📊 İstatistikleri Kaydet
+        if: always()
+        run: |
+          echo "## SymPy Doğrulama Özeti" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tarih:** $(date '+%Y-%m-%d %H:%M:%S')" >> $GITHUB_STEP_SUMMARY
+          echo "- **Limit:** ${{ github.event.inputs.limit || '100' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Konu:** ${{ github.event.inputs.topic || 'Tümü' }}" >> $GITHUB_STEP_SUMMARY
