@@ -51,8 +51,8 @@ logger = logging.getLogger(__name__)
 
 class ImageModel(Enum):
     """Görsel üretim modelleri - Sadece Gemini Image"""
-    GEMINI_FLASH_IMAGE = "gemini-2.5-flash-preview-image-generation"  # Hızlı, standart
-    GEMINI_PRO_IMAGE = "gemini-2.0-flash-exp-image-generation"         # Yüksek kalite, karmaşık
+    GEMINI_FLASH_IMAGE = "gemini-2.5-flash-image"   # Hızlı, standart
+    GEMINI_PRO_IMAGE = "gemini-3-pro-image-preview"          # Yüksek kalite, karmaşık
 
 
 class VisualComplexity(Enum):
