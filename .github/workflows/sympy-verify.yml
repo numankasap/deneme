@@ -43,7 +43,7 @@ jobs:
       - name: 🔬 Doğrulamayı Çalıştır
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: |
           LIMIT="${{ github.event.inputs.limit || '100' }}"
           TOPIC="${{ github.event.inputs.topic || '' }}"
