@@ -1,15 +1,3 @@
-# AYT Fizik Soru Uretim Botu - Bagimliliklar
-# =============================================
-
-# Google Gemini API SDK (yeni versiyon)
-google-genai>=1.0.0
-
-# HTTP istekleri icin
-requests>=2.31.0
-
-# Standart kutuphane disinda gerekli olabilecekler
-# (cogu Python 3.11+ ile birlikte gelir)
-
-# Opsiyonel: Gelistirme ve test icin
-# pytest>=7.4.0
-# python-dotenv>=1.0.0
+sympy==1.13.3
+supabase==2.10.0
+python-dotenv==1.0.1
