@@ -1,30 +1,24 @@
 """
-Senaryo Görsel Botu v5.1 - PRO 3D Edition
-==========================================
-Profesyonel 3D görseller üreten gelişmiş görsel bot.
+Senaryo Görsel Botu v6.0 - GEMINI REALISTIC 3D Edition
+======================================================
+Gerçekçi 3D günlük yaşam görselleri üreten bot.
 
-YENİLİKLER v5.1:
-✅ AKILLI FİLTRELEME: Matematik soruları artık yanlışlıkla filtrelenmiyor
-✅ PRO 3D GÖRSELLER: İzometrik, perspektif, stüdyo aydınlatmalı
-✅ ZENGİN RENK PALETİ: Canlı gradyanlar, gölgeler, yansımalar
-✅ ÇÖZÜM YOK: Görselde kesinlikle cevap veya ipucu gösterilmiyor
-✅ DETAYLI BETİMLEME: Perspektif, renkler, malzemeler tanımlanıyor
+YENİLİKLER v6.0:
+✅ SADECE GEMINI IMAGE: Imagen kaldırıldı, Gemini Image kullanılıyor
+✅ GERÇEKÇİ 3D GÖRSELLER: Fotogerçekçi günlük yaşam sahneleri
+✅ SORUYU ANLAMAYA YARDIMCI: Görsel süs değil, problemi anlatan tasvirler
+✅ VERİLER NET GÖSTERİLİYOR: Soruda verilenler açıkça görselde
+✅ ÇÖZÜM YOK: Cevap veya ipucu kesinlikle gösterilmiyor
 
-ÖZELLİKLER:
-✅ Imagen 4 Standard: Grafik, tablo, karşılaştırma
-✅ Imagen 4 Ultra: 3D çizimler, geometri, karmaşık şekiller, sahneler
-✅ Gemini 3 Pro Image: Metin ağırlıklı, düzenleme gerektiren
-✅ Geometri sorularına tam DESTEK
-✅ Senaryo/günlük hayat problemleri 3D sahneler
-✅ Türkçe metin desteği (ş, ğ, ü, ö, ç, ı, İ)
+MODELLER:
+✅ Gemini 2.5 Flash Image: Hızlı, standart görseller
+✅ Gemini 3 Pro Image: Yüksek kalite, karmaşık sahneler
 
-MODEL SEÇİM KRİTERLERİ:
-- Geometrik şekiller (üçgen, daire, prizma) → Imagen Ultra
-- 3D objeler, perspektif çizimler → Imagen Ultra
-- Senaryo sahneleri (market, fabrika, havuz) → Imagen Ultra
-- Standart grafikler, tablolar → Imagen Standard
-- Sayı doğrusu, koordinat sistemi → Imagen Standard
-- Metin ağırlıklı kartlar → Gemini 3 Pro Image
+GÖRSEL FELSEFESİ:
+- Görsel sadece süs değil, soruyu ANLAMAYA yardımcı
+- Soruda verilen TÜM değerler görselde görünür
+- Günlük yaşamdan GERÇEKÇI 3D sahneler
+- Fotogerçekçi render kalitesi
 
 GitHub Actions ile çalışır.
 """
@@ -56,11 +50,9 @@ logger = logging.getLogger(__name__)
 # ============== MODEL TİPLERİ ==============
 
 class ImageModel(Enum):
-    """Görsel üretim modelleri"""
-    IMAGEN_FAST = "imagen-4.0-fast-generate-001"      # $0.02 - Hızlı prototip
-    IMAGEN_STANDARD = "imagen-4.0-generate-001"       # $0.04 - Standart kalite
-    IMAGEN_ULTRA = "imagen-4.0-ultra-generate-001"    # $0.06 - En yüksek kalite
-    GEMINI_IMAGE = "gemini-3-pro-image-preview"       # $0.134 - Metin/düzenleme
+    """Görsel üretim modelleri - Sadece Gemini Image"""
+    GEMINI_FLASH_IMAGE = "gemini-2.5-flash-preview-image-generation"  # Hızlı, standart
+    GEMINI_PRO_IMAGE = "gemini-2.0-flash-exp-image-generation"         # Yüksek kalite, karmaşık
 
 
 class VisualComplexity(Enum):
@@ -98,10 +90,10 @@ class Config:
 # ============== MODEL SEÇİCİ ==============
 
 class ModelSelector:
-    """Soru tipine göre en uygun modeli seç - v5.1 PRO 3D"""
+    """Soru tipine göre en uygun Gemini Image modelini seç - v6.0"""
 
-    # Imagen Ultra gerektiren durumlar (3D, geometri, sahneler)
-    ULTRA_PATTERNS = [
+    # Pro model gerektiren durumlar (karmaşık 3D sahneler)
+    PRO_PATTERNS = [
         # 3D objeler
         r'3[dD]', r'üç boyut', r'perspektif',
         r'prizma', r'piramit', r'silindir', r'koni', r'küre', r'küp',
@@ -115,276 +107,141 @@ class ModelSelector:
         r'korkuluk', r'merdiven', r'balkon', r'teras',
         # Perspektif gerektiren
         r'kuş bakışı', r'yan görünüş', r'üstten', r'önden',
-        # Senaryo sahneleri (3D diorama için)
+        # Senaryo sahneleri (gerçekçi 3D için)
         r'market', r'mağaza', r'fabrika', r'atölye', r'depo',
         r'araba', r'araç', r'tren', r'otobüs',
         r'tarla', r'arazi', r'alan\s+m²',
         r'tank', r'hazne', r'kap', r'kutu',
         r'yol', r'park', r'cadde', r'sokak',
+        # Günlük yaşam sahneleri
+        r'aile', r'çocuk', r'öğrenci', r'öğretmen',
+        r'mutfak', r'salon', r'yatak', r'banyo',
+        r'okul', r'hastane', r'restoran', r'kafe',
     ]
-    
-    # Gemini Image gerektiren durumlar (metin ağırlıklı)
-    GEMINI_PATTERNS = [
-        r'kart.*bilgi', r'bilgi.*kart',
-        r'menü', r'liste.*detay',
-        r'açıklama.*kutu', r'not.*ekle',
-    ]
-    
-    # Standart grafikler (Imagen Standard yeterli)
-    STANDARD_PATTERNS = [
-        r'grafik', r'tablo', r'çubuk', r'pasta', r'histogram',
-        r'sayı doğrusu', r'koordinat', r'eksen',
-        r'karşılaştır', r'fiyat', r'tarife',
-        r'oran', r'yüzde', r'istatistik',
-    ]
-    
+
     @classmethod
     def select_model(cls, question_text: str, analysis: Dict) -> Tuple[ImageModel, str]:
         """
-        Soru ve analize göre model seç
+        Soru ve analize göre Gemini Image model seç
         Returns: (model, reason)
         """
         text = question_text.lower()
         visual_type = analysis.get('visual_type', '').lower()
         complexity = analysis.get('complexity', 'standard')
-        
-        # 1. Ultra kontrol (3D, geometri)
-        for pattern in cls.ULTRA_PATTERNS:
+
+        # 1. Pro model kontrol (karmaşık 3D sahneler)
+        for pattern in cls.PRO_PATTERNS:
             if re.search(pattern, text, re.IGNORECASE):
-                return ImageModel.IMAGEN_ULTRA, f"3D/Geometri tespit: {pattern}"
-        
+                return ImageModel.GEMINI_PRO_IMAGE, f"Karmaşık sahne: {pattern}"
+
         # 2. Analiz complexity'ye göre
-        if complexity == 'complex' or visual_type in ['geometry', '3d', 'technical']:
-            return ImageModel.IMAGEN_ULTRA, f"Karmaşık görsel: {visual_type}"
-        
-        # 3. Gemini kontrol (metin ağırlıklı)
-        for pattern in cls.GEMINI_PATTERNS:
-            if re.search(pattern, text, re.IGNORECASE):
-                return ImageModel.GEMINI_IMAGE, f"Metin ağırlıklı: {pattern}"
-        
-        # 4. Varsayılan: Imagen Standard
-        return ImageModel.IMAGEN_STANDARD, "Standart görsel"
+        if complexity == 'complex' or visual_type in ['geometry', '3d', 'scene', 'scenario_3d']:
+            return ImageModel.GEMINI_PRO_IMAGE, f"Karmaşık görsel: {visual_type}"
+
+        # 3. Varsayılan: Flash model (hızlı ve yeterli)
+        return ImageModel.GEMINI_FLASH_IMAGE, "Standart görsel"
 
 
-# ============== GÖRSEL PROMPT ŞABLONLARI (v5.1 - PRO 3D) ==============
+# ============== GÖRSEL PROMPT ŞABLONU (v6.0 - GERÇEKÇİ 3D) ==============
 
-# Imagen için prompt (İngilizce daha iyi sonuç veriyor)
-IMAGEN_PROMPT_TEMPLATE = """Create a STUNNING professional 3D educational illustration for a mathematics problem.
+# Tek prompt şablonu - Gemini Image için optimize edilmiş
+REALISTIC_3D_PROMPT = """Bir matematik problemi için FOTOGERÇEKÇİ 3D GÜNLÜK YAŞAM SAHNESİ oluştur.
 
-## VISUAL TYPE: {tip}
-
-## DETAILED DESCRIPTION:
-{detay}
-
-## DATA TO SHOW (RAW DATA ONLY!):
-{veriler}
-
-## ⚠️⚠️⚠️ ABSOLUTE CRITICAL RULE: ZERO SOLUTION IN IMAGE! ⚠️⚠️⚠️
-- Show ONLY the raw data given in the problem
-- NEVER show calculation results, totals, sums, or answers
-- NEVER mark solution ranges on number lines
-- NEVER shade answer regions or highlight correct options
-- NEVER show arrows pointing to answers
-- NEVER include result values (like "= 42" or "Total: 150")
-- The student MUST be able to solve the problem by looking at the visual
-- The visual is ONLY for understanding the problem, NOT for revealing the answer!
-
-## 🎨 3D PROFESSIONAL STYLE RULES:
-
-### RENDERING STYLE:
-- Modern 3D isometric or perspective view
-- Soft ambient occlusion shadows
-- Subtle reflections on surfaces
-- Depth of field effect (background slightly blurred)
-- Studio lighting: main light from top-left, fill light from right
-- Anti-aliased smooth edges
-
-### COLOR PALETTE (VIBRANT & RICH):
-- Background: Soft gradient from #F8FAFC to #E2E8F0
-- PRIMARY COLORS (for main elements):
-  * Vibrant Blue: #3B82F6 with #1D4ED8 shadow
-  * Bright Green: #22C55E with #15803D shadow
-  * Warm Orange: #F97316 with #C2410C shadow
-  * Rich Purple: #8B5CF6 with #6D28D9 shadow
-  * Coral Pink: #F472B6 with #DB2777 shadow
-- ACCENT COLORS:
-  * Gold highlights: #FCD34D
-  * Silver accents: #94A3B8
-- Each element MUST have a DIFFERENT color
-- Use color gradients for 3D depth effect
-
-### 3D EFFECTS:
-- Extrusion depth: 20-40px for 3D objects
-- Bevel edges for polish
-- Soft drop shadows (offset: 8px, blur: 16px, opacity: 20%)
-- Inner shadows for depth
-- Glass/glossy effect for important elements
-- Metallic finish for labels/badges
-
-### MATERIALS & TEXTURES:
-- Matte finish for backgrounds
-- Semi-glossy for shapes and objects
-- Subtle texture for surfaces (paper grain, fabric weave)
-- Frosted glass effect for overlays
-
-### GEOMETRY SPECIFIC:
-- 3D extruded shapes with proper perspective
-- Clear vertex labels (A, B, C) in metallic badges
-- Measurements shown as floating 3D labels
-- Right angle markers as small 3D cubes
-- Dashed lines for hidden edges
-- Gradient fills showing 3D form
-
-### TABLES & CHARTS:
-- 3D bar charts with rounded tops
-- Floating table cells with shadows
-- Glossy headers with gradient
-- Alternating row colors for readability
-- 3D pie chart slices with depth
-
-### NUMBER LINE & COORDINATE:
-- 3D extruded axis lines
-- Spherical point markers
-- Floating number labels
-- Grid lines with subtle transparency
-
-### SCENE & SCENARIO:
-- Isometric 3D scene view
-- Miniature diorama style
-- Cartoon-realistic objects
-- Consistent lighting across scene
-- Depth layering (foreground/background)
-
-### TYPOGRAPHY:
-- Bold sans-serif font (like Montserrat or Inter)
-- Turkish characters: ş, ğ, ü, ö, ç, ı, İ
-- Text with subtle shadow for readability
-- Number labels in rounded badges
-- Mathematical symbols in clean notation
-
-### COMPOSITION:
-- Rule of thirds layout
-- Clear visual hierarchy
-- Adequate white space
-- Balanced element distribution
-- Focus point in center
-
-### ✅ MUST INCLUDE:
-- Given data beautifully visualized in 3D
-- Clear Turkish labels with proper characters
-- Professional magazine-quality design
-- Rich colors and depth effects
-- All measurements and values from problem
-
-### ❌ ABSOLUTELY MUST NOT INCLUDE:
-- ANY solution, answer, or result
-- Calculated values or totals
-- Highlighted answer regions
-- Solution indicators or arrows
-- Question text verbatim
-- Multiple choice options (A, B, C, D)
-- Any hint about the correct answer"""
-
-
-# Gemini Image için prompt (Türkçe - v5.1 PRO 3D)
-GEMINI_PROMPT_TEMPLATE = """Matematik problemi için MUHTEŞEM profesyonel 3D eğitim görseli oluştur.
+## 🎯 GÖRSEL AMACI: SORUYU ANLAMAYA YARDIMCI OLMAK
+Bu görsel sadece süs değil! Öğrencinin problemi ANLAMASINA yardımcı olmalı.
+Soruda verilen TÜM bilgiler görselde NET olarak görünmeli.
 
 ## GÖRSEL TİPİ: {tip}
 
-## DETAYLI BETİMLEME:
+## SAHNE BETİMLEMESİ:
 {detay}
 
-## GÖRSELDE GÖRÜNECEK VERİLER (SADECE HAM VERİLER!):
+## 📊 GÖRSELDE GÖRÜNECEK VERİLER (ÇOK ÖNEMLİ!):
 {veriler}
 
-## ⚠️⚠️⚠️ MUTLAK KRİTİK KURAL: SIFIR ÇÖZÜM! ⚠️⚠️⚠️
+Bu veriler görselde MUTLAKA ve NET olarak görünmeli!
+- Sayılar etiketlerle gösterilmeli
+- Miktarlar görsel olarak temsil edilmeli
+- Ölçümler açıkça yazılmalı
+
+## ⚠️⚠️⚠️ KRİTİK: ÇÖZÜM GÖSTERİLMEYECEK! ⚠️⚠️⚠️
 - Sadece problemde VERİLEN bilgiler olacak
-- Hesaplama sonucu KESİNLİKLE OLMAYACAK
-- Toplam, fark, sonuç değerleri GÖSTERİLMEYECEK
-- Sayı doğrusunda cevap aralığı İŞARETLENMEYECEK
-- Cevaba işaret eden ok veya vurgulama OLMAYACAK
-- Öğrenci görsele bakarak cevabı BULAMAMALI!
-- Görsel SADECE problemi anlamak için, cevabı vermek için DEĞİL!
+- Hesaplama sonucu KESİNLİKLE YOK
+- Toplam, fark, sonuç değeri YOK
+- Cevabı gösteren ok/vurgu YOK
+- Öğrenci görselden cevabı BULAMAMALI!
 
-## 🎨 3D PROFESYONEL STİL KURALLARI:
+## 🎨 FOTOGERÇEKÇİ 3D STİL:
 
-### RENDER STİLİ:
-- Modern 3D izometrik veya perspektif görünüm
-- Yumuşak ortam gölgeleri
-- Yüzeylerde ince yansımalar
-- Stüdyo aydınlatması: sol üstten ana ışık
-- Pürüzsüz kenarlar
+### RENDER KALİTESİ:
+- Fotogerçekçi 3D render (Pixar/Disney kalitesi)
+- Yumuşak global aydınlatma
+- Gerçekçi gölgeler ve yansımalar
+- Depth of field efekti
+- Ambient occlusion
+- Subsurface scattering (ciltler için)
 
-### RENK PALETİ (CANLI & ZENGİN):
-- Arka plan: Yumuşak gradyan #F8FAFC → #E2E8F0
-- ANA RENKLER:
-  * Canlı Mavi: #3B82F6 (gölge: #1D4ED8)
-  * Parlak Yeşil: #22C55E (gölge: #15803D)
-  * Sıcak Turuncu: #F97316 (gölge: #C2410C)
-  * Zengin Mor: #8B5CF6 (gölge: #6D28D9)
-  * Mercan Pembe: #F472B6 (gölge: #DB2777)
-- VURGU RENKLER:
-  * Altın: #FCD34D
-  * Gümüş: #94A3B8
-- Her eleman FARKLI renkte olacak
-- 3D derinlik için renk gradyanları
+### GÜNLÜK YAŞAM SAHNESİ:
+- Gerçek dünyadan tanıdık mekanlar
+- Market: Raflar, ürünler, fiyat etiketleri
+- Mutfak: Tencere, bardak, malzemeler
+- Bahçe: Çimler, çiçekler, ağaçlar
+- Okul: Sıralar, tahta, defterler
+- Sokak: Arabalar, binalar, tabelalar
 
-### 3D EFEKTLER:
-- Objeler için 20-40px derinlik
-- Kenar yuvarlatma (bevel)
-- Yumuşak gölgeler (8px offset, 16px blur)
-- İç gölgeler
-- Önemli elemanlar için cam/parlak efekt
-- Etiketler için metalik görünüm
+### OBJELER:
+- Gerçekçi malzeme dokuları
+- Doğru ölçek ve oranlar
+- Tanınabilir günlük objeler
+- Detaylı yüzey işlemeleri
+
+### RENKLER:
+- Doğal, gerçekçi renkler
+- Sıcak aydınlatma tonu
+- Kontrast ama göz yormayan
+- Her öğe farklı renkle ayırt edilebilir
+
+### ETİKETLER VE SAYILAR:
+- Temiz, okunabilir fontlar
+- 3D yüzer etiketler veya sahneye entegre
+- Türkçe karakterler: ş, ğ, ü, ö, ç, ı, İ
+- Fiyat etiketleri, ölçüm çizgileri gerçekçi
 
 ### GEOMETRİ İÇİN:
-- 3D çıkıntılı şekiller
-- Köşe etiketleri (A, B, C) metalik rozetlerde
-- Ölçümler yüzer 3D etiketlerde
-- Dik açı işaretleri küçük 3D küpler
-- Gizli kenarlar için kesikli çizgi
-- 3D form gösteren gradyan dolgular
+- Gerçek dünya objeleri olarak şekiller
+  * Üçgen → Çatı, pizza dilimi, trafik levhası
+  * Dikdörtgen → Kapı, pencere, kitap
+  * Daire → Tekerlek, saat, tabak
+  * Küp → Zar, kutu, bina
+  * Silindir → Bardak, kalem, sütun
+- Ölçümler gerçekçi etiketlerle
 
-### TABLO & GRAFİK:
-- 3D çubuk grafikler (yuvarlatılmış üst)
-- Gölgeli yüzer tablo hücreleri
-- Gradyanlı parlak başlıklar
-- Okunabilirlik için alternatif satır renkleri
+### TABLO VE GRAFİK İÇİN:
+- Dijital ekran veya poster olarak entegre
+- Veya fiziksel objelerle temsil
+  * Çubuk grafik → Farklı boyutlu kutular
+  * Pasta grafik → Gerçek pasta dilimleri
+  * Tablo → Beyaz tahta veya kağıt
 
-### SAYI DOĞRUSU & KOORDİNAT:
-- 3D çıkıntılı eksen çizgileri
-- Küresel nokta işaretçileri
-- Yüzer sayı etiketleri
-- Saydam ızgara çizgileri
+### KOMPOZİSYON:
+- Merkeze odaklı düzen
+- Tüm veriler görünür
+- Dağınık değil, organize
+- Arka plan bulanık (odak ön planda)
 
-### SENARYO & SAHNE:
-- İzometrik 3D sahne görünümü
-- Minyatür diorama stili
-- Karikatür-gerçekçi objeler
-- Tutarlı aydınlatma
-- Derinlik katmanları
-
-### TİPOGRAFİ:
-- Kalın sans-serif font
-- Türkçe karakterler: ş, ğ, ü, ö, ç, ı, İ DOĞRU yazılacak
-- Okunabilirlik için metin gölgesi
-- Yuvarlatılmış rozetlerde sayılar
-
-### ✅ OLACAKLAR:
-- Problemdeki veriler 3D olarak güzelce görselleştirilmiş
+## ✅ MUTLAKA OLMALI:
+- Soruda verilen TÜM değerler görünür
+- Gerçekçi 3D günlük yaşam sahnesi
+- Problemi anlamaya yardımcı tasarım
 - Türkçe etiketler doğru karakterlerle
-- Dergi kalitesinde profesyonel tasarım
-- Zengin renkler ve derinlik efektleri
-- Problemdeki tüm ölçümler ve değerler
+- Profesyonel render kalitesi
 
-### ❌ KESİNLİKLE OLMAYACAKLAR:
-- HİÇBİR çözüm, cevap veya sonuç
-- Hesaplanmış değerler veya toplamlar
-- Vurgulanmış cevap bölgeleri
-- Çözüm göstergeleri veya oklar
-- Aynen soru metni
-- Çoktan seçmeli şıklar (A, B, C, D)
-- Doğru cevap hakkında HİÇBİR ipucu"""
+## ❌ KESİNLİKLE OLMAMALI:
+- Çözüm veya cevap
+- Hesaplanmış değerler
+- Soru metni aynen
+- A, B, C, D şıkları
+- Cevabı ima eden herhangi bir şey"""
 
 
 # ============== KAZANIM FİLTRESİ (v5.1 - AKILLI FİLTRELEME) ==============
@@ -501,58 +358,57 @@ class GeminiAPI:
         self._last_request = time.time()
     
     def analyze_question(self, question_text: str, scenario_text: str = None) -> Optional[Dict]:
-        """Soruyu analiz et ve görsel bilgilerini çıkar - v5.1 PRO 3D"""
+        """Soruyu analiz et ve gerçekçi 3D görsel bilgilerini çıkar - v6.0"""
 
         full_text = question_text
         if scenario_text:
             full_text = f"SENARYO:\n{scenario_text}\n\nSORU:\n{question_text}"
 
-        prompt = f"""Sen bir matematik eğitimi için PROFESYONEL 3D GÖRSEL TASARIM uzmanısın.
+        prompt = f"""Sen bir matematik eğitimi için GERÇEKÇİ 3D GÜNLÜK YAŞAM GÖRSEL tasarımcısısın.
 
-Verilen soruyu analiz et ve bu soru için ETKİLEYİCİ 3D GÖRSEL tasarla.
+Verilen soruyu analiz et ve bu soruyu ANLAMAYA YARDIMCI OLACAK gerçekçi bir görsel tasarla.
+
+🎯 GÖRSEL AMACI:
+Görsel sadece süs DEĞİL! Öğrencinin problemi ANLAMASINA yardımcı olmalı.
+Soruda verilen TÜM bilgiler görselde NET olarak görünmeli.
 
 ⚠️ KRİTİK KURALLAR:
 
 1. GÖRSEL GEREKLİ DURUMLAR (geniş kapsamlı düşün):
-   - Karşılaştırma içeren problemler (firmalar, tarifeler, planlar)
-   - Tablo/liste içeren veriler (fiyatlar, miktarlar)
-   - İstatistik soruları (ortalama, yüzde, dağılım)
-   - Senaryo bazlı problemler (market, okul, fabrika, bahçe, havuz)
-   - Oran/yüzde karşılaştırmaları
-   - GEOMETRİ SORULARI (üçgen, daire, prizma vb.)
-   - 3D objeler ve teknik çizimler
-   - Sayı doğrusu gerektiren sorular
-   - Koordinat sistemi soruları
-   - GÜNLÜK HAYAT PROBLEMLERİ (ısı, hız, mesafe içeren matematik)
-   - Para/bütçe problemleri
-   - Yaş problemleri (aile şeması olabilir)
+   - Market/alışveriş problemleri → Gerçekçi market rafları, ürünler, fiyat etiketleri
+   - Fabrika/üretim → Makineler, işçiler, ürünler
+   - Bahçe/tarla → Gerçekçi açık alan, bitkiler, ölçümler
+   - Havuz/su deposu → Gerçekçi su konteynerleri
+   - Okul/sınıf → Öğrenciler, sıralar, tahta
+   - Aile/yaş problemleri → Gerçekçi aile üyeleri
+   - Geometri → Gerçek dünya objeleri olarak şekiller
+   - Tablo/grafik → Dijital ekran veya poster olarak
+   - Para/bütçe → Fiyat etiketleri, kasiyerler
+   - Karşılaştırma → Yan yana objeler
 
 2. GÖRSEL GEREKSİZ DURUMLAR (çok sınırlı):
-   - SADECE basit dört işlem (örn: 5+3=?)
-   - Tek satırlık formül ezberi
-   - Görselleştirilecek HIÇBIR veri olmayan sorular
+   - SADECE basit dört işlem (5+3=?)
+   - Tek satırlık formül
+   - Görselleştirilecek HIÇBIR veri yok
 
-3. ⚠️⚠️⚠️ ÇÖZÜM DAHİL ETME - KESİNLİKLE YASAK! ⚠️⚠️⚠️
-   - Sayı doğrusunda çözüm aralığı GÖSTERME
-   - Hesaplama sonucu, toplam, fark, çarpım GÖSTERME
-   - Cevabı ima eden HİÇBİR bilgi KOYMA
-   - "= ?" veya "= X" gibi sonuç ifadeleri KOYMA
-   - Sadece problemdeki HAM VERİLER olacak
-   - Öğrenci görsele bakarak cevabı KESİNLİKLE bulamamalı!
+3. ⚠️⚠️⚠️ ÇÖZÜM GÖSTERİLMEYECEK! ⚠️⚠️⚠️
+   - Hesaplama sonucu YOK
+   - Toplam, fark, sonuç YOK
+   - Cevap ipucu YOK
+   - Sadece HAM VERİLER
 
-4. KARMAŞIKLIK DEĞERLENDİRMESİ:
-   - "simple": Basit tablo, tek grafik
-   - "standard": Sayı doğrusu, karşılaştırma, 2D şekil
-   - "complex": 3D, perspektif, geometrik şekiller, mimari, sahneler
+4. KARMAŞIKLIK:
+   - "simple": Tek obje, basit sahne
+   - "standard": Birkaç obje, basit sahne
+   - "complex": Çok objeli detaylı sahne
 
-5. 🎨 3D BETİMLEME İÇİN:
-   Detaylı betimleme yazarken şunları belirt:
-   - 3D perspektif açısı (izometrik, kuş bakışı, ön görünüş)
-   - Objelerin konumları ve boyutları
-   - Renkler ve malzemeler
-   - Işık kaynağı yönü
-   - Arka plan detayları
-   - Etiketlerin yerleri
+5. 🎬 GERÇEKÇİ SAHNE BETİMLEME:
+   Detaylı betimleme yazarken:
+   - GÜNLÜK YAŞAMDAN tanıdık bir mekan seç
+   - Gerçekçi objeler ve insanlar ekle
+   - Soruda verilen TÜM sayıları nerede göstereceğini belirt
+   - Fotogerçekçi 3D render olarak düşün
+   - Pixar/Disney animasyon kalitesi
 
 SORU:
 {full_text}
@@ -560,16 +416,16 @@ SORU:
 SADECE JSON FORMATINDA CEVAP VER:
 {{
     "visual_needed": true/false,
-    "visual_type": "comparison/table/chart/info/scene/geometry/number_line/coordinate/scenario_3d",
+    "visual_type": "market_scene/factory_scene/garden_scene/classroom_scene/family_scene/geometry_real/chart_display/comparison_scene",
     "complexity": "simple/standard/complex",
     "quality_score": 1-10,
     "title": "Kısa başlık",
     "gorsel_betimleme": {{
-        "tip": "görsel tipi (3D scene / isometric diagram / comparison chart / geometry / number line / table / infographic)",
-        "detay": "ÇOK DETAYLI 3D betimleme - perspektif, objeler, renkler, ışık, arka plan, etiket yerleri (SADECE VERİLER, ÇÖZÜM YOK!)",
-        "veriler": "görselde olacak SADECE ham veriler listesi - hesaplama sonucu KESİNLİKLE YOK",
-        "renkler": "her öğe için önerilen renkler (mavi: X, yeşil: Y gibi)",
-        "perspektif": "izometrik / kuş bakışı / ön görünüş / 45 derece açı"
+        "tip": "Gerçekçi 3D sahne tipi (market sahnesi / fabrika sahnesi / bahçe / sınıf / aile / geometri objeleri / grafik ekranı)",
+        "detay": "ÇOK DETAYLI gerçekçi sahne betimleme - mekan, objeler, insanlar, renkler, ışık. Soruda verilen TÜÜÜM değerlerin nerede ve nasıl gösterileceği. Fotogerçekçi 3D olarak düşün!",
+        "veriler": "Görselde MUTLAKA görünmesi gereken TÜM ham veriler listesi (sayılar, miktarlar, fiyatlar, ölçümler) - hesaplama sonucu KESİNLİKLE YOK",
+        "renkler": "Her öğe için önerilen canlı renkler",
+        "perspektif": "Göz seviyesi / kuş bakışı / 45 derece açı"
     }},
     "reason": "neden görsel gerekli/gereksiz"
 }}"""
@@ -606,111 +462,82 @@ SADECE JSON FORMATINDA CEVAP VER:
             return None
     
     def generate_image(self, gorsel_info: Dict, title: str, model: ImageModel) -> Optional[bytes]:
-        """Model seçimine göre PRO 3D görsel üret"""
+        """Gemini Image ile gerçekçi 3D görsel üret"""
 
-        tip = gorsel_info.get('tip', 'diagram')
+        tip = gorsel_info.get('tip', 'realistic 3D scene')
         detay = gorsel_info.get('detay', '')
         veriler = gorsel_info.get('veriler', '')
         renkler = gorsel_info.get('renkler', '')
-        perspektif = gorsel_info.get('perspektif', 'isometric')
+        perspektif = gorsel_info.get('perspektif', 'eye-level realistic view')
 
         # Detayı zenginleştir
         if renkler:
-            detay = f"{detay}\n\nÖNERİLEN RENKLER: {renkler}"
+            detay = f"{detay}\n\nRENKLER: {renkler}"
         if perspektif:
             detay = f"{detay}\n\nPERSPEKTİF: {perspektif}"
-        
-        # Model'e göre prompt seç
-        if model == ImageModel.GEMINI_IMAGE:
-            prompt = GEMINI_PROMPT_TEMPLATE.format(
-                tip=tip,
-                detay=detay,
-                veriler=veriler
-            )
-        else:
-            # Imagen için İngilizce prompt
-            prompt = IMAGEN_PROMPT_TEMPLATE.format(
-                tip=tip,
-                detay=detay,
-                veriler=veriler
-            )
-        
+
+        # Tek prompt şablonu kullan
+        prompt = REALISTIC_3D_PROMPT.format(
+            tip=tip,
+            detay=detay,
+            veriler=veriler
+        )
+
         logger.info(f"  🎨 Model: {model.value}")
         logger.info(f"  📐 Tip: {tip}")
-        
+
         self._rate_limit()
-        
+
         for attempt in range(Config.MAX_RETRIES):
             try:
-                if model == ImageModel.GEMINI_IMAGE:
-                    # Gemini Image API
-                    response = self.client.models.generate_content(
-                        model=model.value,
-                        contents=prompt,
-                        config=types.GenerateContentConfig(
-                            response_modalities=["IMAGE", "TEXT"],
-                        )
+                # Tüm modeller Gemini Image API kullanıyor
+                response = self.client.models.generate_content(
+                    model=model.value,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        response_modalities=["IMAGE", "TEXT"],
                     )
-                else:
-                    # Imagen API
-                    response = self.client.models.generate_images(
-                        model=model.value,
-                        prompt=prompt,
-                        config=types.GenerateImagesConfig(
-                            number_of_images=1,
-                            aspect_ratio="16:9",  # Geniş format
-                            safety_filter_level="BLOCK_LOW_AND_ABOVE",
-                        )
-                    )
-                
+                )
+
                 # Response'dan görsel çıkar
-                image_bytes = self._extract_image(response, model)
-                
+                image_bytes = self._extract_image(response)
+
                 if image_bytes:
                     if len(image_bytes) < Config.MIN_PNG_SIZE:
                         logger.warning(f"  ⚠️ Görsel çok küçük: {len(image_bytes)} bytes")
                         continue
-                    
+
                     logger.info(f"  ✅ Görsel üretildi ({len(image_bytes) / 1024:.1f} KB)")
                     return image_bytes
-                
+
                 logger.warning("  ⚠️ Görsel response'da bulunamadı")
-                
+
             except Exception as e:
                 logger.error(f"  ❌ Görsel üretim hatası (deneme {attempt + 1}): {e}")
                 if attempt < Config.MAX_RETRIES - 1:
                     time.sleep(Config.RETRY_DELAY)
-        
+
         return None
-    
-    def _extract_image(self, response, model: ImageModel) -> Optional[bytes]:
-        """Response'dan görsel byte'larını çıkar"""
-        
+
+    def _extract_image(self, response) -> Optional[bytes]:
+        """Gemini response'dan görsel byte'larını çıkar"""
+
         try:
-            if model == ImageModel.GEMINI_IMAGE:
-                # Gemini response yapısı
-                if response.candidates:
-                    for part in response.candidates[0].content.parts:
-                        if hasattr(part, 'inline_data') and part.inline_data:
-                            inline = part.inline_data
-                            if hasattr(inline, 'data') and inline.data:
-                                image_data = inline.data
-                                if isinstance(image_data, str):
-                                    return base64.b64decode(image_data)
-                                else:
-                                    return bytes(image_data) if not isinstance(image_data, bytes) else image_data
-            else:
-                # Imagen response yapısı
-                if hasattr(response, 'generated_images') and response.generated_images:
-                    img = response.generated_images[0]
-                    if hasattr(img, 'image') and hasattr(img.image, 'image_bytes'):
-                        return img.image.image_bytes
-                    elif hasattr(img, 'image_bytes'):
-                        return img.image_bytes
-                        
+            # Gemini Image response yapısı
+            if response.candidates:
+                for part in response.candidates[0].content.parts:
+                    if hasattr(part, 'inline_data') and part.inline_data:
+                        inline = part.inline_data
+                        if hasattr(inline, 'data') and inline.data:
+                            image_data = inline.data
+                            if isinstance(image_data, str):
+                                return base64.b64decode(image_data)
+                            else:
+                                return bytes(image_data) if not isinstance(image_data, bytes) else image_data
+
         except Exception as e:
             logger.error(f"  ❌ Görsel çıkarma hatası: {e}")
-        
+
         return None
 
 
@@ -771,8 +598,8 @@ class DatabaseManager:
 # ============== ANA BOT ==============
 
 class ScenarioImageBot:
-    """Senaryo soruları için görsel üreten bot - Hybrid Model"""
-    
+    """Senaryo soruları için gerçekçi 3D görsel üreten bot - Gemini Image"""
+
     def __init__(self):
         self.db = DatabaseManager()
         self.gemini = GeminiAPI()
@@ -783,26 +610,25 @@ class ScenarioImageBot:
             'no_visual': 0,
             'failed': 0,
             'by_model': {
-                'imagen_standard': 0,
-                'imagen_ultra': 0,
-                'gemini_image': 0
+                'gemini_flash': 0,
+                'gemini_pro': 0
             }
         }
-    
+
     def run(self):
         """Botu çalıştır"""
         logger.info("""
 ╔══════════════════════════════════════════════════════════════════════╗
-║         🎨 SENARYO GÖRSEL BOTU v5.1 - PRO 3D Edition                 ║
-║         Imagen 4 + Gemini 3 Pro Image                                ║
+║         🎨 SENARYO GÖRSEL BOTU v6.0 - GERÇEKÇİ 3D Edition            ║
+║         Gemini 2.5 Flash + Gemini 2.0 Pro Image                      ║
 ╚══════════════════════════════════════════════════════════════════════╝
         """)
         logger.info(f"📅 Tarih: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        logger.info("✅ Imagen Standard: Grafikler, tablolar, sayı doğrusu")
-        logger.info("✅ Imagen Ultra: 3D, geometri, sahneler, mimari")
-        logger.info("✅ Gemini Image: Metin ağırlıklı kartlar")
-        logger.info("✅ Akıllı filtreleme: Matematik soruları korunuyor")
-        logger.info("⚠️ ÇÖZÜM GÖSTERİLMEYECEK - Sadece veriler!")
+        logger.info("✅ Gemini Flash Image: Standart görseller, grafikler")
+        logger.info("✅ Gemini Pro Image: Karmaşık 3D sahneler, geometri")
+        logger.info("✅ Gerçekçi 3D: Fotogerçekçi günlük yaşam sahneleri")
+        logger.info("✅ Veriler NET: Soruda verilenler açıkça görünür")
+        logger.info("⚠️ ÇÖZÜM YOK: Sadece ham veriler, cevap ipucu yok!")
         logger.info("=" * 60)
         
         try:
@@ -898,18 +724,16 @@ class ScenarioImageBot:
         if self.db.update_image_url(qid, image_url):
             logger.info(f"✅ #{qid}: BAŞARILI ({visual_type} / {selected_model.name})")
             self.stats['success'] += 1
-            
+
             # Model istatistiği
-            if selected_model == ImageModel.IMAGEN_STANDARD:
-                self.stats['by_model']['imagen_standard'] += 1
-            elif selected_model == ImageModel.IMAGEN_ULTRA:
-                self.stats['by_model']['imagen_ultra'] += 1
+            if selected_model == ImageModel.GEMINI_FLASH_IMAGE:
+                self.stats['by_model']['gemini_flash'] += 1
             else:
-                self.stats['by_model']['gemini_image'] += 1
+                self.stats['by_model']['gemini_pro'] += 1
         else:
             logger.error("❌ DB güncelleme başarısız!")
             self.stats['failed'] += 1
-    
+
     def _print_report(self):
         """Sonuç raporu"""
         logger.info(f"\n{'=' * 60}")
@@ -922,23 +746,21 @@ class ScenarioImageBot:
         logger.info(f"   Başarısız          : {self.stats['failed']}")
         logger.info(f"   ─────────────────────────────────────")
         logger.info(f"   MODEL DAĞILIMI:")
-        logger.info(f"     Imagen Standard  : {self.stats['by_model']['imagen_standard']}")
-        logger.info(f"     Imagen Ultra     : {self.stats['by_model']['imagen_ultra']}")
-        logger.info(f"     Gemini Image     : {self.stats['by_model']['gemini_image']}")
-        
+        logger.info(f"     Gemini Flash     : {self.stats['by_model']['gemini_flash']}")
+        logger.info(f"     Gemini Pro       : {self.stats['by_model']['gemini_pro']}")
+
         if self.stats['total'] > 0:
             rate = (self.stats['success'] / self.stats['total']) * 100
             logger.info(f"   ─────────────────────────────────────")
             logger.info(f"   Başarı oranı       : %{rate:.1f}")
-        
-        # Maliyet tahmini
+
+        # Maliyet tahmini (Gemini Image fiyatları)
         cost = (
-            self.stats['by_model']['imagen_standard'] * 0.04 +
-            self.stats['by_model']['imagen_ultra'] * 0.06 +
-            self.stats['by_model']['gemini_image'] * 0.134
+            self.stats['by_model']['gemini_flash'] * 0.04 +
+            self.stats['by_model']['gemini_pro'] * 0.08
         )
         logger.info(f"   Tahmini maliyet    : ${cost:.2f}")
-        
+
         logger.info(f"{'=' * 60}\n")
 
 
