@@ -148,7 +148,7 @@ def verify_linear_equation(question: Dict) -> Dict[str, Any]:
     """Birinci derece denklem doğrulama"""
     result = _init_result("denklem_1")
     
-    text = question.get("original_text", "") + " " + question.get("solution_text", "")
+    text = (question.get("original_text") or "") + " " + (question.get("solution_text") or "")
     
     # ax + b = c
     match = re.search(r'(-?\d*)x\s*([\+\-])\s*(\d+)\s*=\s*(-?\d+)', text)
@@ -173,7 +173,7 @@ def verify_quadratic_equation(question: Dict) -> Dict[str, Any]:
     """İkinci derece denklem doğrulama"""
     result = _init_result("denklem_2")
     
-    text = question.get("original_text", "") + " " + question.get("solution_text", "")
+    text = (question.get("original_text") or "") + " " + (question.get("solution_text") or "")
     
     # x² + bx + c = 0
     match = re.search(r'x[²2]\s*([\+\-])\s*(\d+)x\s*([\+\-])\s*(\d+)\s*=\s*0', text)
@@ -200,7 +200,7 @@ def verify_number_sets(question: Dict) -> Dict[str, Any]:
     """Sayı kümeleri doğrulama (N, Z, Q, R)"""
     result = _init_result("sayi_kumeleri")
     
-    text = question.get("original_text", "").lower()
+    text = (question.get("original_text") or "").lower()
     numbers = extract_numbers_from_text(text)
     
     if numbers:
@@ -239,7 +239,7 @@ def verify_absolute_value(question: Dict) -> Dict[str, Any]:
     """Mutlak değer doğrulama"""
     result = _init_result("mutlak_deger")
     
-    text = question.get("original_text", "")
+    text = (question.get("original_text") or "")
     exprs = extract_absolute_value_expr(text)
     
     for expr in exprs:
@@ -286,7 +286,7 @@ def verify_inequality(question: Dict) -> Dict[str, Any]:
     """Eşitsizlik doğrulama"""
     result = _init_result("esitsizlik")
     
-    text = question.get("original_text", "")
+    text = (question.get("original_text") or "")
     expr = extract_inequality_expr(text)
     
     if expr:
@@ -319,7 +319,7 @@ def verify_digit(question: Dict) -> Dict[str, Any]:
     """Basamak kavramı doğrulama"""
     result = _init_result("basamak")
     
-    text = question.get("original_text", "")
+    text = (question.get("original_text") or "")
     numbers = extract_numbers_from_text(text)
     
     if numbers:
@@ -352,7 +352,7 @@ def verify_fraction(question: Dict) -> Dict[str, Any]:
     """Kesir doğrulama"""
     result = _init_result("kesir")
     
-    text = question.get("original_text", "")
+    text = (question.get("original_text") or "")
     data = extract_fraction_operation(text)
     fractions = data["fractions"]
     operation = data["operation"]
@@ -393,7 +393,7 @@ def verify_decimal(question: Dict) -> Dict[str, Any]:
     """Ondalık kesir doğrulama"""
     result = _init_result("ondalik")
     
-    text = question.get("original_text", "").replace(',', '.')
+    text = (question.get("original_text") or "").replace(',', '.')
     
     # Ondalık sayıları bul
     decimals = re.findall(r'\b(\d+\.\d+)\b', text)
@@ -419,7 +419,7 @@ def verify_rational(question: Dict) -> Dict[str, Any]:
     """Rasyonel sayı doğrulama"""
     result = _init_result("rasyonel")
     
-    text = question.get("original_text", "")
+    text = (question.get("original_text") or "")
     fractions = extract_fractions(text)
     
     if fractions:
@@ -444,7 +444,7 @@ def verify_factorial(question: Dict) -> Dict[str, Any]:
     """Faktöriyel, Permütasyon, Kombinasyon doğrulama"""
     result = _init_result("faktoriyel")
     
-    text = question.get("original_text", "")
+    text = (question.get("original_text") or "")
     data = extract_factorial_expr(text)
     
     # Tek faktöriyel: 5!
@@ -497,7 +497,7 @@ def verify_factorization(question: Dict) -> Dict[str, Any]:
     """Çarpanlara ayırma doğrulama"""
     result = _init_result("carpanlara_ayirma")
     
-    text = question.get("original_text", "")
+    text = (question.get("original_text") or "")
     number = extract_factorization_target(text)
     
     if number and number > 1:
@@ -539,8 +539,8 @@ def verify_polynomial(question: Dict) -> Dict[str, Any]:
     """Polinom doğrulama"""
     result = _init_result("polinom")
     
-    text = question.get("original_text", "")
-    solution = question.get("solution_text", "")
+    text = (question.get("original_text") or "")
+    solution = (question.get("solution_text") or "")
     combined = text + " " + solution
     
     data = extract_polynomial_expr(combined)
@@ -589,8 +589,8 @@ def verify_function(question: Dict) -> Dict[str, Any]:
     """Fonksiyon doğrulama"""
     result = _init_result("fonksiyon")
     
-    text = question.get("original_text", "")
-    solution = question.get("solution_text", "")
+    text = (question.get("original_text") or "")
+    solution = (question.get("solution_text") or "")
     combined = text + " " + solution
     
     data = extract_function_expr(combined)
@@ -633,7 +633,7 @@ def verify_set(question: Dict) -> Dict[str, Any]:
     """Küme doğrulama"""
     result = _init_result("kume")
     
-    text = question.get("original_text", "")
+    text = (question.get("original_text") or "")
     data = extract_set_expr(text)
     
     if data["sets"]:
@@ -680,7 +680,7 @@ def verify_logic(question: Dict) -> Dict[str, Any]:
     """Mantık doğrulama"""
     result = _init_result("mantik")
     
-    text = question.get("original_text", "")
+    text = (question.get("original_text") or "")
     data = extract_logic_expr(text)
     
     result["propositions"] = data["propositions"]
@@ -715,7 +715,7 @@ def verify_prime(question: Dict) -> Dict[str, Any]:
     """Asal sayı doğrulama"""
     result = _init_result("asal")
     
-    text = question.get("original_text", "")
+    text = (question.get("original_text") or "")
     numbers = extract_numbers_from_text(text)
     
     if numbers:
@@ -742,7 +742,7 @@ def verify_exponent(question: Dict) -> Dict[str, Any]:
     """Üslü sayı doğrulama"""
     result = _init_result("uslu")
     
-    text = question.get("original_text", "")
+    text = (question.get("original_text") or "")
     
     # a^b veya a² formatı
     match = re.search(r'(\d+)\s*[\^]\s*(\d+)', text)
@@ -774,7 +774,7 @@ def verify_root(question: Dict) -> Dict[str, Any]:
     """Köklü sayı doğrulama"""
     result = _init_result("koklu")
     
-    text = question.get("original_text", "")
+    text = (question.get("original_text") or "")
     
     # √n formatı
     match = re.search(r'[√]\s*(\d+)', text)
@@ -797,7 +797,7 @@ def verify_divisibility(question: Dict) -> Dict[str, Any]:
     """Bölünebilirlik doğrulama"""
     result = _init_result("bolunebilme")
     
-    text = question.get("original_text", "")
+    text = (question.get("original_text") or "")
     numbers = extract_numbers_from_text(text)
     
     if len(numbers) >= 2:

@@ -109,10 +109,11 @@ TOPIC_PATTERNS = {
 def detect_question_type(question: Dict) -> str:
     """Sorunun tipini belirle"""
     
-    topic = question.get("topic", "").lower()
-    text = question.get("original_text", "").lower()
-    solution = question.get("solution_text", "").lower()
-    solution_short = question.get("solution_short", "").lower()
+    # None kontrolü - veritabanından NULL gelebilir
+    topic = (question.get("topic") or "").lower()
+    text = (question.get("original_text") or "").lower()
+    solution = (question.get("solution_text") or "").lower()
+    solution_short = (question.get("solution_short") or "").lower()
     
     combined = f"{topic} {text} {solution} {solution_short}"
     
