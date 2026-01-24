@@ -9,7 +9,7 @@ name: LGS matematik bot
 on:
   # Zamanlı çalışma - Her gün saat 03:00 UTC (06:00 TR)
   schedule:
-    - cron: '0 3 * * *'
+- cron: '0 3 * * *'
   
   # Manuel tetikleme
   workflow_dispatch:
