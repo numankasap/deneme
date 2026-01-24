@@ -92,6 +92,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
+          cache-dependency-path: lgs_matematik_bot_requirements.txt
 
       # 3. Bağımlılıkları yükle
       - name: 📦 Install Dependencies
