@@ -1073,7 +1073,7 @@ def gemini_ile_iyilestir(soru, analiz):
 SADECE JSON döndür, başka bir şey yazma."""
 
         response = gemini_client.models.generate_content(
-            model='gemini-3-pro-preview',
+            model='gemini-3-flash-preview',
             contents=prompt,
             config=types.GenerateContentConfig(
                 temperature=0.3,  # Daha deterministik çıktı için düşürüldü
