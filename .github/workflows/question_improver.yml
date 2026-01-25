@@ -27,7 +27,7 @@ on:
 jobs:
   improve:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 240
 
     steps:
       - name: Checkout
