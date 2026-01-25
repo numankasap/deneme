@@ -71,7 +71,7 @@ class Config:
     GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
     
     # Modeller
-    ANALYSIS_MODEL = 'gemini-2.5-flash'
+    ANALYSIS_MODEL = 'gemini-3-flash'
     
     # Storage
     STORAGE_BUCKET = 'questions-images'
