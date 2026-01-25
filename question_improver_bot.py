@@ -788,66 +788,81 @@ IYILESTIRME_PROMPT = """Sen Türkiye Yüzyılı Maarif Modeli konusunda uzmanla�
 Görevin: Verilen soruyu Maarif Modeli'ne uygun, BAĞLAM TEMELLİ bir soruya dönüştürmek.
 
 ═══════════════════════════════════════════════════════════════════════════════
+⚠️ KRİTİK: GÖRSEL UYUMU - EN ÖNEMLİ KURAL
+═══════════════════════════════════════════════════════════════════════════════
+
+Bu sorularda GÖRSEL/ŞEKİL veritabanında kayıtlı! Görsel ile soru metni uyumlu olmalı.
+
+🔴 KESİNLİKLE KORU (DEĞİŞTİRME):
+- Sorudaki TÜM İSİMLER (Elif, Ahmet, Ayşe, dede, anne, öğretmen vb.)
+- Sorudaki SENARYO (markete gitme, bahçede oynama, okula gitme vb.)
+- Sorudaki TÜM SAYISAL DEĞERLER
+- Sorudaki NESNELER (kalem, elma, top, kitap vb.)
+- Doğru cevap ve seçenekler
+
+🔴 SADECE TEMİZLE (KALDIR):
+- "X, Y'yi çok sevmektedir" → KALDIR (ama X ve Y isimlerini KORU!)
+- "X çok çalışkan bir öğrenciydi" → KALDIR (ama X ismini KORU!)
+- "Güneşli bir günde kuşlar ötüyordu" → KALDIR
+- Çözüme HİÇBİR KATKI SAĞLAMAYAN duygusal ifadeler
+
+🟢 GÜÇLENDİR (AYNI SENARYO İÇİNDE):
+- Mevcut senaryoyu daha NET ve ANLAMLI hale getir
+- Matematiksel verileri daha açık ifade et
+- Üst düzey düşünme becerisini tetikleyecek şekilde yeniden yaz
+
+═══════════════════════════════════════════════════════════════════════════════
+📝 DOĞRU DÖNÜŞÜM ÖRNEKLERİ
+═══════════════════════════════════════════════════════════════════════════════
+
+ÖRNEK 1:
+❌ ÖNCE: "Elif dedesini çok sevmektedir. Bir gün dedesiyle çarşıya gitti.
+         Dedesi ona 50 TL verdi. Elif 3 kalem aldı. Kalemlerin tanesi 8 TL'dir.
+         Elif'in kaç TL'si kalır?"
+
+✅ SONRA: "Elif, dedesiyle çarşıya gitmiştir. Dedesi ona alışveriş için 50 TL
+         vermiştir. Kalemlerin tanesi 8 TL olan kırtasiyeden Elif 3 kalem
+         almak istemektedir. Buna göre Elif'in kaç TL'si kalır?"
+
+📌 DİKKAT: Elif ve dedesi KORUNDU (görsel uyumu), sadece "çok sevmektedir" kaldırıldı!
+
+ÖRNEK 2:
+❌ ÖNCE: "Ahmet çok çalışkan bir öğrencidir. Matematiği çok sever. Dersleri
+         dikkatle dinler. Öğretmeni ona 24 elma verdi. Ahmet bunları 4 arkadaşına
+         eşit paylaştırdı."
+
+✅ SONRA: "Öğretmen, Ahmet'e 24 elma vermiştir. Ahmet bu elmaları 4 arkadaşına
+         eşit olarak paylaştırmak istemektedir. Buna göre her arkadaşa kaç
+         elma düşer?"
+
+📌 DİKKAT: Ahmet, öğretmen, elma, arkadaşlar KORUNDU, gereksiz övgüler kaldırıldı!
+
+ÖRNEK 3:
+❌ ÖNCE: "5 + 3 x 2 = ?"
+
+✅ SONRA: "Bir öğrenci önce 5 adet sticker almış, sonra 3 paket daha almıştır.
+         Her pakette 2 sticker bulunmaktadır. Öğrencinin toplam kaç stickeri olur?
+         (İşlem önceliğine dikkat ediniz)"
+
+📌 NOT: Sadece işlem sorusu ise BAĞLAM EKLENEBİLİR, ama görsel varsa görsel
+       referansları korunmalı!
+
+═══════════════════════════════════════════════════════════════════════════════
 📚 MAARİF MODELİ TEMEL İLKELERİ
 ═══════════════════════════════════════════════════════════════════════════════
 
-1. **EZBER DEĞİL, UYGULAMA**: Soru sadece bilgiyi hatırlamayı değil, bilginin
-   gerçek yaşamda nasıl kullanılacağını ölçmeli.
-
-2. **BAĞLAM TEMELLİ**: Her soru gerçek yaşamla ilişkili bir senaryo içermeli.
-   Öğrenci soruyu çözerken:
-   - Problemi anlamalı ve zihninde canlandırabilmeli
-   - Kavramlar ile soruyu ilişkilendirebilmeli
-   - Çözüm planı yapabilmeli
-   - Çözümün doğruluğunu değerlendirebilmeli
-
-3. **ANLAMLI BAĞLAM**: Bağlam çözüme KATKI SAĞLAMALI, dekoratif olmamalı.
+1. **EZBER DEĞİL, UYGULAMA**: Bilginin gerçek yaşamda kullanımını ölç
+2. **BAĞLAM TEMELLİ**: Anlamlı, çözüme katkı sağlayan senaryo
+3. **ÜST DÜZEY DÜŞÜNME**: Analiz, çıkarım, yorumlama becerileri
+4. **GÖRSEL UYUMU**: Mevcut senaryo ve karakterleri koru, sadece güçlendir
 
 ═══════════════════════════════════════════════════════════════════════════════
-⚠️ KRİTİK KURALLAR - KESİNLİKLE UYULMALI
-═══════════════════════════════════════════════════════════════════════════════
-
-🔴 DEĞİŞTİRME (KORU):
-- Sorudaki TÜM SAYISAL DEĞERLER aynen kalmalı
-- Doğru cevap DEĞİŞMEMELİ
-- Seçenekler DEĞİŞMEMELİ (sadece eksikse ekle)
-- Matematiksel işlemler ve oranlar KORUNMALI
-- Görsel/şekil referansları KORUNMALI (şekil gerektiren soru ise "şekilde verilen" ifadesi kalmalı)
-
-🔴 TEMİZLE (KALDIR):
-- "X, Y'yi çok sevmektedir" gibi duygusal ifadeler
-- "X çok çalışkan bir öğrenciydi" gibi karakter tanımlamaları
-- Sorunun çözümüne HİÇBİR KATKI SAĞLAMAYAN detaylar
-- "Elif dedesini ziyarete gitti. Dedesi ona şeker verdi. Sonra..." gibi uzun hikayeler
-- Gereksiz sıfatlar ve süslü ifadeler
-
-🟢 EKLE/İYİLEŞTİR:
-- Gerçek yaşamla ilişkili, ANLAMLI bağlam
-- Sınıf seviyesine uygun dil
-- Çözüme katkı sağlayan senaryo detayları
-
-═══════════════════════════════════════════════════════════════════════════════
-📏 SINIF SEVİYESİNE GÖRE BAĞLAM UZUNLUĞU
+📏 SINIF SEVİYESİNE GÖRE BAĞLAM
 ═══════════════════════════════════════════════════════════════════════════════
 
 İLKOKUL (1-4. sınıf): 2-4 cümle, çok basit dil, somut durumlar
 ORTAOKUL (5-8. sınıf): 4-6 cümle, ders terimleri kullanılabilir
 LİSE (9-12. sınıf): 5-8 cümle, akademik dil, karmaşık senaryolar
-
-═══════════════════════════════════════════════════════════════════════════════
-📝 BAĞLAM TÜRÜ ÖRNEKLERİ
-═══════════════════════════════════════════════════════════════════════════════
-
-✅ İYİ BAĞLAM ÖRNEKLERİ:
-- "Bir market, elmaları 3'lü paketler halinde satmaktadır. Her paketin fiyatı 15 TL'dir."
-- "Okul kantininde öğle yemeği için 120 porsiyon hazırlanmıştır. Her masaya 4 porsiyon konulacaktır."
-- "Bir fabrikanın aylık üretim verileri tabloda gösterilmiştir."
-- "Bir araç 180 km yol gidecektir. Saatte 60 km hızla gitmektedir."
-
-❌ KÖTÜ BAĞLAM ÖRNEKLERİ:
-- "Elif matematiği çok seven bir öğrencidir. Bir gün annesiyle markete gitti..."
-- "Ahmet çok çalışkan bir öğrencidir. Dersleri hep dikkatle dinler..."
-- "Güneşli bir günde, kuşlar ötüyordu ve Ayşe bahçede oynuyordu. O sırada..."
 
 ═══════════════════════════════════════════════════════════════════════════════
 📋 ÇÖZÜM FORMATI
@@ -857,7 +872,6 @@ LİSE (9-12. sınıf): 5-8 cümle, akademik dil, karmaşık senaryolar
 - Format: "Adim N: [kisa aciklama] -> [islem] = [sonuc]"
 - Maksimum 5-6 adım
 - Sonunda "Cevap: X" şeklinde bitir
-- Gereksiz açıklama YAPMA
 
 ═══════════════════════════════════════════════════════════════════════════════
 📋 JSON ÇIKTI FORMATI
@@ -865,7 +879,7 @@ LİSE (9-12. sınıf): 5-8 cümle, akademik dil, karmaşık senaryolar
 
 ```json
 {
-  "soru_metni": "Maarif Modeline uygun, bağlam temelli soru metni",
+  "soru_metni": "Maarif Modeline uygun, AYNI SENARYO VE İSİMLERLE güçlendirilmiş soru",
   "secenekler": {
     "A": "secenek A",
     "B": "secenek B",
@@ -878,7 +892,8 @@ LİSE (9-12. sınıf): 5-8 cümle, akademik dil, karmaşık senaryolar
   "cozum_kisa": "Tek cumlelik ozet",
   "bloom_seviye": "uygulama/analiz/degerlendirme",
   "surec_bileseni": "cozumleme/cikarim/yorumlama/transfer",
-  "baglam_turu": "gunluk_yasam/mesleki/bilimsel/ekonomi/spor/vb",
+  "korunan_unsurlar": "isimler, nesneler, senaryo - değişmeyen unsurlar",
+  "kaldirilan_unsurlar": "temizlenen gereksiz ifadeler",
   "iyilestirme_yapildi": true,
   "degisiklikler": "Yapilan degisikliklerin kisa ozeti"
 }
