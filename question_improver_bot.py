@@ -278,25 +278,30 @@ def son_islenen_id_getir():
         print(f"   ⚠️ Son ID getirme hatası: {str(e)[:50]}")
         return START_ID - 1
 
+# Sadece bu dersleri işle (Fizik hariç)
+HEDEF_DERSLER = ['Matematik', 'Geometri']
+
 def islenmemis_sorulari_getir(limit, retry_mode=False):
     """
-    İşlenmemiş veya tekrar işlenecek soruları getir - V3 DÜZELTİLMİŞ
-    
-    V3 Değişiklik: Son işlenen ID'den devam eder, tüm işlenmiş ID'leri 
-    bellekte tutmak yerine veritabanında LEFT JOIN mantığı kullanır.
+    İşlenmemiş veya tekrar işlenecek soruları getir - V5 MAARİF MODELİ
+
+    V5 Değişiklik: Sadece Matematik ve Geometri dersleri işlenir (Fizik hariç)
+    image_url durumuna göre farklı işleme mantığı uygulanır.
     """
     try:
         if not PROGRESS_TABLE_EXISTS:
             print(f"   📋 Progress tablosu yok, direkt sorgulama...")
+            print(f"   📚 Hedef dersler: {', '.join(HEDEF_DERSLER)}")
             result = supabase.table('question_bank')\
                 .select('*')\
                 .gte('id', START_ID)\
                 .lte('id', END_ID)\
+                .in_('subject', HEDEF_DERSLER)\
                 .order('id')\
                 .limit(limit)\
                 .execute()
             return result.data if result.data else []
-        
+
         if retry_mode:
             # Retry mode: failed veya pending_retry olanları getir
             progress_result = supabase.table(PROGRESS_TABLE)\
@@ -305,14 +310,15 @@ def islenmemis_sorulari_getir(limit, retry_mode=False):
                 .order('question_id')\
                 .limit(limit)\
                 .execute()
-            
+
             if not progress_result.data:
                 return []
-            
+
             retry_ids = [p['question_id'] for p in progress_result.data]
             result = supabase.table('question_bank')\
                 .select('*')\
                 .in_('id', retry_ids)\
+                .in_('subject', HEDEF_DERSLER)\
                 .order('id')\
                 .execute()
             return result.data if result.data else []
@@ -341,21 +347,23 @@ def islenmemis_sorulari_getir(limit, retry_mode=False):
             
             baslangic_id = max(son_id + 1, START_ID)
             print(f"   📍 Son işlenen ID: {son_id}, Başlangıç: {baslangic_id}")
+            print(f"   📚 Hedef dersler: {', '.join(HEDEF_DERSLER)}")
             sorular = []
-            
+
             # Chunk'lar halinde tara
             chunk_size = 200  # Her seferinde 200 soru kontrol et
             current_start = baslangic_id
-            
+
             while len(sorular) < limit and current_start <= END_ID:
-                # Bu chunk'taki soruları çek
+                # Bu chunk'taki soruları çek - SADECE Matematik ve Geometri
                 result = supabase.table('question_bank')\
                     .select('*')\
                     .gte('id', current_start)\
                     .lte('id', min(current_start + chunk_size - 1, END_ID))\
+                    .in_('subject', HEDEF_DERSLER)\
                     .order('id')\
                     .execute()
-                
+
                 if result.data:
                     # İşlenmemiş olanları filtrele
                     for soru in result.data:
@@ -363,10 +371,13 @@ def islenmemis_sorulari_getir(limit, retry_mode=False):
                             sorular.append(soru)
                             if len(sorular) >= limit:
                                 break
-                
+
                 current_start += chunk_size
-            
-            print(f"   📋 {len(sorular)} işlenmemiş soru bulundu")
+
+            # Görsel durumu istatistiği
+            gorselli = sum(1 for s in sorular if s.get('image_url'))
+            gorselsiz = len(sorular) - gorselli
+            print(f"   📋 {len(sorular)} işlenmemiş soru bulundu (🖼️ {gorselli} görselli, 📝 {gorselsiz} görselsiz)")
             return sorular
             
     except Exception as e:
@@ -784,14 +795,101 @@ def regex_json_fallback(text):
 # GEMİNİ İYİLEŞTİRME
 # ═══════════════════════════════════════════════════════════════════════════════
 
-IYILESTIRME_PROMPT = """Sen Türkiye Yüzyılı Maarif Modeli konusunda uzmanlaşmış bir matematik öğretmenisin.
-Görevin: Verilen soruyu Maarif Modeli'ne uygun, BAĞLAM TEMELLİ bir soruya dönüştürmek.
+IYILESTIRME_PROMPT_GORSELSIZ = """Sen Türkiye Yüzyılı Maarif Modeli konusunda uzmanlaşmış bir matematik öğretmenisin.
+Bu soruda GÖRSEL YOK, dolayısıyla soruyu baştan MAARİF MODELİNE UYGUN şekilde yazabilirsin.
+
+═══════════════════════════════════════════════════════════════════════════════
+🟢 TAM ESNEKLİK - GÖRSELSİZ SORU
+═══════════════════════════════════════════════════════════════════════════════
+
+Bu soruda görsel olmadığı için:
+✅ Soruyu TAMAMEN yeniden yazabilirsin
+✅ Yeni isimler, yeni senaryo, yeni bağlam kullanabilirsin
+✅ Seçenekleri YENİDEN DÜZENLEYEBİLİRSİN (matematiksel olarak doğru kalmalı)
+✅ Çözümü baştan yazabilirsin
+
+🔴 SADECE BUNLAR SABİT KALMALI:
+- Matematiksel KONU ve KAZANIM aynı kalmalı
+- Matematiksel ZORLUK SEVİYESİ korunmalı
+- DOĞRU CEVAP matematiksel olarak aynı sonuca ulaşmalı
+
+═══════════════════════════════════════════════════════════════════════════════
+📚 MAARİF MODELİ TEMEL İLKELERİ
+═══════════════════════════════════════════════════════════════════════════════
+
+1. **BAĞLAM TEMELLİ**: Gerçek yaşam senaryosu ZORUNLU
+   - Market alışverişi, okul etkinliği, spor, seyahat, üretim, inşaat vb.
+   - Senaryo çözüme KATKI SAĞLAMALI (dekoratif değil)
+
+2. **EZBER DEĞİL, UYGULAMA**: Bilginin kullanımını ölç
+   - Öğrenci senaryoyu okuyup analiz etmeli
+   - Matematiksel ilişkiyi kendisi kurmalı
+
+3. **ÜST DÜZEY DÜŞÜNME**: Analiz, çıkarım, yorumlama
+   - Verilen bilgilerden sonuç çıkarma
+   - Problem çözme stratejisi geliştirme
+
+═══════════════════════════════════════════════════════════════════════════════
+📝 İYİ BAĞLAM ÖRNEKLERİ
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ "Bir fabrika günde 240 ürün üretmektedir. Üretilen ürünlerin %15'i kalite
+   kontrolünde elenmektedir. Fabrika 5 günde kaç sağlam ürün üretir?"
+
+✅ "Okul kantininde bir sandviç 12 TL, bir ayran 5 TL'dir. Elif'in 50 TL'si
+   vardır. 3 sandviç ve 2 ayran alırsa kaç TL'si kalır?"
+
+✅ "Bir inşaat şirketinin 3 ay içinde tamamlaması gereken proje için 12 işçi
+   çalışmaktadır. İşçiler günde 8 saat çalıştığında projenin %60'ı tamamlanır.
+   Kalan işi 1 ayda bitirmek için kaç işçi daha alınmalıdır?"
+
+❌ KÖTÜ: "5 x 3 + 2 = ?" (bağlamsız)
+❌ KÖTÜ: "Ahmet çok zeki bir öğrencidir. Matematiği sever..." (gereksiz övgü)
+
+═══════════════════════════════════════════════════════════════════════════════
+📏 SINIF SEVİYESİNE GÖRE BAĞLAM
+═══════════════════════════════════════════════════════════════════════════════
+
+İLKOKUL (1-4): 2-4 cümle, çok basit dil, somut durumlar (market, okul, park)
+ORTAOKUL (5-8): 4-6 cümle, ders terimleri, günlük hayat problemleri
+LİSE (9-12): 5-8 cümle, akademik dil, mesleki/bilimsel senaryolar
+
+═══════════════════════════════════════════════════════════════════════════════
+📋 JSON ÇIKTI FORMATI
+═══════════════════════════════════════════════════════════════════════════════
+
+```json
+{
+  "soru_metni": "Maarif Modeline uygun, bağlam temelli YENİ soru",
+  "secenekler": {
+    "A": "yeni secenek A",
+    "B": "yeni secenek B",
+    "C": "yeni secenek C",
+    "D": "yeni secenek D",
+    "E": "yeni secenek E"
+  },
+  "dogru_cevap": "A",
+  "cozum_adimlari": "Adim 1: Aciklama -> islem = sonuc\\nAdim 2: ...\\nCevap: X",
+  "cozum_kisa": "Tek cumlelik ozet",
+  "bloom_seviye": "uygulama/analiz/degerlendirme",
+  "surec_bileseni": "cozumleme/cikarim/yorumlama/transfer",
+  "baglam_turu": "gunluk_yasam/mesleki/bilimsel/ekonomi/spor",
+  "iyilestirme_yapildi": true,
+  "degisiklikler": "Soru tamamen yeniden yazildi - Maarif Modeli uyumlu baglam eklendi"
+}
+```
+
+⚠️ SADECE JSON döndür. Başka açıklama yazma.
+"""
+
+IYILESTIRME_PROMPT_GORSELLI = """Sen Türkiye Yüzyılı Maarif Modeli konusunda uzmanlaşmış bir matematik öğretmenisin.
+Bu soruda GÖRSEL VAR, dolayısıyla senaryo ve karakterleri KORUMALISIN.
 
 ═══════════════════════════════════════════════════════════════════════════════
 ⚠️ KRİTİK: GÖRSEL UYUMU - EN ÖNEMLİ KURAL
 ═══════════════════════════════════════════════════════════════════════════════
 
-Bu sorularda GÖRSEL/ŞEKİL veritabanında kayıtlı! Görsel ile soru metni uyumlu olmalı.
+Bu soruda GÖRSEL/ŞEKİL veritabanında kayıtlı! Görsel ile soru metni uyumlu olmalı.
 
 🔴 KESİNLİKLE KORU (DEĞİŞTİRME):
 - Sorudaki TÜM İSİMLER (Elif, Ahmet, Ayşe, dede, anne, öğretmen vb.)
@@ -817,61 +915,30 @@ Bu sorularda GÖRSEL/ŞEKİL veritabanında kayıtlı! Görsel ile soru metni uy
 
 ÖRNEK 1:
 ❌ ÖNCE: "Elif dedesini çok sevmektedir. Bir gün dedesiyle çarşıya gitti.
-         Dedesi ona 50 TL verdi. Elif 3 kalem aldı. Kalemlerin tanesi 8 TL'dir.
-         Elif'in kaç TL'si kalır?"
+         Dedesi ona 50 TL verdi. Elif 3 kalem aldı. Kalemlerin tanesi 8 TL'dir."
 
 ✅ SONRA: "Elif, dedesiyle çarşıya gitmiştir. Dedesi ona alışveriş için 50 TL
          vermiştir. Kalemlerin tanesi 8 TL olan kırtasiyeden Elif 3 kalem
          almak istemektedir. Buna göre Elif'in kaç TL'si kalır?"
 
-📌 DİKKAT: Elif ve dedesi KORUNDU (görsel uyumu), sadece "çok sevmektedir" kaldırıldı!
+📌 DİKKAT: Elif ve dedesi KORUNDU, sadece "çok sevmektedir" kaldırıldı!
 
 ÖRNEK 2:
 ❌ ÖNCE: "Ahmet çok çalışkan bir öğrencidir. Matematiği çok sever. Dersleri
-         dikkatle dinler. Öğretmeni ona 24 elma verdi. Ahmet bunları 4 arkadaşına
-         eşit paylaştırdı."
+         dikkatle dinler. Öğretmeni ona 24 elma verdi."
 
 ✅ SONRA: "Öğretmen, Ahmet'e 24 elma vermiştir. Ahmet bu elmaları 4 arkadaşına
-         eşit olarak paylaştırmak istemektedir. Buna göre her arkadaşa kaç
-         elma düşer?"
+         eşit olarak paylaştırmak istemektedir."
 
-📌 DİKKAT: Ahmet, öğretmen, elma, arkadaşlar KORUNDU, gereksiz övgüler kaldırıldı!
-
-ÖRNEK 3:
-❌ ÖNCE: "5 + 3 x 2 = ?"
-
-✅ SONRA: "Bir öğrenci önce 5 adet sticker almış, sonra 3 paket daha almıştır.
-         Her pakette 2 sticker bulunmaktadır. Öğrencinin toplam kaç stickeri olur?
-         (İşlem önceliğine dikkat ediniz)"
-
-📌 NOT: Sadece işlem sorusu ise BAĞLAM EKLENEBİLİR, ama görsel varsa görsel
-       referansları korunmalı!
-
-═══════════════════════════════════════════════════════════════════════════════
-📚 MAARİF MODELİ TEMEL İLKELERİ
-═══════════════════════════════════════════════════════════════════════════════
-
-1. **EZBER DEĞİL, UYGULAMA**: Bilginin gerçek yaşamda kullanımını ölç
-2. **BAĞLAM TEMELLİ**: Anlamlı, çözüme katkı sağlayan senaryo
-3. **ÜST DÜZEY DÜŞÜNME**: Analiz, çıkarım, yorumlama becerileri
-4. **GÖRSEL UYUMU**: Mevcut senaryo ve karakterleri koru, sadece güçlendir
+📌 DİKKAT: Ahmet, öğretmen, elma KORUNDU, gereksiz övgüler kaldırıldı!
 
 ═══════════════════════════════════════════════════════════════════════════════
 📏 SINIF SEVİYESİNE GÖRE BAĞLAM
 ═══════════════════════════════════════════════════════════════════════════════
 
-İLKOKUL (1-4. sınıf): 2-4 cümle, çok basit dil, somut durumlar
-ORTAOKUL (5-8. sınıf): 4-6 cümle, ders terimleri kullanılabilir
-LİSE (9-12. sınıf): 5-8 cümle, akademik dil, karmaşık senaryolar
-
-═══════════════════════════════════════════════════════════════════════════════
-📋 ÇÖZÜM FORMATI
-═══════════════════════════════════════════════════════════════════════════════
-
-- Her adım tek satırda, kısa ve öz
-- Format: "Adim N: [kisa aciklama] -> [islem] = [sonuc]"
-- Maksimum 5-6 adım
-- Sonunda "Cevap: X" şeklinde bitir
+İLKOKUL (1-4): 2-4 cümle, çok basit dil, somut durumlar
+ORTAOKUL (5-8): 4-6 cümle, ders terimleri kullanılabilir
+LİSE (9-12): 5-8 cümle, akademik dil, karmaşık senaryolar
 
 ═══════════════════════════════════════════════════════════════════════════════
 📋 JSON ÇIKTI FORMATI
@@ -879,15 +946,15 @@ LİSE (9-12. sınıf): 5-8 cümle, akademik dil, karmaşık senaryolar
 
 ```json
 {
-  "soru_metni": "Maarif Modeline uygun, AYNI SENARYO VE İSİMLERLE güçlendirilmiş soru",
+  "soru_metni": "AYNI SENARYO VE İSİMLERLE güçlendirilmiş soru",
   "secenekler": {
-    "A": "secenek A",
-    "B": "secenek B",
-    "C": "secenek C",
-    "D": "secenek D",
-    "E": "secenek E"
+    "A": "AYNI secenek A",
+    "B": "AYNI secenek B",
+    "C": "AYNI secenek C",
+    "D": "AYNI secenek D",
+    "E": "AYNI secenek E"
   },
-  "dogru_cevap": "A",
+  "dogru_cevap": "AYNI",
   "cozum_adimlari": "Adim 1: Aciklama -> islem = sonuc\\nAdim 2: ...\\nCevap: X",
   "cozum_kisa": "Tek cumlelik ozet",
   "bloom_seviye": "uygulama/analiz/degerlendirme",
@@ -895,11 +962,11 @@ LİSE (9-12. sınıf): 5-8 cümle, akademik dil, karmaşık senaryolar
   "korunan_unsurlar": "isimler, nesneler, senaryo - değişmeyen unsurlar",
   "kaldirilan_unsurlar": "temizlenen gereksiz ifadeler",
   "iyilestirme_yapildi": true,
-  "degisiklikler": "Yapilan degisikliklerin kisa ozeti"
+  "degisiklikler": "Gereksiz detaylar temizlendi, baglam guclendirildi"
 }
 ```
 
-⚠️ SADECE JSON döndür. Başka açıklama yazma. JSON dışında hiçbir şey yazma.
+⚠️ SADECE JSON döndür. Başka açıklama yazma.
 """
 
 def sinif_seviyesi_bilgisi_al(grade_level):
@@ -933,6 +1000,10 @@ def gemini_ile_iyilestir(soru, analiz):
         correct_answer = soru.get('correct_answer', '') or ''
         grade_level = soru.get('grade_level', 8)
         topic = soru.get('topic', '') or ''
+        image_url = soru.get('image_url', None)  # Görsel URL kontrolü
+
+        # Görsel var mı kontrol et
+        gorsel_var = bool(image_url)  # image_url dolu ise görsel var
 
         # Sınıf seviyesi bilgilerini al
         seviye_bilgi = sinif_seviyesi_bilgisi_al(grade_level)
@@ -951,26 +1022,26 @@ def gemini_ile_iyilestir(soru, analiz):
         elif options:
             options_str = str(options)
 
-        # Soruda görsel referansı var mı kontrol et
-        gorsel_var = any(k in original_text.lower() for k in ['şekil', 'grafik', 'tablo', 'görsel', 'resim', 'diyagram', 'çizim'])
-        gorsel_uyari = """
-⚠️ DİKKAT: Bu soruda GÖRSEL/ŞEKİL referansı var!
-- Görsel referanslarını KORU (örn: "şekilde verilen", "grafikte gösterilen")
-- Sayısal değerleri KESİNLİKLE değiştirme
-- Sadece bağlamı güçlendir, görselle ilgili kısmı aynen bırak
-""" if gorsel_var else ""
+        # Görsel durumuna göre prompt seç
+        if gorsel_var:
+            base_prompt = IYILESTIRME_PROMPT_GORSELLI
+            mod_aciklama = "🖼️ GÖRSEL VAR - Senaryo, isimler ve nesneler KORUNACAK"
+        else:
+            base_prompt = IYILESTIRME_PROMPT_GORSELSIZ
+            mod_aciklama = "📝 GÖRSEL YOK - Soru baştan Maarif Modeli'ne uygun yazılabilir"
 
-        prompt = f"""{IYILESTIRME_PROMPT}
+        prompt = f"""{base_prompt}
 
 ═══════════════════════════════════════════════════════════════════════════════
-📚 BU SORU İÇİN ÖZEL KURALLAR ({seviye_bilgi['seviye']})
+📚 BU SORU İÇİN ÖZEL KURALLAR
 ═══════════════════════════════════════════════════════════════════════════════
+
+{mod_aciklama}
 
 - Sınıf Seviyesi: {grade_level}. Sınıf ({seviye_bilgi['seviye']})
 - Bağlam Uzunluğu: {seviye_bilgi['cumle_sayisi']} cümle
 - Dil Seviyesi: {seviye_bilgi['dil']}
 - Açıklama: {seviye_bilgi['aciklama']}
-{gorsel_uyari}
 
 ═══════════════════════════════════════════════════════════════════════════════
 📝 İYİLEŞTİRİLECEK SORU
@@ -1306,7 +1377,13 @@ def batch_isle(retry_mode=False):
         # Sınıf seviyesi kategorisi
         seviye_kat = "İlkokul" if int(grade or 8) <= 4 else "Ortaokul" if int(grade or 8) <= 8 else "Lise"
 
+        # Görsel durumu
+        image_url = soru.get('image_url')
+        gorsel_durumu = "🖼️ Görselli" if image_url else "📝 Görselsiz"
+        islem_modu = "KORU" if image_url else "YENİDEN YAZ"
+
         print(f"\n[{idx+1}/{len(sorular)}] ID: {question_id} | {grade}. Sınıf ({seviye_kat}) | {topic}")
+        print(f"   {gorsel_durumu} → Mod: {islem_modu}")
 
         # Kalite analizi
         analiz = soru_kalite_analizi(soru)
