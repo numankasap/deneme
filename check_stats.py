@@ -23,6 +23,11 @@ print('=' * 60)
 total = supabase.table('question_bank').select('id', count='exact').in_('subject', ['Matematik', 'Geometri']).execute()
 print(f'\n📚 Toplam Matematik/Geometri sorusu: {total.count}')
 
+# Matematik ve Geometri MAX ID
+max_math = supabase.table('question_bank').select('id').in_('subject', ['Matematik', 'Geometri']).order('id', desc=True).limit(1).execute()
+max_id = max_math.data[0]['id'] if max_math.data else 'N/A'
+print(f'📍 Matematik/Geometri MAX ID: {max_id}')
+
 # Görselli soru sayısı
 gorselli_result = supabase.table('question_bank').select('id', count='exact').in_('subject', ['Matematik', 'Geometri']).not_.is_('image_url', 'null').execute()
 print(f'🖼️  Görselli sorular: {gorselli_result.count}')

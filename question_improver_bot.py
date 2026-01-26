@@ -90,19 +90,29 @@ except Exception as e:
     print(f"❌ Supabase bağlantı hatası: {e}")
     exit(1)
 
-# Dinamik END_ID hesaplama
+# Hedef dersler (Fizik hariç)
+HEDEF_DERSLER = ['Matematik', 'Geometri']
+
+# Dinamik END_ID hesaplama - SADECE hedef derslerin max ID'si
 if END_ID_ENV:
     END_ID = int(END_ID_ENV)
     print(f"   END_ID (env): {END_ID}")
 else:
     try:
-        max_result = supabase.table('question_bank').select('id').order('id', desc=True).limit(1).execute()
+        # Sadece Matematik ve Geometri sorularının max ID'sini al
+        max_result = supabase.table('question_bank')\
+            .select('id')\
+            .in_('subject', HEDEF_DERSLER)\
+            .order('id', desc=True)\
+            .limit(1)\
+            .execute()
         END_ID = max_result.data[0]['id'] if max_result.data else START_ID
-        print(f"   END_ID (otomatik): {END_ID}")
+        print(f"   END_ID (otomatik - Matematik/Geometri): {END_ID}")
     except:
         END_ID = START_ID + 10000
         print(f"   END_ID (varsayılan): {END_ID}")
 print(f"   📍 Çalışma aralığı: {START_ID} - {END_ID}")
+print(f"   📚 Hedef dersler: {', '.join(HEDEF_DERSLER)}")
 
 print("🔗 Gemini bağlantısı kuruluyor...")
 try:
@@ -278,8 +288,7 @@ def son_islenen_id_getir():
         print(f"   ⚠️ Son ID getirme hatası: {str(e)[:50]}")
         return START_ID - 1
 
-# Sadece bu dersleri işle (Fizik hariç)
-HEDEF_DERSLER = ['Matematik', 'Geometri']
+# Not: HEDEF_DERSLER yukarıda tanımlı ['Matematik', 'Geometri']
 
 def islenmemis_sorulari_getir(limit, retry_mode=False):
     """
@@ -387,40 +396,49 @@ def islenmemis_sorulari_getir(limit, retry_mode=False):
         return []
 
 def tum_isler_bitti_mi():
-    """Tüm işlerin bitip bitmediğini kontrol et"""
+    """Tüm işlerin bitip bitmediğini kontrol et - SADECE Matematik/Geometri"""
     if not PROGRESS_TABLE_EXISTS:
         return {'total': END_ID - START_ID + 1, 'success': 0, 'pending': 0, 'completed': False}
     try:
+        # SADECE Matematik ve Geometri sorularını say
         total = supabase.table('question_bank')\
             .select('id', count='exact')\
             .gte('id', START_ID)\
             .lte('id', END_ID)\
+            .in_('subject', HEDEF_DERSLER)\
             .execute()
         total_count = total.count if total.count else 0
-        
+
+        # Progress tablosundan başarılı olanları say
+        # Ama sadece START_ID-END_ID aralığındakileri
         success = supabase.table(PROGRESS_TABLE)\
             .select('question_id', count='exact')\
             .eq('status', 'success')\
+            .gte('question_id', START_ID)\
+            .lte('question_id', END_ID)\
             .execute()
         success_count = success.count if success.count else 0
-        
+
         pending = supabase.table(PROGRESS_TABLE)\
             .select('question_id', count='exact')\
             .in_('status', ['failed', 'pending_retry'])\
+            .gte('question_id', START_ID)\
+            .lte('question_id', END_ID)\
             .execute()
         pending_count = pending.count if pending.count else 0
-        
+
         # İşlenmemiş soru sayısı
         islenmemis = total_count - success_count - pending_count
-        
+
         return {
             'total': total_count,
             'success': success_count,
             'pending': pending_count,
-            'islenmemis': islenmemis,
+            'islenmemis': max(0, islenmemis),  # Negatif olmasın
             'completed': success_count >= total_count and pending_count == 0
         }
-    except:
+    except Exception as e:
+        print(f"   ⚠️ Durum kontrol hatası: {str(e)[:50]}")
         return {'total': 0, 'success': 0, 'pending': 0, 'islenmemis': 0, 'completed': False}
 
 # ═══════════════════════════════════════════════════════════════════════════════
