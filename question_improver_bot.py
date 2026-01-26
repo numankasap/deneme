@@ -836,8 +836,8 @@ Bu soruda görsel olmadığı için:
 ═══════════════════════════════════════════════════════════════════════════════
 
 1. **BAĞLAM TEMELLİ**: Gerçek yaşam senaryosu ZORUNLU
-   - Market alışverişi, okul etkinliği, spor, seyahat, üretim, inşaat vb.
    - Senaryo çözüme KATKI SAĞLAMALI (dekoratif değil)
+   - HER SORU FARKLI BAĞLAM KULLANIMALI - Monotonluktan kaçın!
 
 2. **EZBER DEĞİL, UYGULAMA**: Bilginin kullanımını ölç
    - Öğrenci senaryoyu okuyup analiz etmeli
@@ -848,29 +848,86 @@ Bu soruda görsel olmadığı için:
    - Problem çözme stratejisi geliştirme
 
 ═══════════════════════════════════════════════════════════════════════════════
-📝 İYİ BAĞLAM ÖRNEKLERİ
+🏷️ BAĞLAM TÜRLERİ (ÇEŞİTLİLİK ZORUNLU!)
 ═══════════════════════════════════════════════════════════════════════════════
 
-✅ "Bir fabrika günde 240 ürün üretmektedir. Üretilen ürünlerin %15'i kalite
-   kontrolünde elenmektedir. Fabrika 5 günde kaç sağlam ürün üretir?"
+⚠️ ÖNEMLİ: Aynı bağlamı tekrar tekrar KULLANMA! Her soru için FARKLI bir
+bağlam türü seç. Aşağıdaki listeden rastgele ve yaratıcı şekilde seç:
 
-✅ "Okul kantininde bir sandviç 12 TL, bir ayran 5 TL'dir. Elif'in 50 TL'si
-   vardır. 3 sandviç ve 2 ayran alırsa kaç TL'si kalır?"
+🌍 KİŞİSEL VE GÜNLÜK YAŞAM:
+• 🏠 Ev ve Aile: Ev işleri, aile bütçesi, taşınma, oda düzenleme
+• 🛒 Alışveriş: Market, indirim, fiyat karşılaştırma, online sipariş
+• 🚗 Ulaşım ve Seyahat: Yolculuk, trafik, bilet, tatil planı, benzin
+• 🍽️ Beslenme ve Yemek: Tarif, kalori, diyet, restoran, malzeme ölçüsü
+• 🎉 Kutlama ve Etkinlik: Doğum günü, düğün, festival, piknik, parti
 
-✅ "Bir inşaat şirketinin 3 ay içinde tamamlaması gereken proje için 12 işçi
-   çalışmaktadır. İşçiler günde 8 saat çalıştığında projenin %60'ı tamamlanır.
-   Kalan işi 1 ayda bitirmek için kaç işçi daha alınmalıdır?"
+💼 MESLEKİ VE İŞ DÜNYASI:
+• 🏗️ Mühendislik: İnşaat, tasarım, köprü, bina, yol yapımı
+• 🏭 Üretim ve Sanayi: Fabrika, imalat, kalite kontrol, paketleme
+• 🌾 Tarım ve Hayvancılık: Çiftlik, hasat, sulama, sera, hayvan bakımı
+• 💰 Ekonomi ve Finans: Bütçe, yatırım, faiz, kredi, döviz
+• 📊 İstatistik ve Veri: Anket, grafik, analiz, araştırma sonuçları
+
+🔬 BİLİM VE DOĞA:
+• 🧪 Deney ve Laboratuvar: Kimya, fizik, biyoloji deneyi, ölçüm
+• 🌿 Çevre ve Ekoloji: İklim, geri dönüşüm, enerji tasarrufu, karbon ayak izi
+• 🌌 Uzay ve Astronomi: Gezegenler, roket, uydu, yıldızlar, uzay yolculuğu
+• 🏥 Sağlık ve Tıp: Hastalık, ilaç dozajı, nabız, kan değerleri
+• 🦁 Hayvanlar ve Doğa: Ekosistem, göç, habitat, popülasyon
+
+🎭 SOSYAL VE KÜLTÜREL:
+• 🏛️ Tarih ve Medeniyet: Antik yapılar, tarihi olaylar, arkeoloji
+• 🎨 Sanat ve Estetik: Resim, müzik, heykel, sergi, konser
+• 📖 Edebiyat ve Dil: Kitap, dergi tirajı, kütüphane, yayınevi
+• 🏙️ Vatandaşlık ve Toplum: Seçim, nüfus sayımı, belediye hizmetleri
+• 🌍 Coğrafya ve Yerleşim: Harita, şehir planı, nüfus yoğunluğu
+
+💻 TEKNOLOJİ VE EĞLENCE:
+• 📱 Dijital ve İnternet: Uygulama, veri kullanımı, depolama, indirme
+• 🎮 Oyun ve Strateji: Video oyunu puanı, bulmaca, satranç, turnuva
+• ⚽ Spor ve Yarışma: Maç skoru, olimpiyat, antrenman, maraton
+• 🎬 Medya ve Habercilik: Film süresi, TV izlenme oranı, podcast
+• 🎢 Eğlence ve Hobi: Lunapark, koleksiyon, el işi, müze ziyareti
+
+🎓 EĞİTİM VE OKUL:
+• 📚 Okul Etkinlikleri: Sınıf projesi, bilim fuarı, okul gezisi
+• 🏫 Kütüphane: Kitap ödünç alma, raf düzeni, okuma hedefi
+• 🎭 Tiyatro/Müzik: Okul gösterisi, koro, enstrüman, prova
+
+═══════════════════════════════════════════════════════════════════════════════
+📝 ÇEŞİTLİ BAĞLAM ÖRNEKLERİ
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ UZAY: "Bir uzay aracı Dünya'dan Mars'a giderken saatte 25.000 km hızla
+   yol almaktadır. Mars'ın Dünya'ya en yakın olduğu dönemde aralarındaki
+   mesafe 55 milyon km'dir. Bu yolculuk kaç gün sürer?"
+
+✅ SPOR: "Bir maraton koşucusu 42 km'lik parkurun ilk yarısını 2 saatte
+   tamamlamıştır. Geri kalan yarıyı %20 daha yavaş koşarsa toplam süre?"
+
+✅ TARIM: "Bir çiftçi 3 hektarlık tarlasına dönüm başına 50 kg tohum ekmektedir.
+   1 hektar = 10 dönüm olduğuna göre, toplam kaç kg tohum kullanır?"
+
+✅ SAĞLIK: "Bir hastaya 6 saatte bir 250 mg ilaç verilecektir. Hastanın
+   bir haftada alacağı toplam ilaç miktarı kaç gram olur?"
+
+✅ DİJİTAL: "Bir telefon uygulaması 2.4 GB boyutundadır. İnternet hızı
+   saniyede 15 MB olan biri bu uygulamayı kaç dakikada indirir?"
+
+✅ TARİH: "Süleymaniye Camii'nin yapımı 1550-1557 yılları arasında 7 yıl
+   sürmüştür. Her yıl ortalama 850 işçi çalıştığına göre toplam işçi-yıl?"
 
 ❌ KÖTÜ: "5 x 3 + 2 = ?" (bağlamsız)
 ❌ KÖTÜ: "Ahmet çok zeki bir öğrencidir. Matematiği sever..." (gereksiz övgü)
+❌ KÖTÜ: Sürekli "sıfır atık projesi" veya "market alışverişi" (monoton)
 
 ═══════════════════════════════════════════════════════════════════════════════
 📏 SINIF SEVİYESİNE GÖRE BAĞLAM
 ═══════════════════════════════════════════════════════════════════════════════
 
-İLKOKUL (1-4): 2-4 cümle, çok basit dil, somut durumlar (market, okul, park)
-ORTAOKUL (5-8): 4-6 cümle, ders terimleri, günlük hayat problemleri
-LİSE (9-12): 5-8 cümle, akademik dil, mesleki/bilimsel senaryolar
+İLKOKUL (1-4): 2-4 cümle, çok basit dil, somut durumlar (okul, park, oyun)
+ORTAOKUL (5-8): 4-6 cümle, ders terimleri, günlük hayat + bilimsel konular
+LİSE (9-12): 5-8 cümle, akademik dil, mesleki/bilimsel/teknolojik senaryolar
 
 ═══════════════════════════════════════════════════════════════════════════════
 📋 JSON ÇIKTI FORMATI
@@ -926,29 +983,63 @@ Bu soruda GÖRSEL/ŞEKİL veritabanında kayıtlı! Görsel ile soru metni uyuml
 - Mevcut senaryoyu daha NET ve ANLAMLI hale getir
 - Matematiksel verileri daha açık ifade et
 - Üst düzey düşünme becerisini tetikleyecek şekilde yeniden yaz
+- Senaryoyu aşağıdaki bağlam türlerinden biriyle zenginleştir (görsel uyumlu!)
+
+═══════════════════════════════════════════════════════════════════════════════
+🏷️ SENARYO ZENGİNLEŞTİRME (GÖRSEL UYUMLU)
+═══════════════════════════════════════════════════════════════════════════════
+
+Mevcut senaryoyu koruyarak, bağlamı aşağıdaki kategorilerden biriyle ilişkilendir:
+
+🌍 KİŞİSEL VE GÜNLÜK YAŞAM:
+• Ev ve Aile, Alışveriş, Ulaşım, Beslenme, Kutlama/Etkinlik
+
+💼 MESLEKİ VE İŞ DÜNYASI:
+• Mühendislik, Üretim/Sanayi, Tarım, Ekonomi/Finans, İstatistik
+
+🔬 BİLİM VE DOĞA:
+• Deney/Laboratuvar, Çevre/Ekoloji, Uzay, Sağlık/Tıp, Hayvanlar
+
+🎭 SOSYAL VE KÜLTÜREL:
+• Tarih, Sanat, Edebiyat, Coğrafya, Vatandaşlık
+
+💻 TEKNOLOJİ VE EĞLENCE:
+• Dijital/İnternet, Oyun, Spor, Medya, Hobi
+
+🎓 EĞİTİM VE OKUL:
+• Okul etkinliği, Kütüphane, Tiyatro/Müzik
 
 ═══════════════════════════════════════════════════════════════════════════════
 📝 DOĞRU DÖNÜŞÜM ÖRNEKLERİ
 ═══════════════════════════════════════════════════════════════════════════════
 
-ÖRNEK 1:
+ÖRNEK 1 (ALIŞ-VERİŞ BAĞLAMI):
 ❌ ÖNCE: "Elif dedesini çok sevmektedir. Bir gün dedesiyle çarşıya gitti.
          Dedesi ona 50 TL verdi. Elif 3 kalem aldı. Kalemlerin tanesi 8 TL'dir."
 
-✅ SONRA: "Elif, dedesiyle çarşıya gitmiştir. Dedesi ona alışveriş için 50 TL
-         vermiştir. Kalemlerin tanesi 8 TL olan kırtasiyeden Elif 3 kalem
+✅ SONRA: "Elif, dedesiyle çarşıya gitmiştir. Dedesi ona okul alışverişi için
+         50 TL vermiştir. Kalemlerin tanesi 8 TL olan kırtasiyeden Elif 3 kalem
          almak istemektedir. Buna göre Elif'in kaç TL'si kalır?"
 
 📌 DİKKAT: Elif ve dedesi KORUNDU, sadece "çok sevmektedir" kaldırıldı!
 
-ÖRNEK 2:
+ÖRNEK 2 (EĞİTİM BAĞLAMI):
 ❌ ÖNCE: "Ahmet çok çalışkan bir öğrencidir. Matematiği çok sever. Dersleri
          dikkatle dinler. Öğretmeni ona 24 elma verdi."
 
-✅ SONRA: "Öğretmen, Ahmet'e 24 elma vermiştir. Ahmet bu elmaları 4 arkadaşına
-         eşit olarak paylaştırmak istemektedir."
+✅ SONRA: "Matematik dersinde paylaşım konusu işlenirken öğretmen, Ahmet'e
+         24 elma vermiştir. Ahmet bu elmaları sınıftaki 4 arkadaşına eşit
+         olarak paylaştırmak istemektedir."
 
 📌 DİKKAT: Ahmet, öğretmen, elma KORUNDU, gereksiz övgüler kaldırıldı!
+
+ÖRNEK 3 (SPOR BAĞLAMI):
+❌ ÖNCE: "Ali futbolu çok sever. Her gün top oynar. 5 arkadaşıyla maç yaptı."
+
+✅ SONRA: "Ali ve 5 arkadaşı okul bahçesinde futbol turnuvası düzenlemektedir.
+         Takımlar eşit sayıda oyuncudan oluşacaktır."
+
+📌 DİKKAT: Ali, futbol, arkadaş sayısı KORUNDU, senaryo sportif bağlamla güçlendirildi!
 
 ═══════════════════════════════════════════════════════════════════════════════
 📏 SINIF SEVİYESİNE GÖRE BAĞLAM
