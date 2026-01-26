@@ -18,7 +18,7 @@ on:
       start_id:
         description: 'Başlangıç ID (opsiyonel)'
         required: false
-        default: '7255'
+        default: '10255'
       end_id:
         description: 'Bitiş ID (boş bırakılırsa veritabanındaki max ID kullanılır)'
         required: false
@@ -48,6 +48,6 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           BATCH_SIZE: ${{ github.event.inputs.batch_size || '100' }}
-          START_ID: ${{ github.event.inputs.start_id || '7255' }}
+          START_ID: ${{ github.event.inputs.start_id || '10255' }}
           END_ID: ${{ github.event.inputs.end_id || '' }}
         run: python question_improver_bot.py
