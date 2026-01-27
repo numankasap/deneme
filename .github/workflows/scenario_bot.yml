@@ -2,8 +2,7 @@ name: Scenario Image Bot v5 - Hybrid
 
 on:
   schedule:
-    # Her gün saat 03:00 ve 15:00'te çalışır (UTC)
-    - cron: '0 0,3,6,9,12,15,18,21 * * *'
+    - cron: '0 0 * * *'
   workflow_dispatch:
     inputs:
       batch_size:
