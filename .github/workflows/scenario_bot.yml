@@ -41,7 +41,7 @@ jobs:
 
       - name: Run Image Bot
         env:
-          BATCH_SIZE: ${{ github.event.inputs.batch_size || '20' }}
+          BATCH_SIZE: ${{ github.event.inputs.batch_size || '30' }}
           TEST_MODE: ${{ github.event.inputs.test_mode || 'false' }}
         run: |
           python scenario_bot.py
@@ -57,7 +57,7 @@ jobs:
           echo "- **Gemini 3 Pro Image**: Metin ağırlıklı kartlar ($0.134/görsel)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Ayarlar:" >> $GITHUB_STEP_SUMMARY
-          echo "- Batch Size: ${{ github.event.inputs.batch_size || '20' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Batch Size: ${{ github.event.inputs.batch_size || '30' }}" >> $GITHUB_STEP_SUMMARY
           echo "- Test Mode: ${{ github.event.inputs.test_mode || 'false' }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Yenilikler v5.0:" >> $GITHUB_STEP_SUMMARY
