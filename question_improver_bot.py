@@ -48,8 +48,21 @@ except ImportError:
 
 SUPABASE_URL = os.environ.get('SUPABASE_URL')
 SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
-GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY', '')
+
+# Gemini API Key Seçimi (1 veya 2)
+# Workflow'da GEMINI_KEY_SELECT=1 veya GEMINI_KEY_SELECT=2 olarak ayarla
+GEMINI_KEY_SELECT = os.environ.get('GEMINI_KEY_SELECT', '1')
+GEMINI_API_KEY_1 = os.environ.get('GEMINI_API_KEY')
+GEMINI_API_KEY_2 = os.environ.get('GEMINI_API_KEY2')
+
+# Seçilen API key'i kullan
+if GEMINI_KEY_SELECT == '2' and GEMINI_API_KEY_2:
+    GEMINI_API_KEY = GEMINI_API_KEY_2
+    GEMINI_KEY_LABEL = "GEMINI_API_KEY2 (Yedek)"
+else:
+    GEMINI_API_KEY = GEMINI_API_KEY_1
+    GEMINI_KEY_LABEL = "GEMINI_API_KEY (Ana)"
 
 # İşlenecek ID aralığı
 START_ID = int(os.environ.get('START_ID', '7255'))
@@ -74,7 +87,9 @@ print("🔌 API bağlantıları kuruluyor...")
 
 print(f"   SUPABASE_URL: {'✅' if SUPABASE_URL else '❌ EKSİK'}")
 print(f"   SUPABASE_KEY: {'✅' if SUPABASE_KEY else '❌ EKSİK'}")
-print(f"   GEMINI_API_KEY: {'✅' if GEMINI_API_KEY else '❌ EKSİK'}")
+print(f"   GEMINI_API_KEY: {'✅' if GEMINI_API_KEY_1 else '❌ EKSİK'}")
+print(f"   GEMINI_API_KEY2: {'✅' if GEMINI_API_KEY_2 else '⚠️ Yok'}")
+print(f"   🔑 Kullanılan: {GEMINI_KEY_LABEL}")
 print(f"   DEEPSEEK_API_KEY: {'✅' if DEEPSEEK_API_KEY else '⚠️ Opsiyonel'}")
 
 if not all([SUPABASE_URL, SUPABASE_KEY, GEMINI_API_KEY]):
