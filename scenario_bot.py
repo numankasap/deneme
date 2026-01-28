@@ -157,8 +157,13 @@ class Config:
 class ModelSelector:
     """Soru tipine göre en uygun Gemini Image modelini seç - v6.0"""
 
-    # Pro model gerektiren durumlar (karmaşık 3D sahneler)
+    # Pro model gerektiren durumlar (karmaşık 3D sahneler ve grafikler)
     PRO_PATTERNS = [
+        # Fonksiyon grafikleri (matematiksel doğruluk gerektirir)
+        r'fonksiyon', r'f\(x\)', r'g\(x\)', r'grafik.*çiz',
+        r'parabol', r'doğru.*denklemi', r'eğri',
+        r'koordinat\s*düzlem', r'koordinat\s*sistem',
+        r'integral', r'türev', r'limit',
         # 3D objeler
         r'3[dD]', r'üç boyut', r'perspektif',
         r'prizma', r'piramit', r'silindir', r'koni', r'küre', r'küp',
@@ -200,7 +205,7 @@ class ModelSelector:
                 return ImageModel.GEMINI_PRO_IMAGE, f"Karmaşık sahne: {pattern}"
 
         # 2. Analiz complexity'ye göre
-        if complexity == 'complex' or visual_type in ['geometry', '3d', 'scene', 'scenario_3d']:
+        if complexity == 'complex' or visual_type in ['geometry', '3d', 'scene', 'scenario_3d', 'function_graph', 'coordinate_system']:
             return ImageModel.GEMINI_PRO_IMAGE, f"Karmaşık görsel: {visual_type}"
 
         # 3. Varsayılan: Flash model (hızlı ve yeterli)
@@ -299,6 +304,43 @@ SAY VE KONTROL ET:
 - Değerleri UYDURMA veya DEĞİŞTİRME!
 - Soruda "4⁹, 2¹⁴, 16⁴, 8³·8², 64²" varsa → AYNEN bunları göster
 - Başka değerler KOYMA!
+
+### 📈 FONKSİYON GRAFİKLERİ İÇİN (ÇOK KRİTİK!):
+Grafik sorularında MATEMATİKSEL DOĞRULUK her şeyden önemli!
+
+⚠️ KESİM NOKTALARI DOĞRU OLMALI:
+- f(x) = 9 - x² için:
+  * Tepe noktası: (0, 9)
+  * x-kesişimleri: x = -3 ve x = 3 (çünkü 9 - x² = 0 → x = ±3)
+- g(x) = 2x + 1 için:
+  * y-kesişimi: y = 1 (çünkü g(0) = 1)
+  * Eğim: 2 (her 1 birim sağa gidince 2 birim yukarı)
+
+⚠️ KOORDİNAT SİSTEMİ KURALLARI:
+- Eksenler NET ve KALIN çizgilerle
+- Izgara çizgileri düzgün aralıklı
+- Sayılar TAM DOĞRU konumlarda
+- x ve y eksenleri etiketli
+- Orijin (0,0) açıkça işaretli
+
+⚠️ GRAFİK ANA ODAK OLMALI:
+- Grafik görselin %70-80'ini kaplasın
+- Arka plan SADELEŞTİRİLMİŞ olsun (sahne yok veya minimal)
+- Koordinat düzlemi NET ve PROFESYONEL
+- Fonksiyon eğrileri KALIN ve RENKLİ
+- Her fonksiyon FARKLI renkte
+
+⚠️ MATEMATİKSEL DOĞRULUK:
+- Parabol gerçekten parabol şeklinde (düzgün eğri)
+- Doğru gerçekten düz (eğik değil kırık değil)
+- Kesişim noktaları TAM DOĞRU koordinatlarda
+- Ölçek TUTARLI (1 birim her yerde aynı)
+
+ÖRNEK: f(x) = 9 - x² ve g(x) = 2x + 1 için:
+- Parabol (0,9)'da tepe yapmalı
+- Parabol (-3,0) ve (3,0)'dan geçmeli
+- Doğru (0,1)'den geçmeli
+- Kesişim noktaları hesaplanıp DOĞRU gösterilmeli
 
 ### GEOMETRİ İÇİN:
 - Gerçek dünya objeleri olarak şekiller
@@ -516,22 +558,31 @@ Soruda verilen TÜM bilgiler görselde NET olarak görünmeli.
    - Soruda "4^9, 2^14, 16^4" varsa → "4⁹, 2¹⁴, 16⁴" yaz
    - Değerleri DEĞİŞTİRME, UYDURMA, AYNEN kopyala!
 
+8. 📈 FONKSİYON GRAFİKLERİ İÇİN (ÇOK KRİTİK!):
+   - Grafik sorusuysa → GRAFİK ANA ODAK olmalı, sahne değil!
+   - KESİM NOKTALARINI HESAPLA ve detayda belirt:
+     * f(x) = 9 - x² için: tepe (0,9), x-kesişim: x = -3, x = 3
+     * g(x) = 2x + 1 için: y-kesişim: (0,1), eğim: 2
+   - Koordinat sistemi NET ve PROFESYONEL olmalı
+   - Fonksiyonlar FARKLI renklerde, KALIN çizgilerle
+   - Arka plan minimal, GRAFİK ön planda
+
 SORU:
 {full_text}
 
 SADECE JSON FORMATINDA CEVAP VER:
 {{
     "visual_needed": true/false,
-    "visual_type": "market_scene/factory_scene/garden_scene/classroom_scene/family_scene/geometry_real/chart_display/comparison_scene",
+    "visual_type": "market_scene/factory_scene/garden_scene/classroom_scene/family_scene/geometry_real/chart_display/comparison_scene/function_graph/coordinate_system",
     "complexity": "simple/standard/complex",
     "quality_score": 1-10,
     "title": "Kısa başlık",
     "gorsel_betimleme": {{
-        "tip": "Gerçekçi 3D sahne tipi (veri merkezi / market / fabrika / sınıf / ofis)",
-        "detay": "ÇOK DETAYLI sahne. Her değerin KESİN karşılığını belirt. Matematiksel ifadeler için üst simge kullan (8⁶, 4⁹ gibi).",
-        "veriler": "SORUDA GEÇEN DEĞERLER BİRE BİR AYNEN! Değiştirme, uydurma! Örnek: Soruda '4⁹, 2¹⁴, 16⁴, 8³·8², 64²' varsa AYNEN bunları yaz. Başka değer KOYMA!",
-        "renkler": "Her seçenek için FARKLI renk",
-        "perspektif": "Göz seviyesi / kuş bakışı / 45 derece açı"
+        "tip": "Sahne tipi. GRAFİK sorusuysa: 'fonksiyon grafiği - koordinat düzlemi' yaz",
+        "detay": "ÇOK DETAYLI. GRAFİK sorusuysa: her fonksiyonun KESİM NOKTALARINI hesapla ve yaz. Örnek: 'f(x)=9-x² için tepe:(0,9), x-kesişim:(-3,0) ve (3,0). g(x)=2x+1 için y-kesişim:(0,1)'",
+        "veriler": "SORUDA GEÇEN DEĞERLER BİRE BİR AYNEN! Grafik sorusunda fonksiyon formülleri ve kesim noktaları.",
+        "renkler": "Her fonksiyon/seçenek için FARKLI renk (mavi parabol, turuncu doğru gibi)",
+        "perspektif": "Grafik sorusu için: 'düz koordinat düzlemi - grafik ana odak'"
     }},
     "reason": "neden görsel gerekli/gereksiz"
 }}"""
