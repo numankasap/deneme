@@ -252,6 +252,26 @@ SAY VE KONTROL ET:
 - Cevabı gösteren ok/vurgu YOK
 - Öğrenci görselden cevabı BULAMAMALI!
 
+## 🚫🚫🚫 HESAPLANMIŞ DEĞERLER YASAK! 🚫🚫🚫
+Bu çok önemli! Soruda AÇIKÇA YAZILMAYAN hiçbir değer görselde OLMAMALI!
+
+ÖRNEK - g(x) = x² - 6x + 11 fonksiyonu için:
+❌ YASAK - Bunları GÖSTERME:
+- Tepe noktası (3, 2) → CEVAP! Öğrenci bunu hesaplayacak!
+- g(0) = 11 → Hesaplanmış, soruda yok
+- (6, 11) noktası → Hesaplanmış, soruda yok
+- Herhangi bir (x, y) koordinatı → Hesaplanmış
+- "Minimum = 2" → CEVAP!
+
+✅ İZİNLİ - Sadece bunları göster:
+- g(x) = x² - 6x + 11 (formül AYNEN soruda yazıldığı gibi)
+- Genel parabol şekli (noktalar İŞARETLENMEDEN)
+- Koordinat eksenleri (x, y)
+- Senaryo görseli (kolektör, fabrika vb.)
+
+KURAL: Eğer bir değer soruda AÇIKÇA YAZILMAMIŞSA → GÖSTERME!
+Öğrenci o değeri KENDİSİ hesaplayacak, sen ipucu VERME!
+
 ## 🎨 FOTOGERÇEKÇİ 3D STİL:
 
 ### RENDER KALİTESİ:
@@ -306,41 +326,36 @@ SAY VE KONTROL ET:
 - Başka değerler KOYMA!
 
 ### 📈 FONKSİYON GRAFİKLERİ İÇİN (ÇOK KRİTİK!):
-Grafik sorularında MATEMATİKSEL DOĞRULUK her şeyden önemli!
+Grafik sorularında MATEMATİKSEL DOĞRULUK önemli AMA CEVAP GÖSTERİLMEMELİ!
 
-⚠️ KESİM NOKTALARI DOĞRU OLMALI:
-- f(x) = 9 - x² için:
-  * Tepe noktası: (0, 9)
-  * x-kesişimleri: x = -3 ve x = 3 (çünkü 9 - x² = 0 → x = ±3)
-- g(x) = 2x + 1 için:
-  * y-kesişimi: y = 1 (çünkü g(0) = 1)
-  * Eğim: 2 (her 1 birim sağa gidince 2 birim yukarı)
+⚠️ ÇİZİM DOĞRU OLMALI (ama etiketlenmemeli):
+- Eğrileri doğru şekilde çiz
+- Ama tepe noktası, kesişim noktası gibi HESAPLANMIŞ değerleri ETİKETLEME!
+- Öğrenci bu noktaları KENDİSİ bulacak!
 
-⚠️ KOORDİNAT SİSTEMİ KURALLARI:
-- Eksenler NET ve KALIN çizgilerle
-- Izgara çizgileri düzgün aralıklı
-- Sayılar TAM DOĞRU konumlarda
-- x ve y eksenleri etiketli
-- Orijin (0,0) açıkça işaretli
+⚠️ GÖRSELDE SADECE BUNLAR OLMALI:
+✅ Fonksiyon formülü (soruda yazıldığı gibi): g(x) = x² - 6x + 11
+✅ Koordinat eksenleri (x, y etiketli)
+✅ Genel eğri şekli (parabol, doğru vb.)
+✅ Senaryo görseli (kolektör, köprü vb.)
+
+⚠️ GÖRSELDE BUNLAR OLMAMALI:
+❌ Tepe/minimum/maksimum noktası koordinatı
+❌ Kesişim noktaları koordinatları
+❌ g(0), g(1), g(2) gibi hesaplanmış değerler
+❌ "Tepe Noktası (3, 2)" gibi etiketler
+❌ Öğrencinin bulması gereken HERHANGİ bir değer
+
+⚠️ KOORDİNAT SİSTEMİ:
+- Eksenler NET ve KALIN
+- Izgara çizgileri düzgün
+- SADECE eksen sayıları (0, 1, 2, 3...)
+- Özel noktaları İŞARETLEME!
 
 ⚠️ GRAFİK ANA ODAK OLMALI:
 - Grafik görselin %70-80'ini kaplasın
-- Arka plan SADELEŞTİRİLMİŞ olsun (sahne yok veya minimal)
-- Koordinat düzlemi NET ve PROFESYONEL
+- Arka plan sade
 - Fonksiyon eğrileri KALIN ve RENKLİ
-- Her fonksiyon FARKLI renkte
-
-⚠️ MATEMATİKSEL DOĞRULUK:
-- Parabol gerçekten parabol şeklinde (düzgün eğri)
-- Doğru gerçekten düz (eğik değil kırık değil)
-- Kesişim noktaları TAM DOĞRU koordinatlarda
-- Ölçek TUTARLI (1 birim her yerde aynı)
-
-ÖRNEK: f(x) = 9 - x² ve g(x) = 2x + 1 için:
-- Parabol (0,9)'da tepe yapmalı
-- Parabol (-3,0) ve (3,0)'dan geçmeli
-- Doğru (0,1)'den geçmeli
-- Kesişim noktaları hesaplanıp DOĞRU gösterilmeli
 
 ### GEOMETRİ İÇİN:
 - Gerçek dünya objeleri olarak şekiller
@@ -526,11 +541,16 @@ Soruda verilen TÜM bilgiler görselde NET olarak görünmeli.
    - Tek satırlık formül
    - Görselleştirilecek HIÇBIR veri yok
 
-3. ⚠️⚠️⚠️ ÇÖZÜM GÖSTERİLMEYECEK! ⚠️⚠️⚠️
+3. ⚠️⚠️⚠️ ÇÖZÜM ve HESAPLANMIŞ DEĞERLER YASAK! ⚠️⚠️⚠️
    - Hesaplama sonucu YOK
    - Toplam, fark, sonuç YOK
    - Cevap ipucu YOK
-   - Sadece HAM VERİLER
+   - Sadece SORUDA AÇIKÇA YAZILAN değerler
+
+   ÖRNEK: g(x) = x² - 6x + 11 için:
+   ❌ Tepe noktası (3,2) GÖSTERME → Bu CEVAP!
+   ❌ g(0)=11 GÖSTERME → Hesaplanmış
+   ✅ Sadece "g(x) = x² - 6x + 11" formülü göster
 
 4. KARMAŞIKLIK:
    - "simple": Tek obje, basit sahne
@@ -559,13 +579,16 @@ Soruda verilen TÜM bilgiler görselde NET olarak görünmeli.
    - Değerleri DEĞİŞTİRME, UYDURMA, AYNEN kopyala!
 
 8. 📈 FONKSİYON GRAFİKLERİ İÇİN (ÇOK KRİTİK!):
-   - Grafik sorusuysa → GRAFİK ANA ODAK olmalı, sahne değil!
-   - KESİM NOKTALARINI HESAPLA ve detayda belirt:
-     * f(x) = 9 - x² için: tepe (0,9), x-kesişim: x = -3, x = 3
-     * g(x) = 2x + 1 için: y-kesişim: (0,1), eğim: 2
-   - Koordinat sistemi NET ve PROFESYONEL olmalı
-   - Fonksiyonlar FARKLI renklerde, KALIN çizgilerle
-   - Arka plan minimal, GRAFİK ön planda
+   - Grafik sorusuysa → GRAFİK ANA ODAK olmalı
+   - ⚠️ HESAPLANMIŞ NOKTALARI ETİKETLEME!
+     * Tepe noktası koordinatı YAZMA → Bu genellikle CEVAP!
+     * Kesişim noktaları YAZMA
+     * g(0), g(1) gibi değerler YAZMA
+   - SADECE şunları göster:
+     * Fonksiyon formülü (soruda yazıldığı gibi)
+     * Genel eğri şekli (etiketlemeden)
+     * Koordinat eksenleri
+   - Öğrenci noktaları KENDİSİ hesaplayacak!
 
 SORU:
 {full_text}
@@ -579,9 +602,9 @@ SADECE JSON FORMATINDA CEVAP VER:
     "title": "Kısa başlık",
     "gorsel_betimleme": {{
         "tip": "Sahne tipi. GRAFİK sorusuysa: 'fonksiyon grafiği - koordinat düzlemi' yaz",
-        "detay": "ÇOK DETAYLI. GRAFİK sorusuysa: her fonksiyonun KESİM NOKTALARINI hesapla ve yaz. Örnek: 'f(x)=9-x² için tepe:(0,9), x-kesişim:(-3,0) ve (3,0). g(x)=2x+1 için y-kesişim:(0,1)'",
-        "veriler": "SORUDA GEÇEN DEĞERLER BİRE BİR AYNEN! Grafik sorusunda fonksiyon formülleri ve kesim noktaları.",
-        "renkler": "Her fonksiyon/seçenek için FARKLI renk (mavi parabol, turuncu doğru gibi)",
+        "detay": "ÇOK DETAYLI sahne. ⚠️ HESAPLANMIŞ DEĞER YAZMA! Tepe noktası, kesişim noktası gibi CEVAP olan değerleri YAZMA!",
+        "veriler": "SADECE SORUDA AÇIKÇA YAZILAN değerler! Formül: g(x)=x²-6x+11 ✓ | Tepe noktası (3,2) ✗ YASAK - bu cevap!",
+        "renkler": "Her fonksiyon için FARKLI renk",
         "perspektif": "Grafik sorusu için: 'düz koordinat düzlemi - grafik ana odak'"
     }},
     "reason": "neden görsel gerekli/gereksiz"
