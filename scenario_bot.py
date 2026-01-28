@@ -148,7 +148,7 @@ class Config:
     MAX_RETRIES = 3
     RETRY_DELAY = 5
     RATE_LIMIT_DELAY = 3
-    MIN_PNG_SIZE = 5000
+    MIN_PNG_SIZE = 10000
     MIN_QUALITY_SCORE = 6
 
 
