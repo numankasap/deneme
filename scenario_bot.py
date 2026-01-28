@@ -314,6 +314,37 @@ DOĞRU ÖLÇEK:
 KURAL: Eğer bir değer soruda AÇIKÇA YAZILMAMIŞSA → GÖSTERME!
 Öğrenci o değeri KENDİSİ hesaplayacak, sen ipucu VERME!
 
+### TİP 4: GERÇEK SAYILAR KURALI - YER TUTUCU YASAK! 🔢🔢🔢
+Bu EN KRİTİK kuraldır! Görseldeki sayılar soruda verilen GERÇEK sayılar olmalı!
+
+⚠️⚠️⚠️ YER TUTUCU / GENERİC DEĞERLER YASAK! ⚠️⚠️⚠️
+Görsel bir "şablon" veya "örnek" DEĞİL! Soruya ÖZEL olmalı!
+
+ÖRNEK - "Drone 500 metre yükseklikte, ±15 metre tolerans" sorusu için:
+❌ YASAK - Bunları YAPMA:
+- Cetvel 0-50 metre arası → 500 metre olmalıydı!
+- "İdeal irtifa" 10m seviyesinde → 500m seviyesinde olmalı!
+- Rastgele/genel değerler kullanmak
+- Ölçeği küçültmek veya değiştirmek
+
+✅ DOĞRU - Bunları YAP:
+- Cetvel 480m - 520m arası göstermeli (500 ± 20 civarı)
+- "İdeal İrtifa: 500m" etiketi TAM 500m noktasında
+- "Tolerans: ±15m" etiketi doğru ölçekte (485m - 515m arası)
+- Drone 500m seviyesinde görünmeli
+
+NEDEN ÖNEMLİ?
+- Öğrenci görselden SORUYU anlamalı
+- Görseldeki 50 ≠ Sorudaki 500!
+- Yanlış değerler öğrenciyi YANILTIR!
+- Her soru ÖZEL görsel hak eder, şablon değil!
+
+KURAL: Soruda hangi SAYILAR varsa → Görselde BİREBİR AYNI sayılar olacak!
+- "500 metre" → görselde 500
+- "15 metre tolerans" → görselde 15 metre aralık
+- "3 kilo" → görselde 3 kilo
+- Generic/placeholder değerler KESİNLİKLE YASAK!
+
 ## 🎨 FOTOGERÇEKÇİ 3D STİL:
 
 ### RENDER KALİTESİ:
@@ -621,11 +652,25 @@ Soruda verilen TÜM bilgiler görselde NET olarak görünmeli.
    - Fotogerçekçi 3D render olarak düşün
    - Pixar/Disney animasyon kalitesi
 
-6. 🔢 BİRE BİR DOĞRU SAYILAR (ÇOK KRİTİK!):
-   - Soruda "6 koli" diyorsa → detayda "TAM 6 ADET koli" yaz
-   - Soruda "4 kutu" diyorsa → detayda "TAM 4 ADET kutu" yaz
-   - Sayıları AÇIKÇA belirt, tahmine bırakma
-   - YANLIŞ SAYIDA obje çizmek YASAK!
+6. 🔢🔢🔢 GERÇEK SAYILAR - YER TUTUCU YASAK! (EN KRİTİK KURAL!) 🔢🔢🔢
+   ⚠️ Görseldeki sayılar soruda verilen GERÇEK sayılar olmalı! ⚠️
+   ⚠️ Generic/placeholder/şablon değerler KESİNLİKLE YASAK! ⚠️
+
+   ÖRNEK - "Drone 500 metre yükseklikte, ±15 metre tolerans" için:
+   ❌ YASAK:
+     - Cetvel 0-50m arası göstermek (500 olmalı!)
+     - "İdeal irtifa" 10m seviyesinde (500m olmalı!)
+     - Rastgele/örnek değerler kullanmak
+   ✅ DOĞRU:
+     - Cetvel ~480m-520m arası göstermeli
+     - "İdeal İrtifa: 500m" TAM 500m noktasında
+     - "Tolerans: ±15m" doğru ölçekte
+
+   ÖRNEK - "6 koli, 4 kutu" için:
+   ❌ YASAK: 9 koli, 5 kutu çizmek
+   ✅ DOĞRU: TAM 6 koli, TAM 4 kutu
+
+   NEDEN? Öğrenci görselden SORUYU anlamalı. Yanlış değerler YANILTIR!
 
 7. 📐 MATEMATİKSEL NOTASYON:
    - Soruda hangi matematiksel ifadeler varsa AYNEN yaz
@@ -657,11 +702,11 @@ SADECE JSON FORMATINDA CEVAP VER:
     "quality_score": 1-10,
     "title": "Kısa başlık",
     "gorsel_betimleme": {{
-        "tip": "Sahne tipi. GRAFİK: 'fonksiyon grafiği'. SAYI DOĞRUSU: 'sayı doğrusu - ölçekli'",
-        "detay": "ÇOK DETAYLI sahne. ⚠️ HESAPLANMIŞ DEĞER YAZMA! ⚠️ SÖZEL İFADEDEN TÜRETİLEN FORMÜL YAZMA! Soru kelimelerle anlatıyorsa matematiksel formül KOYMA!",
-        "veriler": "SADECE SORUDA AÇIKÇA MATEMATİKSEL OLARAK YAZILAN değerler! ❌ Soruda 'mutlak değerinden 5 çıkarılınca' diyorsa |x|-5=1 YAZMA! ✓ Sadece sayı doğrusu ve mesafe oku göster",
+        "tip": "Sahne tipi. Drone/yükseklik: 'dikey yükseklik cetveli ile drone'. GRAFİK: 'fonksiyon grafiği'",
+        "detay": "ÇOK DETAYLI sahne. ⚠️ SORUDA VERİLEN GERÇEK SAYILARI BİREBİR KULLAN! 500 metre diyorsa 500 yaz, 50 değil! ⚠️ HESAPLANMIŞ DEĞER YAZMA! ⚠️ Generic/placeholder değerler YASAK!",
+        "veriler": "SORUDA VERİLEN GERÇEK DEĞERLER! Örn: '500 metre yükseklik', '15 metre tolerans' → görselde TAM bu sayılar! Generic 0-50 gibi değerler YASAK!",
         "renkler": "Her öğe için FARKLI renk",
-        "perspektif": "Grafik: 'düz koordinat düzlemi'. Sayı doğrusu: 'yatay sayı doğrusu - eşit ölçekli birimler'"
+        "perspektif": "Yükseklik: 'dikey cetvel 480m-520m arası, drone 500m seviyesinde'. Grafik: 'düz koordinat düzlemi'"
     }},
     "reason": "neden görsel gerekli/gereksiz"
 }}"""
