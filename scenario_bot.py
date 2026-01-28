@@ -255,6 +255,7 @@ SAY VE KONTROL ET:
 ## 🚫🚫🚫 HESAPLANMIŞ DEĞERLER YASAK! 🚫🚫🚫
 Bu çok önemli! Soruda AÇIKÇA YAZILMAYAN hiçbir değer görselde OLMAMALI!
 
+### TİP 1: HESAPLANMIŞ DEĞERLER
 ÖRNEK - g(x) = x² - 6x + 11 fonksiyonu için:
 ❌ YASAK - Bunları GÖSTERME:
 - Tepe noktası (3, 2) → CEVAP! Öğrenci bunu hesaplayacak!
@@ -268,6 +269,47 @@ Bu çok önemli! Soruda AÇIKÇA YAZILMAYAN hiçbir değer görselde OLMAMALI!
 - Genel parabol şekli (noktalar İŞARETLENMEDEN)
 - Koordinat eksenleri (x, y)
 - Senaryo görseli (kolektör, fabrika vb.)
+
+### TİP 2: SÖZEL İFADEDEN TÜRETİLEN FORMÜLLER YASAK! ⚠️⚠️⚠️
+Bu ÇOK KRİTİK bir kural! Öğrenci problemi ANLAMALI ve formülü KENDİSİ oluşturmalı!
+
+ÖRNEK - "Sapma miktarının mutlak değerinden 5 çıkarılınca 1 elde ediliyor" sorunu için:
+❌ YASAK - Bunları GÖSTERME:
+- |x - 3| - 5 = 1 → Bu formül soruda YAZMIYOR, öğrenci TÜRETMELİ!
+- |sapma| - 5 = 1 → Bu da türetilmiş formül!
+- Herhangi bir matematiksel eşitlik/denklem
+
+✅ İZİNLİ - Sadece bunları göster:
+- Sayı doğrusu (sadece doğru, işaretlenmemiş)
+- "Hedef: 3" etiketi (soruda verildiyse)
+- "5 birim" mesafe gösterimi (ok ile)
+- "Sonuç: 1" etiketi (soruda verildiyse)
+- Senaryo görseli (ok atan kişi, hedef vb.)
+
+KURAL: Eğer soru bir durumu SÖZLÜ/KELİMELERLE anlatıyorsa ve matematiksel formül YAZMIYORSA:
+→ O formülü sen de YAZMA!
+→ Öğrenci o formülü KENDİSİ türetecek!
+→ Sadece GÖRSEL/BETİMLEYİCİ öğeler göster!
+
+### TİP 3: SAYI DOĞRUSU KURALLARI 📏
+Sayı doğrusu içeren sorularda ÖLÇEK ve KONUMLANDIRMA çok önemli!
+
+DOĞRU ÖLÇEK:
+- Birim mesafeler EŞİT olmalı (1 birim = 1 birim uzaklık)
+- "9 birim" diyorsa → 0'dan 9'a kadar TAM 9 birim uzaklık
+- Sayılar doğru konumda olmalı
+
+ÖRNEK - "Hedef 3, sapma x, mesafe 9 birim" için:
+❌ YANLIŞ:
+- 9 rakamını sayı doğrusu DIŞINDA göstermek
+- Mesafeyi yanlış konumda göstermek
+- Ölçeği bozuk çizmek
+
+✅ DOĞRU:
+- Sayı doğrusu: ... -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ...
+- Hedef noktası işaretli (örn: 3)
+- Mesafe oku sayı doğrusu ÜZERİNDE
+- Ölçek tutarlı ve eşit aralıklı
 
 KURAL: Eğer bir değer soruda AÇIKÇA YAZILMAMIŞSA → GÖSTERME!
 Öğrenci o değeri KENDİSİ hesaplayacak, sen ipucu VERME!
@@ -552,6 +594,20 @@ Soruda verilen TÜM bilgiler görselde NET olarak görünmeli.
    ❌ g(0)=11 GÖSTERME → Hesaplanmış
    ✅ Sadece "g(x) = x² - 6x + 11" formülü göster
 
+4. ⚠️⚠️⚠️ SÖZEL İFADEDEN TÜRETİLEN FORMÜLLER YASAK! ⚠️⚠️⚠️
+   Eğer soru bir durumu KELİMELERLE anlatıyor ve matematiksel formül YAZMIYORSA:
+   → O formülü sen de YAZMA! Öğrenci TÜRETMELİ!
+
+   ÖRNEK: "sapma miktarının mutlak değerinden 5 çıkarılınca 1 oluyor" için:
+   ❌ |x - 3| - 5 = 1 GÖSTERME → Bu formül soruda YOK, öğrenci türetecek!
+   ✅ Sadece sayı doğrusu, hedef işareti, mesafe oku göster
+
+5. 📏 SAYI DOĞRUSU KURALLARI:
+   - Birim mesafeler EŞİT olmalı
+   - Sayılar DOĞRU konumda olmalı
+   - "9 birim" diyorsa → sayı doğrusu üzerinde 9 birim mesafe göster
+   - Mesafe okları sayı doğrusu ÜZERİNDE olmalı
+
 4. KARMAŞIKLIK:
    - "simple": Tek obje, basit sahne
    - "standard": Birkaç obje, basit sahne
@@ -596,16 +652,16 @@ SORU:
 SADECE JSON FORMATINDA CEVAP VER:
 {{
     "visual_needed": true/false,
-    "visual_type": "market_scene/factory_scene/garden_scene/classroom_scene/family_scene/geometry_real/chart_display/comparison_scene/function_graph/coordinate_system",
+    "visual_type": "market_scene/factory_scene/garden_scene/classroom_scene/family_scene/geometry_real/chart_display/comparison_scene/function_graph/coordinate_system/number_line",
     "complexity": "simple/standard/complex",
     "quality_score": 1-10,
     "title": "Kısa başlık",
     "gorsel_betimleme": {{
-        "tip": "Sahne tipi. GRAFİK sorusuysa: 'fonksiyon grafiği - koordinat düzlemi' yaz",
-        "detay": "ÇOK DETAYLI sahne. ⚠️ HESAPLANMIŞ DEĞER YAZMA! Tepe noktası, kesişim noktası gibi CEVAP olan değerleri YAZMA!",
-        "veriler": "SADECE SORUDA AÇIKÇA YAZILAN değerler! Formül: g(x)=x²-6x+11 ✓ | Tepe noktası (3,2) ✗ YASAK - bu cevap!",
-        "renkler": "Her fonksiyon için FARKLI renk",
-        "perspektif": "Grafik sorusu için: 'düz koordinat düzlemi - grafik ana odak'"
+        "tip": "Sahne tipi. GRAFİK: 'fonksiyon grafiği'. SAYI DOĞRUSU: 'sayı doğrusu - ölçekli'",
+        "detay": "ÇOK DETAYLI sahne. ⚠️ HESAPLANMIŞ DEĞER YAZMA! ⚠️ SÖZEL İFADEDEN TÜRETİLEN FORMÜL YAZMA! Soru kelimelerle anlatıyorsa matematiksel formül KOYMA!",
+        "veriler": "SADECE SORUDA AÇIKÇA MATEMATİKSEL OLARAK YAZILAN değerler! ❌ Soruda 'mutlak değerinden 5 çıkarılınca' diyorsa |x|-5=1 YAZMA! ✓ Sadece sayı doğrusu ve mesafe oku göster",
+        "renkler": "Her öğe için FARKLI renk",
+        "perspektif": "Grafik: 'düz koordinat düzlemi'. Sayı doğrusu: 'yatay sayı doğrusu - eşit ölçekli birimler'"
     }},
     "reason": "neden görsel gerekli/gereksiz"
 }}"""
