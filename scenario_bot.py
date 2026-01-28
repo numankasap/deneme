@@ -712,19 +712,27 @@ class DatabaseManager:
         logger.info("✅ Supabase bağlantısı kuruldu")
     
     def get_questions(self, limit: int = 20) -> List[Dict]:
-        """Görsel bekleyen soruları getir"""
+        """Görsel bekleyen soruları getir - TÜM sorular (scenario_text olsun olmasın)"""
         try:
+            # Önce scenario_text olan sorulara bak, yoksa tüm sorulara
             response = self.client.table('question_bank') \
                 .select('*') \
                 .is_('image_url', 'null') \
                 .eq('is_active', True) \
-                .not_.is_('scenario_text', 'null') \
+                .order('id', desc=False) \
                 .limit(limit) \
                 .execute()
-            
+
             questions = response.data or []
-            logger.info(f"📋 {len(questions)} soru bulundu")
-            return questions
+
+            # Sadece original_text veya scenario_text olan soruları filtrele
+            valid_questions = [
+                q for q in questions
+                if q.get('original_text') or q.get('scenario_text')
+            ]
+
+            logger.info(f"📋 {len(valid_questions)} soru bulundu (toplam çekilen: {len(questions)})")
+            return valid_questions
         except Exception as e:
             logger.error(f"Soru çekme hatası: {e}")
             return []
