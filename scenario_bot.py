@@ -439,10 +439,10 @@ class LearningOutcomeFilter:
             (False, reason) - Filtrelendi
         """
         text = ' '.join([
-            question.get('original_text', ''),
-            question.get('scenario_text', ''),
-            question.get('learning_outcome', ''),
-            question.get('tags', '')
+            question.get('original_text') or '',
+            question.get('scenario_text') or '',
+            question.get('learning_outcome') or '',
+            question.get('tags') or ''
         ]).lower()
 
         # 1. Matematik override kontrolü - bu kelimeler varsa işle
