@@ -47,6 +47,71 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 
+# ============== MATEMATİKSEL NOTASYON DÖNÜŞTÜRÜCÜ ==============
+
+def convert_math_notation(text: str) -> str:
+    """
+    Matematiksel notasyonları düzgün üst/alt simge formatına dönüştürür.
+
+    Örnekler:
+    - 8^6 → 8⁶
+    - 4^9 → 4⁹
+    - 2^14 → 2¹⁴
+    - 8^3 . 8^2 → 8³ · 8²
+    - x_1 → x₁
+    """
+    # Üst simge karakterleri
+    superscript_map = {
+        '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴',
+        '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹',
+        '+': '⁺', '-': '⁻', '=': '⁼', '(': '⁽', ')': '⁾',
+        'n': 'ⁿ', 'x': 'ˣ', 'y': 'ʸ'
+    }
+
+    # Alt simge karakterleri
+    subscript_map = {
+        '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄',
+        '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉',
+        '+': '₊', '-': '₋', '=': '₌', '(': '₍', ')': '₎'
+    }
+
+    result = text
+
+    # Üslü ifadeleri dönüştür: 8^6 → 8⁶, 2^14 → 2¹⁴
+    def replace_superscript(match):
+        base = match.group(1)
+        exp = match.group(2)
+        sup_exp = ''.join(superscript_map.get(c, c) for c in exp)
+        return base + sup_exp
+
+    # Parantezli üsler: (8)^6, 8^(12)
+    result = re.sub(r'(\d+)\^(\d+)', replace_superscript, result)
+    result = re.sub(r'(\w)\^(\d+)', replace_superscript, result)
+
+    # Alt indisleri dönüştür: x_1 → x₁
+    def replace_subscript(match):
+        base = match.group(1)
+        sub = match.group(2)
+        sub_chars = ''.join(subscript_map.get(c, c) for c in sub)
+        return base + sub_chars
+
+    result = re.sub(r'(\w)_(\d+)', replace_subscript, result)
+
+    # Çarpma işaretini düzelt: . → · (orta nokta)
+    result = re.sub(r'\s*\.\s*(?=\d)', ' · ', result)
+
+    # Kesir gösterimi: 1/2 → ½ (yaygın kesirler)
+    fraction_map = {
+        '1/2': '½', '1/3': '⅓', '2/3': '⅔', '1/4': '¼', '3/4': '¾',
+        '1/5': '⅕', '2/5': '⅖', '3/5': '⅗', '4/5': '⅘',
+        '1/6': '⅙', '5/6': '⅚', '1/8': '⅛', '3/8': '⅜', '5/8': '⅝', '7/8': '⅞'
+    }
+    for frac, symbol in fraction_map.items():
+        result = result.replace(frac, symbol)
+
+    return result
+
+
 # ============== MODEL TİPLERİ ==============
 
 class ImageModel(Enum):
@@ -217,6 +282,23 @@ SAY VE KONTROL ET:
 - 3D yüzer etiketler veya sahneye entegre
 - Türkçe karakterler: ş, ğ, ü, ö, ç, ı, İ
 - Fiyat etiketleri, ölçüm çizgileri gerçekçi
+
+### 📐 MATEMATİKSEL NOTASYON (ÇOK ÖNEMLİ!):
+- Üslü ifadelerde DOĞRU üst simge kullan:
+  * 8⁶ (DOĞRU) - 8^6 (YANLIŞ)
+  * 4⁹ (DOĞRU) - 4^9 (YANLIŞ)
+  * 2¹⁴ (DOĞRU) - 2^14 (YANLIŞ)
+- Çarpma işareti: · (orta nokta) kullan, . (nokta) değil
+  * 8³ · 8² (DOĞRU) - 8^3 . 8^2 (YANLIŞ)
+- Kesirler: ½, ⅓, ¼ gibi semboller kullan
+- Karekök: √ sembolü kullan
+- Pi: π sembolü kullan
+
+### ⚠️ VERİLER BİRE BİR SORUDA YAZDIĞI GİBİ!
+- Soruda hangi değerler varsa AYNEN o değerleri göster
+- Değerleri UYDURMA veya DEĞİŞTİRME!
+- Soruda "4⁹, 2¹⁴, 16⁴, 8³·8², 64²" varsa → AYNEN bunları göster
+- Başka değerler KOYMA!
 
 ### GEOMETRİ İÇİN:
 - Gerçek dünya objeleri olarak şekiller
@@ -427,6 +509,13 @@ Soruda verilen TÜM bilgiler görselde NET olarak görünmeli.
    - Sayıları AÇIKÇA belirt, tahmine bırakma
    - YANLIŞ SAYIDA obje çizmek YASAK!
 
+7. 📐 MATEMATİKSEL NOTASYON:
+   - Soruda hangi matematiksel ifadeler varsa AYNEN yaz
+   - 8^6 → 8⁶ şeklinde üst simge kullan
+   - Çarpma: · (orta nokta) kullan
+   - Soruda "4^9, 2^14, 16^4" varsa → "4⁹, 2¹⁴, 16⁴" yaz
+   - Değerleri DEĞİŞTİRME, UYDURMA, AYNEN kopyala!
+
 SORU:
 {full_text}
 
@@ -438,10 +527,10 @@ SADECE JSON FORMATINDA CEVAP VER:
     "quality_score": 1-10,
     "title": "Kısa başlık",
     "gorsel_betimleme": {{
-        "tip": "Gerçekçi 3D sahne tipi (market sahnesi / fabrika sahnesi / bahçe / sınıf / aile / geometri objeleri / grafik ekranı)",
-        "detay": "ÇOK DETAYLI gerçekçi sahne betimleme. ÖNEMLİ: Her objenin KESİN SAYISINI belirt! Örnek: 'TAM 6 ADET mavi koli (4-A için)' ve 'TAM 4 ADET turuncu koli (4-B için)' gibi. SAYI DOĞRU OLMALI!",
-        "veriler": "BİRE BİR SAYILAR! Her objenin TAM ADEDİ yazılmalı. Örnek: '6 adet mavi koli (35 kitap etiketi), 4 adet turuncu koli (42 kitap etiketi)' - hesaplama sonucu YOK",
-        "renkler": "Her grup için FARKLI renk (kolay ayırt etmek için)",
+        "tip": "Gerçekçi 3D sahne tipi (veri merkezi / market / fabrika / sınıf / ofis)",
+        "detay": "ÇOK DETAYLI sahne. Her değerin KESİN karşılığını belirt. Matematiksel ifadeler için üst simge kullan (8⁶, 4⁹ gibi).",
+        "veriler": "SORUDA GEÇEN DEĞERLER BİRE BİR AYNEN! Değiştirme, uydurma! Örnek: Soruda '4⁹, 2¹⁴, 16⁴, 8³·8², 64²' varsa AYNEN bunları yaz. Başka değer KOYMA!",
+        "renkler": "Her seçenek için FARKLI renk",
         "perspektif": "Göz seviyesi / kuş bakışı / 45 derece açı"
     }},
     "reason": "neden görsel gerekli/gereksiz"
@@ -486,6 +575,10 @@ SADECE JSON FORMATINDA CEVAP VER:
         veriler = gorsel_info.get('veriler', '')
         renkler = gorsel_info.get('renkler', '')
         perspektif = gorsel_info.get('perspektif', 'eye-level realistic view')
+
+        # Matematiksel notasyonları düzelt (8^6 → 8⁶)
+        detay = convert_math_notation(detay)
+        veriler = convert_math_notation(veriler)
 
         # Detayı zenginleştir
         if renkler:
