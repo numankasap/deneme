@@ -159,10 +159,21 @@ Soruda verilen TÜM bilgiler görselde NET olarak görünmeli.
 ## 📊 GÖRSELDE GÖRÜNECEK VERİLER (ÇOK ÖNEMLİ!):
 {veriler}
 
-Bu veriler görselde MUTLAKA ve NET olarak görünmeli!
-- Sayılar etiketlerle gösterilmeli
-- Miktarlar görsel olarak temsil edilmeli
-- Ölçümler açıkça yazılmalı
+## 🔢🔢🔢 HAYATI ÖNEM: BİRE BİR DOĞRU SAYILAR! 🔢🔢🔢
+⚠️ SORUDA GEÇEN SAYILAR BİRE BİR AYNI OLMALI! ⚠️
+
+ÖRNEK:
+- "6 koli" diyorsa → SADECE 6 TANE koli çiz, 5 değil, 7 değil, TAM 6!
+- "4 kutu" diyorsa → SADECE 4 TANE kutu çiz, 3 değil, 5 değil, TAM 4!
+- "3 elma" diyorsa → SADECE 3 TANE elma çiz!
+
+BU KURALI İHLAL ETME! Öğrenci görseldeki objeleri sayarak problemi anlayacak.
+Yanlış sayıda obje göstermek öğrenciyi YANILTIR!
+
+SAY VE KONTROL ET:
+- Çizmeden önce soruda kaç tane obje var say
+- Çizdikten sonra tekrar say
+- Sayılar MUTLAKA eşleşmeli
 
 ## ⚠️⚠️⚠️ KRİTİK: ÇÖZÜM GÖSTERİLMEYECEK! ⚠️⚠️⚠️
 - Sadece problemde VERİLEN bilgiler olacak
@@ -410,6 +421,12 @@ Soruda verilen TÜM bilgiler görselde NET olarak görünmeli.
    - Fotogerçekçi 3D render olarak düşün
    - Pixar/Disney animasyon kalitesi
 
+6. 🔢 BİRE BİR DOĞRU SAYILAR (ÇOK KRİTİK!):
+   - Soruda "6 koli" diyorsa → detayda "TAM 6 ADET koli" yaz
+   - Soruda "4 kutu" diyorsa → detayda "TAM 4 ADET kutu" yaz
+   - Sayıları AÇIKÇA belirt, tahmine bırakma
+   - YANLIŞ SAYIDA obje çizmek YASAK!
+
 SORU:
 {full_text}
 
@@ -422,9 +439,9 @@ SADECE JSON FORMATINDA CEVAP VER:
     "title": "Kısa başlık",
     "gorsel_betimleme": {{
         "tip": "Gerçekçi 3D sahne tipi (market sahnesi / fabrika sahnesi / bahçe / sınıf / aile / geometri objeleri / grafik ekranı)",
-        "detay": "ÇOK DETAYLI gerçekçi sahne betimleme - mekan, objeler, insanlar, renkler, ışık. Soruda verilen TÜÜÜM değerlerin nerede ve nasıl gösterileceği. Fotogerçekçi 3D olarak düşün!",
-        "veriler": "Görselde MUTLAKA görünmesi gereken TÜM ham veriler listesi (sayılar, miktarlar, fiyatlar, ölçümler) - hesaplama sonucu KESİNLİKLE YOK",
-        "renkler": "Her öğe için önerilen canlı renkler",
+        "detay": "ÇOK DETAYLI gerçekçi sahne betimleme. ÖNEMLİ: Her objenin KESİN SAYISINI belirt! Örnek: 'TAM 6 ADET mavi koli (4-A için)' ve 'TAM 4 ADET turuncu koli (4-B için)' gibi. SAYI DOĞRU OLMALI!",
+        "veriler": "BİRE BİR SAYILAR! Her objenin TAM ADEDİ yazılmalı. Örnek: '6 adet mavi koli (35 kitap etiketi), 4 adet turuncu koli (42 kitap etiketi)' - hesaplama sonucu YOK",
+        "renkler": "Her grup için FARKLI renk (kolay ayırt etmek için)",
         "perspektif": "Göz seviyesi / kuş bakışı / 45 derece açı"
     }},
     "reason": "neden görsel gerekli/gereksiz"
