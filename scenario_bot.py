@@ -217,8 +217,36 @@ class ModelSelector:
 # Tek prompt şablonu - Gemini Image için optimize edilmiş
 REALISTIC_3D_PROMPT = """Bir matematik problemi için FOTOGERÇEKÇİ 3D GÜNLÜK YAŞAM SAHNESİ oluştur.
 
-## 🎯 GÖRSEL AMACI: SORUYU ANLAMAYA YARDIMCI OLMAK
-Bu görsel sadece süs değil! Öğrencinin problemi ANLAMASINA yardımcı olmalı.
+## 🎯🎯🎯 GÖRSEL AMACI: SORUYU ANLAMAYA YARDIMCI OLMAK 🎯🎯🎯
+⚠️ BU EN ÖNEMLİ KURAL! ⚠️
+
+Görsel SADECE SÜS DEĞİL! Görsel şunları yapmalı:
+1. Öğrencinin problemi ANLAMASINA yardımcı olmalı
+2. Sorunun MANTIK ve YAPISINI göstermeli
+3. Öğrencinin kafasında problemi CANLANDIRMALI
+4. Çözüme giden yolda YARDIMCI olmalı (ama cevabı vermeden!)
+
+❌ YANLIŞ GÖRSEL:
+- Sadece "güzel" görünen ama soruyu anlatmayan görseller
+- Sorunun özünü göstermeyen dekoratif sahneler
+- Verileri rastgele gösteren "şablon" görseller
+
+✅ DOĞRU GÖRSEL:
+- Sorunun MANTIĞINI gösteren görsel
+- Elemanlar arası İLİŞKİLERİ gösteren oklar/çizgiler
+- Eşleştirme varsa → Hangi elemanların nasıl eşleşebileceğini göster
+- Gruplama varsa → Grupları ve bağlantıları göster
+- Kısıtlar varsa → Kısıtları görsel olarak ifade et
+
+ÖRNEK - "10 veri seti, 5 işlem birimi, eşleştir" problemi için:
+❌ YANLIŞ: Sadece veri merkezi görseli, kutular rastgele dizilmiş
+✅ DOĞRU:
+- 10 veri seti KARTI (her biri etiketli: 1TB, 2TB, 3TB...)
+- 5 işlem birimi KUTUSU
+- Aralarında EŞLEŞTİRME OKLARI
+- "Büyük/Küçük = Tam Sayı" kuralı görsel olarak
+- "Hedef: Toplam Minimum" etiketi
+
 Soruda verilen TÜM bilgiler görselde NET olarak görünmeli.
 
 ## GÖRSEL TİPİ: {tip}
@@ -344,6 +372,36 @@ KURAL: Soruda hangi SAYILAR varsa → Görselde BİREBİR AYNI sayılar olacak!
 - "15 metre tolerans" → görselde 15 metre aralık
 - "3 kilo" → görselde 3 kilo
 - Generic/placeholder değerler KESİNLİKLE YASAK!
+
+### TİP 5: GÖRSEL SORUNUN ÖZÜNÜ ANLATMALI - SÜS DEĞİL! 🎯🎯🎯
+Bu kural ÇOK ÖNEMLİ! Görsel sadece "güzel" olmamalı, soruyu ANLATMALI!
+
+⚠️ SORUNUN MANTIK YAPISINI GÖSTER:
+
+EŞLEŞTİRME/GRUPLAMA PROBLEMLERİ İÇİN:
+- Elemanları KARTLAR/KUTULAR olarak göster
+- Eşleştirmeleri OKLAR ile göster
+- Hangi elemanların birbiriyle eşleşebileceğini ima et
+- Kural varsa (örn: "Büyük/Küçük = Tam Sayı") görsel olarak göster
+
+OPTİMİZASYON PROBLEMLERİ İÇİN:
+- Hedefi göster: "Minimum", "Maksimum", "En az", "En çok"
+- Kısıtları göster
+- Elemanlar arası ilişkileri göster
+
+ÖRNEK - "10 veri seti {1,2,3,4,5,6,9,12,15,18} TB, 5 çift oluştur, oran tam sayı" için:
+✅ DOĞRU GÖRSEL:
+- Sol: 10 kart (1TB, 2TB, 3TB, 4TB, 5TB, 6TB, 9TB, 12TB, 15TB, 18TB)
+- Sağ: 5 işlem birimi kutusu
+- Ortada: Eşleştirme okları (boş veya örnek bir iki ok)
+- Alt panel: "Katsayı = Büyük ÷ Küçük = TAM SAYI"
+- Üst panel: "🎯 Hedef: Σ Katsayılar → MİNİMUM"
+
+❌ YANLIŞ GÖRSEL:
+- Sadece veri merkezi fotoğrafı
+- Kutular rastgele dizilmiş
+- Eşleştirme konsepti yok
+- Sorunun mantığı görünmüyor
 
 ## 🎨 FOTOGERÇEKÇİ 3D STİL:
 
@@ -581,8 +639,22 @@ class GeminiAPI:
 
 Verilen soruyu analiz et ve bu soruyu ANLAMAYA YARDIMCI OLACAK gerçekçi bir görsel tasarla.
 
-🎯 GÖRSEL AMACI:
-Görsel sadece süs DEĞİL! Öğrencinin problemi ANLAMASINA yardımcı olmalı.
+🎯🎯🎯 GÖRSEL AMACI - EN ÖNEMLİ KURAL! 🎯🎯🎯
+Görsel SADECE SÜS DEĞİL! Görsel şunları yapmalı:
+1. Öğrencinin problemi ANLAMASINA yardımcı olmalı
+2. Sorunun MANTIK ve YAPISINI göstermeli
+3. Öğrencinin kafasında problemi CANLANDIRMALI
+4. Çözüme giden yolda YARDIMCI olmalı (cevabı vermeden!)
+
+EŞLEŞTİRME/GRUPLAMA PROBLEMLERİ İÇİN:
+- Elemanları KARTLAR olarak göster
+- Eşleştirmeleri OKLAR ile göster
+- İlişkileri görsel olarak ifade et
+
+ÖRNEK - "10 veri seti, 5 çift oluştur" problemi:
+❌ YANLIŞ: Sadece veri merkezi görseli
+✅ DOĞRU: 10 kart + 5 kutu + eşleştirme okları + kural etiketi
+
 Soruda verilen TÜM bilgiler görselde NET olarak görünmeli.
 
 ⚠️ KRİTİK KURALLAR:
