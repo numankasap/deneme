@@ -389,7 +389,7 @@ OPTİMİZASYON PROBLEMLERİ İÇİN:
 - Kısıtları göster
 - Elemanlar arası ilişkileri göster
 
-ÖRNEK - "10 veri seti {1,2,3,4,5,6,9,12,15,18} TB, 5 çift oluştur, oran tam sayı" için:
+ÖRNEK - "10 veri seti (1,2,3,4,5,6,9,12,15,18) TB, 5 çift oluştur, oran tam sayı" için:
 ✅ DOĞRU GÖRSEL:
 - Sol: 10 kart (1TB, 2TB, 3TB, 4TB, 5TB, 6TB, 9TB, 12TB, 15TB, 18TB)
 - Sağ: 5 işlem birimi kutusu
