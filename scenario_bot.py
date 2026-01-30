@@ -217,8 +217,36 @@ class ModelSelector:
 # Tek prompt şablonu - Gemini Image için optimize edilmiş
 REALISTIC_3D_PROMPT = """Bir matematik problemi için FOTOGERÇEKÇİ 3D GÜNLÜK YAŞAM SAHNESİ oluştur.
 
-## 🎯 GÖRSEL AMACI: SORUYU ANLAMAYA YARDIMCI OLMAK
-Bu görsel sadece süs değil! Öğrencinin problemi ANLAMASINA yardımcı olmalı.
+## 🎯🎯🎯 GÖRSEL AMACI: SORUYU ANLAMAYA YARDIMCI OLMAK 🎯🎯🎯
+⚠️ BU EN ÖNEMLİ KURAL! ⚠️
+
+Görsel SADECE SÜS DEĞİL! Görsel şunları yapmalı:
+1. Öğrencinin problemi ANLAMASINA yardımcı olmalı
+2. Sorunun MANTIK ve YAPISINI göstermeli
+3. Öğrencinin kafasında problemi CANLANDIRMALI
+4. Çözüme giden yolda YARDIMCI olmalı (ama cevabı vermeden!)
+
+❌ YANLIŞ GÖRSEL:
+- Sadece "güzel" görünen ama soruyu anlatmayan görseller
+- Sorunun özünü göstermeyen dekoratif sahneler
+- Verileri rastgele gösteren "şablon" görseller
+
+✅ DOĞRU GÖRSEL:
+- Sorunun MANTIĞINI gösteren görsel
+- Elemanlar arası İLİŞKİLERİ gösteren oklar/çizgiler
+- Eşleştirme varsa → Hangi elemanların nasıl eşleşebileceğini göster
+- Gruplama varsa → Grupları ve bağlantıları göster
+- Kısıtlar varsa → Kısıtları görsel olarak ifade et
+
+ÖRNEK - "10 veri seti, 5 işlem birimi, eşleştir" problemi için:
+❌ YANLIŞ: Sadece veri merkezi görseli, kutular rastgele dizilmiş
+✅ DOĞRU:
+- 10 veri seti KARTI (her biri etiketli: 1TB, 2TB, 3TB...)
+- 5 işlem birimi KUTUSU
+- Aralarında EŞLEŞTİRME OKLARI
+- "Büyük/Küçük = Tam Sayı" kuralı görsel olarak
+- "Hedef: Toplam Minimum" etiketi
+
 Soruda verilen TÜM bilgiler görselde NET olarak görünmeli.
 
 ## GÖRSEL TİPİ: {tip}
@@ -345,6 +373,36 @@ KURAL: Soruda hangi SAYILAR varsa → Görselde BİREBİR AYNI sayılar olacak!
 - "3 kilo" → görselde 3 kilo
 - Generic/placeholder değerler KESİNLİKLE YASAK!
 
+### TİP 5: GÖRSEL SORUNUN ÖZÜNÜ ANLATMALI - SÜS DEĞİL! 🎯🎯🎯
+Bu kural ÇOK ÖNEMLİ! Görsel sadece "güzel" olmamalı, soruyu ANLATMALI!
+
+⚠️ SORUNUN MANTIK YAPISINI GÖSTER:
+
+EŞLEŞTİRME/GRUPLAMA PROBLEMLERİ İÇİN:
+- Elemanları KARTLAR/KUTULAR olarak göster
+- Eşleştirmeleri OKLAR ile göster
+- Hangi elemanların birbiriyle eşleşebileceğini ima et
+- Kural varsa (örn: "Büyük/Küçük = Tam Sayı") görsel olarak göster
+
+OPTİMİZASYON PROBLEMLERİ İÇİN:
+- Hedefi göster: "Minimum", "Maksimum", "En az", "En çok"
+- Kısıtları göster
+- Elemanlar arası ilişkileri göster
+
+ÖRNEK - "10 veri seti {1,2,3,4,5,6,9,12,15,18} TB, 5 çift oluştur, oran tam sayı" için:
+✅ DOĞRU GÖRSEL:
+- Sol: 10 kart (1TB, 2TB, 3TB, 4TB, 5TB, 6TB, 9TB, 12TB, 15TB, 18TB)
+- Sağ: 5 işlem birimi kutusu
+- Ortada: Eşleştirme okları (boş veya örnek bir iki ok)
+- Alt panel: "Katsayı = Büyük ÷ Küçük = TAM SAYI"
+- Üst panel: "🎯 Hedef: Σ Katsayılar → MİNİMUM"
+
+❌ YANLIŞ GÖRSEL:
+- Sadece veri merkezi fotoğrafı
+- Kutular rastgele dizilmiş
+- Eşleştirme konsepti yok
+- Sorunun mantığı görünmüyor
+
 ## 🎨 FOTOGERÇEKÇİ 3D STİL:
 
 ### RENDER KALİTESİ:
@@ -398,37 +456,27 @@ KURAL: Soruda hangi SAYILAR varsa → Görselde BİREBİR AYNI sayılar olacak!
 - Soruda "4⁹, 2¹⁴, 16⁴, 8³·8², 64²" varsa → AYNEN bunları göster
 - Başka değerler KOYMA!
 
-### 📈 FONKSİYON GRAFİKLERİ İÇİN (ÇOK KRİTİK!):
-Grafik sorularında MATEMATİKSEL DOĞRULUK önemli AMA CEVAP GÖSTERİLMEMELİ!
+### 🚫🚫🚫 FONKSİYON GRAFİĞİ ÇİZME! 🚫🚫🚫
+⚠️⚠️⚠️ BU ÇOK ÖNEMLİ! ⚠️⚠️⚠️
 
-⚠️ ÇİZİM DOĞRU OLMALI (ama etiketlenmemeli):
-- Eğrileri doğru şekilde çiz
-- Ama tepe noktası, kesişim noktası gibi HESAPLANMIŞ değerleri ETİKETLEME!
-- Öğrenci bu noktaları KENDİSİ bulacak!
+AI görsel modelleri matematiksel olarak DOĞRU grafik ÇİZEMEZ!
+- g'(x) = x + 1 doğrusunu YANLIŞ çizer!
+- Parabolün tepe noktası YANLIŞ konumda olur!
+- x ve y kesişimleri YANLIŞ olur!
 
-⚠️ GÖRSELDE SADECE BUNLAR OLMALI:
-✅ Fonksiyon formülü (soruda yazıldığı gibi): g(x) = x² - 6x + 11
-✅ Koordinat eksenleri (x, y etiketli)
-✅ Genel eğri şekli (parabol, doğru vb.)
-✅ Senaryo görseli (kolektör, köprü vb.)
+YANLIŞ GRAFİK = YANLIŞ ÖĞRENME!
+Öğrenci yanlış grafik şeklini öğrenir ve sınavda HATA yapar!
 
-⚠️ GÖRSELDE BUNLAR OLMAMALI:
-❌ Tepe/minimum/maksimum noktası koordinatı
-❌ Kesişim noktaları koordinatları
-❌ g(0), g(1), g(2) gibi hesaplanmış değerler
-❌ "Tepe Noktası (3, 2)" gibi etiketler
-❌ Öğrencinin bulması gereken HERHANGİ bir değer
+❌ YAPMA:
+- Koordinat sistemi çizme
+- Parabol, doğru, eğri çizme
+- f(x), g(x), f'(x) grafikleri çizme
+- x-y ekseni çizme
 
-⚠️ KOORDİNAT SİSTEMİ:
-- Eksenler NET ve KALIN
-- Izgara çizgileri düzgün
-- SADECE eksen sayıları (0, 1, 2, 3...)
-- Özel noktaları İŞARETLEME!
-
-⚠️ GRAFİK ANA ODAK OLMALI:
-- Grafik görselin %70-80'ini kaplasın
-- Arka plan sade
-- Fonksiyon eğrileri KALIN ve RENKLİ
+✅ BUNUN YERİNE:
+- SADECE senaryo görseli göster (fabrika, laboratuvar, ofis)
+- Formülü metin olarak yaz (g(x) = x² - 6x + 11)
+- GRAFİK ÇİZME!
 
 ### GEOMETRİ İÇİN:
 - Gerçek dünya objeleri olarak şekiller
@@ -591,8 +639,22 @@ class GeminiAPI:
 
 Verilen soruyu analiz et ve bu soruyu ANLAMAYA YARDIMCI OLACAK gerçekçi bir görsel tasarla.
 
-🎯 GÖRSEL AMACI:
-Görsel sadece süs DEĞİL! Öğrencinin problemi ANLAMASINA yardımcı olmalı.
+🎯🎯🎯 GÖRSEL AMACI - EN ÖNEMLİ KURAL! 🎯🎯🎯
+Görsel SADECE SÜS DEĞİL! Görsel şunları yapmalı:
+1. Öğrencinin problemi ANLAMASINA yardımcı olmalı
+2. Sorunun MANTIK ve YAPISINI göstermeli
+3. Öğrencinin kafasında problemi CANLANDIRMALI
+4. Çözüme giden yolda YARDIMCI olmalı (cevabı vermeden!)
+
+EŞLEŞTİRME/GRUPLAMA PROBLEMLERİ İÇİN:
+- Elemanları KARTLAR olarak göster
+- Eşleştirmeleri OKLAR ile göster
+- İlişkileri görsel olarak ifade et
+
+ÖRNEK - "10 veri seti, 5 çift oluştur" problemi:
+❌ YANLIŞ: Sadece veri merkezi görseli
+✅ DOĞRU: 10 kart + 5 kutu + eşleştirme okları + kural etiketi
+
 Soruda verilen TÜM bilgiler görselde NET olarak görünmeli.
 
 ⚠️ KRİTİK KURALLAR:
@@ -609,7 +671,21 @@ Soruda verilen TÜM bilgiler görselde NET olarak görünmeli.
    - Para/bütçe → Fiyat etiketleri, kasiyerler
    - Karşılaştırma → Yan yana objeler
 
-2. GÖRSEL GEREKSİZ DURUMLAR (çok sınırlı):
+2. ⚠️⚠️⚠️ FONKSİYON GRAFİĞİ / KOORDİNAT SİSTEMİ SORULARI → GÖRSEL YAPMA! ⚠️⚠️⚠️
+   AI görsel modelleri matematiksel olarak DOĞRU grafik ÇİZEMEZ!
+   Yanlış grafik öğrenciyi YANILTIR ve YANLIŞ ÖĞRENME riski oluşturur!
+
+   Bu tür soruları "visual_needed: false" olarak işaretle:
+   - Fonksiyon grafikleri: f(x), g(x), parabola, doğru grafiği
+   - Koordinat sistemi çizimleri
+   - Türev/integral grafikleri: f'(x), g'(x)
+   - Eğri çizimleri
+   - x-y ekseni üzerinde çizim gerektiren sorular
+
+   ❌ YAPMA: Grafiği çizmeye çalışma - YANLIŞ çizeceksin!
+   ✅ YAP: "visual_needed: false" döndür, reason: "Fonksiyon grafiği matematiksel doğruluk gerektirir, AI çizemez"
+
+3. GÖRSEL GEREKSİZ DİĞER DURUMLAR:
    - SADECE basit dört işlem (5+3=?)
    - Tek satırlık formül
    - Görselleştirilecek HIÇBIR veri yok
@@ -679,17 +755,22 @@ Soruda verilen TÜM bilgiler görselde NET olarak görünmeli.
    - Soruda "4^9, 2^14, 16^4" varsa → "4⁹, 2¹⁴, 16⁴" yaz
    - Değerleri DEĞİŞTİRME, UYDURMA, AYNEN kopyala!
 
-8. 📈 FONKSİYON GRAFİKLERİ İÇİN (ÇOK KRİTİK!):
-   - Grafik sorusuysa → GRAFİK ANA ODAK olmalı
-   - ⚠️ HESAPLANMIŞ NOKTALARI ETİKETLEME!
-     * Tepe noktası koordinatı YAZMA → Bu genellikle CEVAP!
-     * Kesişim noktaları YAZMA
-     * g(0), g(1) gibi değerler YAZMA
-   - SADECE şunları göster:
-     * Fonksiyon formülü (soruda yazıldığı gibi)
-     * Genel eğri şekli (etiketlemeden)
-     * Koordinat eksenleri
-   - Öğrenci noktaları KENDİSİ hesaplayacak!
+8. 🚫🚫🚫 FONKSİYON GRAFİĞİ / KOORDİNAT SİSTEMİ → "visual_needed: false"! 🚫🚫🚫
+   AI görsel modelleri matematiksel olarak DOĞRU grafik ÇİZEMEZ!
+   YANLIŞ grafik öğrenciyi YANILTIR ve YANLIŞ ÖĞRENME riski oluşturur!
+
+   Bu sorular için → "visual_needed": false döndür:
+   - f(x), g(x), f'(x), g'(x) grafikleri
+   - Parabol, doğru, eğri çizimleri
+   - Koordinat sistemi gerektiren sorular
+   - Türev/integral grafikleri
+
+   ⚠️ NEDEN? Görsellerdeki hatalar:
+   - g'(x) = x + 1 doğrusunu YANLIŞ çiziyor
+   - Parabol tepe noktası YANLIŞ konumda
+   - Eksen kesişimleri YANLIŞ
+
+   → "visual_needed": false, "reason": "Fonksiyon grafiği - AI doğru çizemez"
 
 SORU:
 {full_text}
@@ -983,9 +1064,18 @@ class ScenarioImageBot:
         complexity = analysis.get('complexity', 'standard')
         quality = analysis.get('quality_score', 0)
         title = analysis.get('title', 'Problem')
-        
+
         logger.info(f"📊 Tip: {visual_type}, Karmaşıklık: {complexity}, Kalite: {quality}/10")
-        
+
+        # 2.5 FONKSİYON GRAFİĞİ FİLTRESİ - Matematiksel doğruluk riski!
+        SKIP_VISUAL_TYPES = ['function_graph', 'coordinate_system', 'graph', 'parabola', 'line_graph']
+        if visual_type.lower() in SKIP_VISUAL_TYPES or 'graph' in visual_type.lower() or 'grafik' in visual_type.lower():
+            logger.warning(f"⚠️ GRAFİK SORULARI ATLANIYOR: {visual_type}")
+            logger.warning("⚠️ Sebep: AI modelleri matematiksel olarak doğru grafik çizemiyor!")
+            logger.warning("⚠️ Yanlış grafik öğrenciyi yanıltır - görsel üretilmedi.")
+            self.stats['filtered'] += 1
+            return
+
         # 3. Model seç
         full_text = f"{scenario}\n{text}" if scenario else text
         selected_model, model_reason = ModelSelector.select_model(full_text, analysis)
