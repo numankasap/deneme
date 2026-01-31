@@ -1,22 +1,22 @@
 """
-Senaryo Görsel Botu v6.0 - GEMINI REALISTIC 3D Edition
-======================================================
+Senaryo Görsel Botu v6.1 - GEMINI 3 PRO IMAGE Edition
+=====================================================
 Gerçekçi 3D günlük yaşam görselleri üreten bot.
 
-YENİLİKLER v6.0:
-✅ SADECE GEMINI IMAGE: Imagen kaldırıldı, Gemini Image kullanılıyor
+YENİLİKLER v6.1:
+✅ TEK MODEL: Sadece gemini-3-pro-image-preview (en kararlı)
+✅ Flash model kaldırıldı (kararsız ve hatalı görseller üretiyordu)
 ✅ GERÇEKÇİ 3D GÖRSELLER: Fotogerçekçi günlük yaşam sahneleri
 ✅ SORUYU ANLAMAYA YARDIMCI: Görsel süs değil, problemi anlatan tasvirler
-✅ VERİLER NET GÖSTERİLİYOR: Soruda verilenler açıkça görselde
+✅ VERİLER NET GÖSTERİLİYOR: Soruda verilenler BİREBİR görselde
 ✅ ÇÖZÜM YOK: Cevap veya ipucu kesinlikle gösterilmiyor
 
-MODELLER:
-✅ Gemini 2.5 Flash Image: Hızlı, standart görseller
-✅ Gemini 3 Pro Image: Yüksek kalite, karmaşık sahneler
+MODEL:
+✅ gemini-3-pro-image-preview: Yüksek kalite, kararlı, doğru
 
 GÖRSEL FELSEFESİ:
 - Görsel sadece süs değil, soruyu ANLAMAYA yardımcı
-- Soruda verilen TÜM değerler görselde görünür
+- Soruda verilen TÜM değerler görselde BİREBİR görünür
 - Günlük yaşamdan GERÇEKÇI 3D sahneler
 - Fotogerçekçi render kalitesi
 
@@ -115,9 +115,8 @@ def convert_math_notation(text: str) -> str:
 # ============== MODEL TİPLERİ ==============
 
 class ImageModel(Enum):
-    """Görsel üretim modelleri - Sadece Gemini Image"""
-    GEMINI_FLASH_IMAGE = "gemini-2.5-flash-preview-image-generation"  # Hızlı, standart
-    GEMINI_PRO_IMAGE = "gemini-2.0-flash-exp-image-generation"         # Yüksek kalite, karmaşık
+    """Görsel üretim modelleri - Sadece Gemini Pro Image (en kararlı)"""
+    GEMINI_PRO_IMAGE = "gemini-3-pro-image-preview"  # Tek model - en kararlı ve kaliteli
 
 
 class VisualComplexity(Enum):
@@ -155,61 +154,17 @@ class Config:
 # ============== MODEL SEÇİCİ ==============
 
 class ModelSelector:
-    """Soru tipine göre en uygun Gemini Image modelini seç - v6.0"""
-
-    # Pro model gerektiren durumlar (karmaşık 3D sahneler ve grafikler)
-    PRO_PATTERNS = [
-        # Fonksiyon grafikleri (matematiksel doğruluk gerektirir)
-        r'fonksiyon', r'f\(x\)', r'g\(x\)', r'grafik.*çiz',
-        r'parabol', r'doğru.*denklemi', r'eğri',
-        r'koordinat\s*düzlem', r'koordinat\s*sistem',
-        r'integral', r'türev', r'limit',
-        # 3D objeler
-        r'3[dD]', r'üç boyut', r'perspektif',
-        r'prizma', r'piramit', r'silindir', r'koni', r'küre', r'küp',
-        # Geometrik şekiller (karmaşık)
-        r'üçgen(?!sel)', r'dörtgen', r'çokgen', r'beşgen', r'altıgen',
-        r'paralelkenar', r'yamuk', r'eşkenar', r'ikizkenar',
-        # Daire/çember
-        r'daire', r'çember', r'yay', r'dilim',
-        # Mimari/teknik çizim
-        r'mimar', r'bina', r'ev ', r'oda', r'bahçe', r'havuz',
-        r'korkuluk', r'merdiven', r'balkon', r'teras',
-        # Perspektif gerektiren
-        r'kuş bakışı', r'yan görünüş', r'üstten', r'önden',
-        # Senaryo sahneleri (gerçekçi 3D için)
-        r'market', r'mağaza', r'fabrika', r'atölye', r'depo',
-        r'araba', r'araç', r'tren', r'otobüs',
-        r'tarla', r'arazi', r'alan\s+m²',
-        r'tank', r'hazne', r'kap', r'kutu',
-        r'yol', r'park', r'cadde', r'sokak',
-        # Günlük yaşam sahneleri
-        r'aile', r'çocuk', r'öğrenci', r'öğretmen',
-        r'mutfak', r'salon', r'yatak', r'banyo',
-        r'okul', r'hastane', r'restoran', r'kafe',
-    ]
+    """Model seçici - v6.1: Sadece Gemini 3 Pro Image (en kararlı)"""
 
     @classmethod
     def select_model(cls, question_text: str, analysis: Dict) -> Tuple[ImageModel, str]:
         """
-        Soru ve analize göre Gemini Image model seç
+        Her zaman Gemini 3 Pro Image kullan (en kararlı ve kaliteli model)
         Returns: (model, reason)
         """
-        text = question_text.lower()
-        visual_type = analysis.get('visual_type', '').lower()
-        complexity = analysis.get('complexity', 'standard')
-
-        # 1. Pro model kontrol (karmaşık 3D sahneler)
-        for pattern in cls.PRO_PATTERNS:
-            if re.search(pattern, text, re.IGNORECASE):
-                return ImageModel.GEMINI_PRO_IMAGE, f"Karmaşık sahne: {pattern}"
-
-        # 2. Analiz complexity'ye göre
-        if complexity == 'complex' or visual_type in ['geometry', '3d', 'scene', 'scenario_3d', 'function_graph', 'coordinate_system']:
-            return ImageModel.GEMINI_PRO_IMAGE, f"Karmaşık görsel: {visual_type}"
-
-        # 3. Varsayılan: Flash model (hızlı ve yeterli)
-        return ImageModel.GEMINI_FLASH_IMAGE, "Standart görsel"
+        # Tek model kullanıyoruz - gemini-3-pro-image-preview
+        # Flash model kararsız ve hatalı görseller üretiyor
+        return ImageModel.GEMINI_PRO_IMAGE, "Gemini 3 Pro Image (tek model)"
 
 
 # ============== GÖRSEL PROMPT ŞABLONU (v6.0 - GERÇEKÇİ 3D) ==============
@@ -982,24 +937,19 @@ class ScenarioImageBot:
             'success': 0,
             'filtered': 0,
             'no_visual': 0,
-            'failed': 0,
-            'by_model': {
-                'gemini_flash': 0,
-                'gemini_pro': 0
-            }
+            'failed': 0
         }
 
     def run(self):
         """Botu çalıştır"""
         logger.info("""
 ╔══════════════════════════════════════════════════════════════════════╗
-║         🎨 SENARYO GÖRSEL BOTU v6.0 - GERÇEKÇİ 3D Edition            ║
-║         Gemini 2.5 Flash + Gemini 2.0 Pro Image                      ║
+║         🎨 SENARYO GÖRSEL BOTU v6.1 - GERÇEKÇİ 3D Edition            ║
+║         Sadece Gemini 3 Pro Image (En Kararlı Model)                 ║
 ╚══════════════════════════════════════════════════════════════════════╝
         """)
         logger.info(f"📅 Tarih: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        logger.info("✅ Gemini Flash Image: Standart görseller, grafikler")
-        logger.info("✅ Gemini Pro Image: Karmaşık 3D sahneler, geometri")
+        logger.info("✅ Model: gemini-3-pro-image-preview (tek model)")
         logger.info("✅ Gerçekçi 3D: Fotogerçekçi günlük yaşam sahneleri")
         logger.info("✅ Veriler NET: Soruda verilenler açıkça görünür")
         logger.info("⚠️ ÇÖZÜM YOK: Sadece ham veriler, cevap ipucu yok!")
@@ -1107,12 +1057,6 @@ class ScenarioImageBot:
         if self.db.update_image_url(qid, image_url):
             logger.info(f"✅ #{qid}: BAŞARILI ({visual_type} / {selected_model.name})")
             self.stats['success'] += 1
-
-            # Model istatistiği
-            if selected_model == ImageModel.GEMINI_FLASH_IMAGE:
-                self.stats['by_model']['gemini_flash'] += 1
-            else:
-                self.stats['by_model']['gemini_pro'] += 1
         else:
             logger.error("❌ DB güncelleme başarısız!")
             self.stats['failed'] += 1
@@ -1128,20 +1072,15 @@ class ScenarioImageBot:
         logger.info(f"   Görsel gerekmez    : {self.stats['no_visual']}")
         logger.info(f"   Başarısız          : {self.stats['failed']}")
         logger.info(f"   ─────────────────────────────────────")
-        logger.info(f"   MODEL DAĞILIMI:")
-        logger.info(f"     Gemini Flash     : {self.stats['by_model']['gemini_flash']}")
-        logger.info(f"     Gemini Pro       : {self.stats['by_model']['gemini_pro']}")
+        logger.info(f"   Model: gemini-3-pro-image-preview")
 
         if self.stats['total'] > 0:
             rate = (self.stats['success'] / self.stats['total']) * 100
             logger.info(f"   ─────────────────────────────────────")
             logger.info(f"   Başarı oranı       : %{rate:.1f}")
 
-        # Maliyet tahmini (Gemini Image fiyatları)
-        cost = (
-            self.stats['by_model']['gemini_flash'] * 0.04 +
-            self.stats['by_model']['gemini_pro'] * 0.08
-        )
+        # Maliyet tahmini
+        cost = self.stats['success'] * 0.08
         logger.info(f"   Tahmini maliyet    : ${cost:.2f}")
 
         logger.info(f"{'=' * 60}\n")
