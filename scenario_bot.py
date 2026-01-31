@@ -212,6 +212,14 @@ Soruda verilen TÜM bilgiler görselde NET olarak görünmeli.
 ## 📊 GÖRSELDE GÖRÜNECEK VERİLER (ÇOK ÖNEMLİ!):
 {veriler}
 
+## 📐📐📐 MATEMATİKSEL PLAN - TAM KONUM LİSTESİ 📐📐📐
+{matematiksel_plan}
+
+⚠️⚠️⚠️ YUKARIDAKI KONUM LİSTESİNE %100 UY! ⚠️⚠️⚠️
+- Her obje TAM OLARAK belirtilen konumda olmalı!
+- Rastgele yerleştirme YASAK!
+- Matematiksel doğruluk ŞART!
+
 ## 🔢🔢🔢 HAYATI ÖNEM: BİRE BİR DOĞRU SAYILAR! 🔢🔢🔢
 ⚠️ SORUDA GEÇEN SAYILAR BİRE BİR AYNI OLMALI! ⚠️
 
@@ -727,22 +735,66 @@ Soruda verilen TÜM bilgiler görselde NET olarak görünmeli.
 
    → "visual_needed": false, "reason": "Fonksiyon grafiği - AI doğru çizemez"
 
+9. 📐📐📐 MATEMATİKSEL DOĞRULUK - HER OBJENİN TAM KONUMU! 📐📐📐
+   ⚠️ BU EN KRİTİK KURAL! Görsel matematiksel olarak %100 DOĞRU olmalı! ⚠️
+
+   Soruda verilen kurallara göre HER OBJENİN TAM KONUMUNU HESAPLA!
+
+   ÖRNEK - "240m parkur, her 8m'de bank, her 12m'de kutu" için:
+
+   ADIM 1: Matematiksel hesaplama yap
+   - Banklar: 0, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80... 240 (her 8m)
+   - Kutular: 0, 12, 24, 36, 48, 60, 72, 84... 240 (her 12m)
+   - Ortak noktalar: 0, 24, 48, 72, 96, 120, 144, 168, 192, 216, 240 (EKOK=24m)
+
+   ADIM 2: Her konumda NE olacağını belirle
+   - 0m: Bank + Kutu (★ ortak nokta)
+   - 8m: Sadece Bank
+   - 12m: Sadece Kutu
+   - 16m: Sadece Bank
+   - 24m: Bank + Kutu (★ ortak nokta)
+   - 32m: Sadece Bank
+   - 36m: Sadece Kutu
+   - ...
+
+   ADIM 3: Bu planı "matematiksel_plan" alanına yaz!
+
+   ⚠️ Görselde bu plan BİREBİR uygulanacak!
+   ⚠️ Rastgele yerleştirme YASAK!
+   ⚠️ Her obje TAM OLARAK doğru konumda olmalı!
+
 SORU:
 {full_text}
 
 SADECE JSON FORMATINDA CEVAP VER:
 {{
     "visual_needed": true/false,
-    "visual_type": "market_scene/factory_scene/garden_scene/classroom_scene/family_scene/geometry_real/chart_display/comparison_scene/function_graph/coordinate_system/number_line",
+    "visual_type": "park_path/market_scene/factory_scene/garden_scene/classroom_scene/family_scene/geometry_real/chart_display/comparison_scene/number_line",
     "complexity": "simple/standard/complex",
     "quality_score": 1-10,
     "title": "Kısa başlık",
     "gorsel_betimleme": {{
-        "tip": "Sahne tipi. Drone/yükseklik: 'dikey yükseklik cetveli ile drone'. GRAFİK: 'fonksiyon grafiği'",
-        "detay": "ÇOK DETAYLI sahne. ⚠️ SORUDA VERİLEN GERÇEK SAYILARI BİREBİR KULLAN! 500 metre diyorsa 500 yaz, 50 değil! ⚠️ HESAPLANMIŞ DEĞER YAZMA! ⚠️ Generic/placeholder değerler YASAK!",
-        "veriler": "SORUDA VERİLEN GERÇEK DEĞERLER! Örn: '500 metre yükseklik', '15 metre tolerans' → görselde TAM bu sayılar! Generic 0-50 gibi değerler YASAK!",
+        "tip": "Sahne tipi açıklaması",
+        "detay": "ÇOK DETAYLI sahne açıklaması. Matematiksel plana göre her objenin TAM konumunu belirt!",
+        "veriler": "Soruda verilen TÜM sayısal değerler",
         "renkler": "Her öğe için FARKLI renk",
-        "perspektif": "Yükseklik: 'dikey cetvel 480m-520m arası, drone 500m seviyesinde'. Grafik: 'düz koordinat düzlemi'"
+        "perspektif": "Kamera açısı ve görünüm"
+    }},
+    "matematiksel_plan": {{
+        "toplam_uzunluk": "Örn: 240 metre",
+        "obje_kurallari": [
+            "Bank: her 8 metrede bir",
+            "Kutu: her 12 metrede bir"
+        ],
+        "konum_listesi": [
+            "0m: Bank + Kutu (ortak nokta)",
+            "8m: Bank",
+            "12m: Kutu",
+            "16m: Bank",
+            "24m: Bank + Kutu (ortak nokta)",
+            "..."
+        ],
+        "gorsel_talimat": "Parkur boyunca yukarıdaki listeye TAMAMEN uygun şekilde objeler yerleştir. Her obje TAM konumunda olmalı!"
     }},
     "reason": "neden görsel gerekli/gereksiz"
 }}"""
@@ -778,7 +830,7 @@ SADECE JSON FORMATINDA CEVAP VER:
             logger.error(f"  ❌ Analiz hatası: {e}")
             return None
     
-    def generate_image(self, gorsel_info: Dict, title: str, model: ImageModel) -> Optional[bytes]:
+    def generate_image(self, gorsel_info: Dict, title: str, model: ImageModel, matematiksel_plan: Dict = None) -> Optional[bytes]:
         """Gemini Image ile gerçekçi 3D görsel üret"""
 
         tip = gorsel_info.get('tip', 'realistic 3D scene')
@@ -797,11 +849,28 @@ SADECE JSON FORMATINDA CEVAP VER:
         if perspektif:
             detay = f"{detay}\n\nPERSPEKTİF: {perspektif}"
 
+        # Matematiksel planı string'e dönüştür
+        mat_plan_str = ""
+        if matematiksel_plan:
+            mat_plan_str = f"""
+TOPLAM UZUNLUK: {matematiksel_plan.get('toplam_uzunluk', 'Belirtilmedi')}
+
+OBJE KURALLARI:
+{chr(10).join('- ' + k for k in matematiksel_plan.get('obje_kurallari', []))}
+
+TAM KONUM LİSTESİ (BU LİSTEYE %100 UY!):
+{chr(10).join('• ' + k for k in matematiksel_plan.get('konum_listesi', []))}
+
+GÖRSEL TALİMATI: {matematiksel_plan.get('gorsel_talimat', '')}
+"""
+            logger.info(f"  📐 Matematiksel plan mevcut: {len(matematiksel_plan.get('konum_listesi', []))} konum")
+
         # Tek prompt şablonu kullan
         prompt = REALISTIC_3D_PROMPT.format(
             tip=tip,
             detay=detay,
-            veriler=veriler
+            veriler=veriler,
+            matematiksel_plan=mat_plan_str if mat_plan_str else "Matematiksel plan belirtilmedi - genel kurallara uy."
         )
 
         logger.info(f"  🎨 Model: {model.value}")
@@ -1033,7 +1102,8 @@ class ScenarioImageBot:
         
         # 4. Görsel üret
         gorsel_betimleme = analysis.get('gorsel_betimleme', {})
-        image_bytes = self.gemini.generate_image(gorsel_betimleme, title, selected_model)
+        matematiksel_plan = analysis.get('matematiksel_plan', None)
+        image_bytes = self.gemini.generate_image(gorsel_betimleme, title, selected_model, matematiksel_plan)
         
         if not image_bytes:
             logger.error("❌ Görsel üretilemedi!")
