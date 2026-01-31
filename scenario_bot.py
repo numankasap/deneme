@@ -135,7 +135,7 @@ class Config:
     GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
     
     # Modeller
-    ANALYSIS_MODEL = 'gemini-2.5-flash'
+    ANALYSIS_MODEL = 'gemini-3-flash-preview'
     
     # Storage
     STORAGE_BUCKET = 'questions-images'
@@ -147,7 +147,7 @@ class Config:
     MAX_RETRIES = 3
     RETRY_DELAY = 5
     RATE_LIMIT_DELAY = 3
-    MIN_PNG_SIZE = 5000
+    MIN_PNG_SIZE = 10000
     MIN_QUALITY_SCORE = 6
 
 

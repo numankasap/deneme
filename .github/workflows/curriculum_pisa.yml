@@ -3,7 +3,7 @@ name: Curriculum Bot V6 - Görsel Destekli Soru Üretici
 on:
   schedule:
     # Her gün 06:00 ve 18:00 UTC'de çalışır (Türkiye: 09:00 ve 21:00)
-    - cron: '0 6,18 * * *'
+- cron: '0 6,18 * * *'
   workflow_dispatch:
     inputs:
       sinif_seviyesi:
@@ -54,6 +54,7 @@ jobs:
         with:
           python-version: '3.11'
           cache: 'pip'
+          cache-dependency-path: curriculum_requirements.txt
 
       - name: Install dependencies
         run: |

@@ -9,7 +9,7 @@ name: LGS matematik bot
 on:
   # Zamanlı çalışma - Her gün saat 03:00 UTC (06:00 TR)
   schedule:
-    - cron: '0 3 * * *'
+- cron: '0 3 * * *'
   
   # Manuel tetikleme
   workflow_dispatch:
@@ -92,6 +92,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
+          cache-dependency-path: lgs_matematik_bot_requirements.txt
 
       # 3. Bağımlılıkları yükle
       - name: 📦 Install Dependencies
